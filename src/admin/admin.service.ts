@@ -6,6 +6,7 @@ import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import { Category } from '../category/category.entity';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
@@ -21,11 +22,13 @@ export class AdminService {
     @InjectRepository(GuestMessage) private readonly guestMessageRepo: Repository<GuestMessage>,
     @InjectRepository(TemplateDesign)
     private readonly templateDesignRepo: Repository<TemplateDesign>,
+    @InjectRepository(Category) private readonly categoryRepo: Repository<Category>,
     @InjectRepository(Section) private readonly sectionRepo: Repository<Section>,
     @InjectRepository(Audio) private readonly audioRepo: Repository<Audio>,
     @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
   ) {}
 
+  // ... (Users, Invitations, Guests, Guest Messages code remains same) ...
   // Users
   async listUsers(page = 1, limit = 20, q?: string) {
     const where = q
@@ -163,16 +166,17 @@ export class AdminService {
 
   // Template Designs
   async listTemplateDesigns(page = 1, limit = 20, q?: string) {
-    const where = q
+    const where: any = q
       ? [
           { name: ILike(`%${q}%`) },
           { slug: ILike(`%${q}%`) },
-          { category: ILike(`%${q}%`) },
+          { category: { name: ILike(`%${q}%`) } },
         ]
       : undefined;
     const [data, total] = await this.templateDesignRepo.findAndCount({
       where,
       order: { id: 'DESC' },
+      relations: ['category'],
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -185,23 +189,42 @@ export class AdminService {
   }
 
   async getTemplateDesign(id: number) {
-    const template = await this.templateDesignRepo.findOne({ where: { id } });
+    const template = await this.templateDesignRepo.findOne({ where: { id }, relations: ['category'] });
     if (!template) throw new NotFoundException('Template design not found');
     return this.transformTemplateDesign(template);
   }
 
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
-    const data = this.normalizeTemplateDesignPayload(payload);
-    const template = this.templateDesignRepo.create(data);
+    const { category: categoryName, ...rest } = payload;
+    
+    const category = await this.categoryRepo.findOne({ where: { name: categoryName } });
+    if (!category) throw new BadRequestException(`Category '${categoryName}' not found`);
+
+    const data = this.normalizeTemplateDesignPayload(rest);
+    const template = this.templateDesignRepo.create({
+      ...data,
+      category,
+    });
     const saved = await this.templateDesignRepo.save(template);
     return this.transformTemplateDesign(saved);
   }
 
   async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
-    const template = await this.templateDesignRepo.findOne({ where: { id } });
+    const template = await this.templateDesignRepo.findOne({ where: { id }, relations: ['category'] });
     if (!template) throw new NotFoundException('Template design not found');
-    const data = this.normalizeTemplateDesignPayload(payload);
-    Object.assign(template, data);
+
+    const { category: categoryName, ...rest } = payload;
+    let categoryEntity = template.category;
+
+    if (categoryName) {
+        const found = await this.categoryRepo.findOne({ where: { name: categoryName } });
+        if (!found) throw new BadRequestException(`Category '${categoryName}' not found`);
+        categoryEntity = found;
+    }
+
+    const data = this.normalizeTemplateDesignPayload(rest);
+    Object.assign(template, { ...data, category: categoryEntity });
+    
     const saved = await this.templateDesignRepo.save(template);
     return this.transformTemplateDesign(saved);
   }
@@ -274,8 +297,8 @@ export class AdminService {
   private normalizeTemplateDesignPayload(
     payload: Partial<CreateTemplateDesignDto | UpdateTemplateDesignDto>,
   ): Partial<TemplateDesign> {
-    const data: Partial<TemplateDesign> & Record<string, any> = { ...payload };
-
+    const data: any = { ...payload };
+    delete data.category; // Handle category separately via relation
 
     if (data.paletteColor && typeof data.paletteColor !== 'string') {
       data.paletteColor = JSON.stringify(data.paletteColor);
@@ -301,6 +324,9 @@ export class AdminService {
     result.paletteColor = this.safeParse(template.paletteColor);
     result.tags = this.safeParse(template.tags);
     result.sectionOptions = this.safeParse(template.sectionOptions);
+    if (template.category && typeof template.category === 'object') {
+        result.category = template.category.name as any;
+    }
     return result;
   }
 

@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
 import { Invitation } from '../invitation/invitation.entity';
+import { Category } from '../category/category.entity';
 
 @Entity('template_designs')
 export class TemplateDesign {
@@ -21,8 +22,11 @@ export class TemplateDesign {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ type: 'varchar', length: 20 })
-  category: string;
+  @ManyToOne(() => Category, (category) => category.templates, { nullable: true, onDelete: 'SET NULL' })
+  category: Category;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  price: number;
 
   @Column({ type: 'text', nullable: true })
   paletteColor: string;

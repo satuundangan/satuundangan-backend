@@ -36,12 +36,13 @@ export class TemplateDesignService {
   async findAll(): Promise<TemplateDesign[]> {
     const templates = await this.templateRepo.find({
       order: { name: 'ASC' },
+      relations: ['category'],
     });
     return templates.map((t) => this.transformPalette(t));
   }
 
   async findById(id: number): Promise<TemplateDesign> {
-    const template = await this.templateRepo.findOne({ where: { id } });
+    const template = await this.templateRepo.findOne({ where: { id }, relations: ['category'] });
     if (!template) throw new NotFoundException('Template not found');
     return this.transformPalette(template);
   }
@@ -73,10 +74,11 @@ export class TemplateDesignService {
   }
 
   async findByCategory(category?: string): Promise<TemplateDesign[]> {
-    const templates =
-      !category || category === 'semua'
-        ? await this.templateRepo.find()
-        : await this.templateRepo.find({ where: { category } });
+    const where: any = {};
+    if (category && category !== 'semua') {
+      where.category = { name: category };
+    }
+    const templates = await this.templateRepo.find({ where, relations: ['category'] });
 
     return templates.map((t) => this.transformPalette(t));
   }
@@ -101,6 +103,9 @@ export class TemplateDesignService {
           throw new Error(`Error parsing tags: ${err}`);
         }
       }
+    }
+    if (template.category && typeof template.category === 'object') {
+        (template as any).category = template.category.name;
     }
     return template;
   }

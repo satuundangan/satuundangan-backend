@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsNumber } from 'class-validator';
 
 export class CreateTemplateDesignDto {
   @IsString()
@@ -21,6 +21,10 @@ export class CreateTemplateDesignDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsNumber()
+  @IsOptional() // Making it optional to avoid breaking existing clients immediately, or IsNotEmpty if required. Requirement implies it's a new field. I'll make it Optional but default 0 in entity.
+  price?: number;
 
   @IsOptional()
   paletteColor?: any;

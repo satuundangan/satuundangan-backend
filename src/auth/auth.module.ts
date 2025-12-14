@@ -10,6 +10,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
 
 import { User } from '../user/user.entity';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
@@ -25,8 +26,9 @@ import { User } from '../user/user.entity';
         signOptions: { expiresIn: '7d' },
       }),
     }),
+    UserModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, GoogleStrategy],
 })
-export class AuthModule {}
+export class AuthModule { }

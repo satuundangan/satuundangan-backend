@@ -13,19 +13,11 @@ export class PaymentController {
   async createSnap(
     @Body()
     body: {
-      orderId: string;
-      amount: number;
-      name: string;
-      email: string;
+      invitation_id: number;
     },
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return this.paymentService.createTransaction(
-      body.orderId,
-      body.amount,
-      body.name,
-      body.email,
-    );
+    return this.paymentService.createTransaction(body.invitation_id);
   }
 
   @Get('/success')

@@ -6,6 +6,9 @@ import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import { Section } from './entities/section.entity';
+import { Audio } from './entities/audio.entity';
+import { Bank } from './entities/bank.entity';
 import { CreateTemplateDesignDto, UpdateTemplateDesignDto } from './dto/template-design.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -18,6 +21,9 @@ export class AdminService {
     @InjectRepository(GuestMessage) private readonly guestMessageRepo: Repository<GuestMessage>,
     @InjectRepository(TemplateDesign)
     private readonly templateDesignRepo: Repository<TemplateDesign>,
+    @InjectRepository(Section) private readonly sectionRepo: Repository<Section>,
+    @InjectRepository(Audio) private readonly audioRepo: Repository<Audio>,
+    @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
   ) {}
 
   // Users
@@ -90,6 +96,12 @@ export class AdminService {
     const found = await this.invitationRepo.findOne({ where: { id }, relations: ['user'] });
     if (!found) throw new NotFoundException('Invitation not found');
     return found;
+  }
+
+  async updateInvitation(id: number, payload: Partial<Invitation>) {
+    const inv = await this.getInvitation(id);
+    Object.assign(inv, payload);
+    return this.invitationRepo.save(inv);
   }
 
   async deleteInvitation(id: number) {
@@ -198,6 +210,64 @@ export class AdminService {
     const template = await this.templateDesignRepo.findOne({ where: { id } });
     if (!template) throw new NotFoundException('Template design not found');
     await this.templateDesignRepo.remove(template);
+    return { success: true };
+  }
+
+  // Sections
+  async listSections() {
+    return this.sectionRepo.find();
+  }
+
+  async createSection(payload: Partial<Section>) {
+    const section = this.sectionRepo.create(payload);
+    return this.sectionRepo.save(section);
+  }
+
+  async updateSection(id: string, payload: Partial<Section>) {
+    const section = await this.sectionRepo.findOne({ where: { id } });
+    if (!section) throw new NotFoundException('Section not found');
+    Object.assign(section, payload);
+    return this.sectionRepo.save(section);
+  }
+
+  async deleteSection(id: string) {
+    const section = await this.sectionRepo.findOne({ where: { id } });
+    if (!section) throw new NotFoundException('Section not found');
+    await this.sectionRepo.remove(section);
+    return { success: true };
+  }
+
+  // Audio
+  async listAudio() {
+    return this.audioRepo.find();
+  }
+
+  async createAudio(payload: Partial<Audio>) {
+    const audio = this.audioRepo.create(payload);
+    return this.audioRepo.save(audio);
+  }
+
+  async deleteAudio(id: string) {
+    const audio = await this.audioRepo.findOne({ where: { id } });
+    if (!audio) throw new NotFoundException('Audio not found');
+    await this.audioRepo.remove(audio);
+    return { success: true };
+  }
+
+  // Banks
+  async listBanks() {
+    return this.bankRepo.find();
+  }
+
+  async createBank(payload: Partial<Bank>) {
+    const bank = this.bankRepo.create(payload);
+    return this.bankRepo.save(bank);
+  }
+
+  async deleteBank(id: string) {
+    const bank = await this.bankRepo.findOne({ where: { id } });
+    if (!bank) throw new NotFoundException('Bank not found');
+    await this.bankRepo.remove(bank);
     return { success: true };
   }
 

@@ -55,6 +55,11 @@ export class AdminController {
     return this.service.deleteInvitation(id);
   }
 
+  @Patch('invitations/:id')
+  updateInvitation(@Param('id') id: number, @Body() body: any) {
+    return this.service.updateInvitation(id, body);
+  }
+
   // Guests
   @Get('guests')
   listGuests(@Query() q: PaginationQueryDto) {
@@ -114,5 +119,58 @@ export class AdminController {
   @Delete('template-designs/:id')
   deleteTemplateDesign(@Param('id') id: number) {
     return this.service.deleteTemplateDesign(id);
+  }
+
+  // Sections
+  @Get('sections')
+  listSections() {
+    return this.service.listSections();
+  }
+
+  @Post('sections')
+  createSection(@Body() body: any) {
+    return this.service.createSection(body);
+  }
+
+  @Patch('sections/:id')
+  updateSection(@Param('id') id: string, @Body() body: any) {
+    return this.service.updateSection(id, body);
+  }
+
+  @Delete('sections/:id')
+  deleteSection(@Param('id') id: string) {
+    return this.service.deleteSection(id);
+  }
+
+  // Audio
+  @Get('audio')
+  listAudio() {
+    return this.service.listAudio();
+  }
+
+  @Post('audio')
+  createAudio(@Body() body: any) {
+    return this.service.createAudio(body);
+  }
+
+  @Delete('audio/:id')
+  deleteAudio(@Param('id') id: string) {
+    return this.service.deleteAudio(id);
+  }
+
+  // Banks
+  @Get('banks')
+  listBanks() {
+    return this.service.listBanks();
+  }
+
+  @Post('banks')
+  createBank(@Body() body: any) {
+    return this.service.createBank(body);
+  }
+
+  @Delete('banks/:id')
+  deleteBank(@Param('id') id: string) {
+    return this.service.deleteBank(id);
   }
 }

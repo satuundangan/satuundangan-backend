@@ -8,9 +8,12 @@ import { TemplateDesign } from '../template-design/template-design.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { AdminGuard } from '../auth/guards/admin.guard';
+import { Section } from './entities/section.entity';
+import { Audio } from './entities/audio.entity';
+import { Bank } from './entities/bank.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Invitation, Guest, GuestMessage, TemplateDesign])],
+  imports: [TypeOrmModule.forFeature([User, Invitation, Guest, GuestMessage, TemplateDesign, Section, Audio, Bank])],
   providers: [AdminService, AdminGuard],
   controllers: [AdminController],
 })

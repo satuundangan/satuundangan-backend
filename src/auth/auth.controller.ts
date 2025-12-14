@@ -17,6 +17,9 @@ import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { User } from '../user/user.entity';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { UserService } from '../user/user.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -25,9 +28,17 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly jwtService: JwtService,
     private configService: ConfigService,
+    private readonly userService: UserService,
   ) {}
 
   private readonly logger = new Logger(AuthController.name);
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get current user profile' })
+  async getProfile(@CurrentUser() user: User) {
+    return this.userService.findById(user.id);
+  }
 
   @Post('register')
   @ApiOperation({ summary: 'Register user baru' })

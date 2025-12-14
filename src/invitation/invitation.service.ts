@@ -11,6 +11,7 @@ import { UpdateInvitationDto } from './dto/update-invitation.dto';
 import { User } from '../user/user.entity';
 import slugify from 'slugify';
 import { Guest } from '../dashboard-user/guest/guest.entity';
+import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 
 @Injectable()
 export class InvitationService {
@@ -53,11 +54,25 @@ export class InvitationService {
     return this.invitationRepo.save(invitation);
   }
 
-  async findAllByUser(userId: number): Promise<Invitation[]> {
-    return this.invitationRepo.find({
+  async findAllByUser(userId: number, query: PaginationQueryDto) {
+    const { page = 1, limit = 10 } = query;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.invitationRepo.findAndCount({
       where: { user: { id: userId } },
       order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+      relations: ['templateDesign'],
     });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      last_page: Math.ceil(total / limit),
+    };
   }
 
   async findOneById(id: number): Promise<Invitation> {
@@ -81,17 +96,48 @@ export class InvitationService {
     await this.invitationRepo.remove(invitation);
   }
 
-  async findBySlug(slug: string): Promise<Invitation> {
+  async findBySlug(slug: string): Promise<any> {
     const invitation = await this.invitationRepo.findOne({
       where: { slug },
-      relations: ['user'], // jika kamu ingin tampilkan info pembuat undangan
+      relations: ['user', 'templateDesign'],
     });
 
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
     }
 
-    return invitation;
+    return {
+      id: invitation.id,
+      title: invitation.title,
+      slug: invitation.slug,
+      template_slug: invitation.templateDesign?.slug || null,
+      content: {
+        coupleName: invitation.coupleName,
+        groomName: invitation.groomName,
+        brideName: invitation.brideName,
+        quoteSource: invitation.quoteSource,
+        quoteText: invitation.quoteText,
+        loveStory: invitation.loveStory,
+        musicChoice: invitation.musicChoice,
+        isCustomMusic: invitation.isCustomMusic,
+        bridePhotoUrl: invitation.bridePhotoUrl,
+        akadLocation: invitation.akadLocation,
+        resepsiLocation: invitation.resepsiLocation,
+        mergeEvents: invitation.mergeEvents,
+        floorPlanImageUrl: invitation.floorPlanImageUrl,
+        menu: invitation.menu,
+        galleryImages: invitation.galleryImages,
+        giftDeliveryAddress: invitation.giftDeliveryAddress,
+        eWalletLink: invitation.eWalletLink,
+        socialMedia: invitation.socialMedia,
+        parents: invitation.parents,
+        liveStreamingLink: invitation.liveStreamingLink,
+        enableGuestMessage: invitation.enableGuestMessage,
+        selectedSections: invitation.selectedSections,
+      },
+      is_premium: false,
+      is_active: invitation.isPublished,
+    };
   }
 
   async findWithGuest(invitationSlug: string, guestSlug: string) {

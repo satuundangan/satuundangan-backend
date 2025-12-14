@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Snap } from 'midtrans-client';
 import { ConfigService } from '@nestjs/config';
 import { DeepPartial, Repository } from 'typeorm';
@@ -9,6 +9,7 @@ import {
   MidtransNotificationPayload,
   PaymentStatus,
 } from './types/payment.type';
+import { Invitation } from '../invitation/invitation.entity';
 
 @Injectable()
 export class PaymentService {
@@ -18,6 +19,8 @@ export class PaymentService {
     private configService: ConfigService,
     @InjectRepository(Payment)
     private paymentRepo: Repository<Payment>,
+    @InjectRepository(Invitation)
+    private readonly invitationRepo: Repository<Invitation>,
   ) {
     this.snap = new Snap({
       isProduction: false,
@@ -26,24 +29,43 @@ export class PaymentService {
     });
   }
 
-  async createTransaction(
-    orderId: string,
-    grossAmount: number,
-    name: string,
-    email: string,
-  ) {
+  async createTransaction(invitationId: number) {
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: invitationId },
+      relations: ['user'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    // Hardcode price for now as per requirement "Logic: Backend should calculate the price"
+    // In a real app, this might come from a pricing table or strategy pattern
+    const grossAmount = 49000;
+    
+    // Generate unique order ID
+    const orderId = `INV-${invitation.id}-${Date.now()}`;
+
     const parameter = {
       transaction_details: {
         order_id: orderId,
         gross_amount: grossAmount,
       },
       customer_details: {
-        first_name: name,
-        email: email,
+        first_name: invitation.user?.name || 'Customer',
+        email: invitation.user?.email || 'customer@example.com',
       },
       credit_card: {
         secure: true,
       },
+      item_details: [
+        {
+          id: `INV-${invitation.id}`,
+          price: grossAmount,
+          quantity: 1,
+          name: `Undangan Digital: ${invitation.title}`,
+        },
+      ],
     };
 
     const transaction = await this.snap.createTransaction(parameter);
@@ -51,19 +73,20 @@ export class PaymentService {
     const payment = this.paymentRepo.create({
       orderId,
       amount: grossAmount,
-      name,
-      email,
+      name: invitation.user?.name || 'Customer',
+      email: invitation.user?.email || 'customer@example.com',
       paymentMethod: 'midtrans',
       status: PaymentStatus.PENDING,
       paymentType: null,
       fraudStatus: null,
     } as DeepPartial<Payment>);
+    
     await this.paymentRepo.save(payment);
 
     return {
       token: transaction.token,
       redirect_url: transaction.redirect_url,
-      orderId,
+      order_id: orderId,
     };
   }
 

@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { InvitationService } from './invitation.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
@@ -15,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 
 @Controller('invitation')
 export class InvitationController {
@@ -31,8 +33,8 @@ export class InvitationController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(@CurrentUser() user: User) {
-    return this.invitationService.findAllByUser(user.id);
+  findAll(@CurrentUser() user: User, @Query() query: PaginationQueryDto) {
+    return this.invitationService.findAllByUser(user.id, query);
   }
 
   @Get(':id')

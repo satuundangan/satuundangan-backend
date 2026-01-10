@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { User } from '../user/user.entity';
@@ -10,20 +14,27 @@ import { Category } from '../category/category.entity';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
-import { CreateTemplateDesignDto, UpdateTemplateDesignDto } from './dto/template-design.dto';
+import {
+  CreateTemplateDesignDto,
+  UpdateTemplateDesignDto,
+} from './dto/template-design.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
-    @InjectRepository(Invitation) private readonly invitationRepo: Repository<Invitation>,
+    @InjectRepository(Invitation)
+    private readonly invitationRepo: Repository<Invitation>,
     @InjectRepository(Guest) private readonly guestRepo: Repository<Guest>,
-    @InjectRepository(GuestMessage) private readonly guestMessageRepo: Repository<GuestMessage>,
+    @InjectRepository(GuestMessage)
+    private readonly guestMessageRepo: Repository<GuestMessage>,
     @InjectRepository(TemplateDesign)
     private readonly templateDesignRepo: Repository<TemplateDesign>,
-    @InjectRepository(Category) private readonly categoryRepo: Repository<Category>,
-    @InjectRepository(Section) private readonly sectionRepo: Repository<Section>,
+    @InjectRepository(Category)
+    private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(Section)
+    private readonly sectionRepo: Repository<Section>,
     @InjectRepository(Audio) private readonly audioRepo: Repository<Audio>,
     @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
   ) {}
@@ -51,7 +62,9 @@ export class AdminService {
 
   async createUser(payload: Partial<User> & { password?: string }) {
     if (payload.email) {
-      const existing = await this.userRepo.findOne({ where: { email: payload.email } });
+      const existing = await this.userRepo.findOne({
+        where: { email: payload.email },
+      });
       if (existing) throw new BadRequestException('Email already exists');
     }
     const user = this.userRepo.create(payload);
@@ -65,7 +78,9 @@ export class AdminService {
   async updateUser(id: number, payload: Partial<User> & { password?: string }) {
     const user = await this.getUser(id);
     if (payload.email && payload.email !== user.email) {
-      const exists = await this.userRepo.findOne({ where: { email: payload.email } });
+      const exists = await this.userRepo.findOne({
+        where: { email: payload.email },
+      });
       if (exists) throw new BadRequestException('Email already exists');
     }
     if (payload.password) {
@@ -84,7 +99,13 @@ export class AdminService {
 
   // Invitations
   async listInvitations(page = 1, limit = 20, q?: string) {
-    const where = q ? [{ title: ILike(`%${q}%`) }, { coupleName: ILike(`%${q}%`) }, { slug: ILike(`%${q}%`) }] : undefined;
+    const where = q
+      ? [
+          { title: ILike(`%${q}%`) },
+          { coupleName: ILike(`%${q}%`) },
+          { slug: ILike(`%${q}%`) },
+        ]
+      : undefined;
     const [data, total] = await this.invitationRepo.findAndCount({
       where,
       order: { id: 'DESC' },
@@ -96,7 +117,10 @@ export class AdminService {
   }
 
   async getInvitation(id: number) {
-    const found = await this.invitationRepo.findOne({ where: { id }, relations: ['user'] });
+    const found = await this.invitationRepo.findOne({
+      where: { id },
+      relations: ['user'],
+    });
     if (!found) throw new NotFoundException('Invitation not found');
     return found;
   }
@@ -115,7 +139,13 @@ export class AdminService {
 
   // Guests
   async listGuests(page = 1, limit = 20, q?: string) {
-    const where = q ? [{ name: ILike(`%${q}%`) }, { phoneNumber: ILike(`%${q}%`) }, { slug: ILike(`%${q}%`) }] : undefined;
+    const where = q
+      ? [
+          { name: ILike(`%${q}%`) },
+          { phoneNumber: ILike(`%${q}%`) },
+          { slug: ILike(`%${q}%`) },
+        ]
+      : undefined;
     const [data, total] = await this.guestRepo.findAndCount({
       where,
       relations: ['invitation'],
@@ -127,7 +157,10 @@ export class AdminService {
   }
 
   async getGuest(id: number) {
-    const found = await this.guestRepo.findOne({ where: { id }, relations: ['invitation'] });
+    const found = await this.guestRepo.findOne({
+      where: { id },
+      relations: ['invitation'],
+    });
     if (!found) throw new NotFoundException('Guest not found');
     return found;
   }
@@ -146,7 +179,9 @@ export class AdminService {
 
   // Guest Messages
   async listGuestMessages(page = 1, limit = 20, q?: string) {
-    const where = q ? [{ guestName: ILike(`%${q}%`) }, { message: ILike(`%${q}%`) }] : undefined;
+    const where = q
+      ? [{ guestName: ILike(`%${q}%`) }, { message: ILike(`%${q}%`) }]
+      : undefined;
     const [data, total] = await this.guestMessageRepo.findAndCount({
       where,
       relations: ['invitation', 'guest'],
@@ -189,16 +224,22 @@ export class AdminService {
   }
 
   async getTemplateDesign(id: number) {
-    const template = await this.templateDesignRepo.findOne({ where: { id }, relations: ['category'] });
+    const template = await this.templateDesignRepo.findOne({
+      where: { id },
+      relations: ['category'],
+    });
     if (!template) throw new NotFoundException('Template design not found');
     return this.transformTemplateDesign(template);
   }
 
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
     const { category: categoryName, ...rest } = payload;
-    
-    const category = await this.categoryRepo.findOne({ where: { name: categoryName } });
-    if (!category) throw new BadRequestException(`Category '${categoryName}' not found`);
+
+    const category = await this.categoryRepo.findOne({
+      where: { name: categoryName },
+    });
+    if (!category)
+      throw new BadRequestException(`Category '${categoryName}' not found`);
 
     const data = this.normalizeTemplateDesignPayload(rest);
     const template = this.templateDesignRepo.create({
@@ -210,21 +251,27 @@ export class AdminService {
   }
 
   async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
-    const template = await this.templateDesignRepo.findOne({ where: { id }, relations: ['category'] });
+    const template = await this.templateDesignRepo.findOne({
+      where: { id },
+      relations: ['category'],
+    });
     if (!template) throw new NotFoundException('Template design not found');
 
     const { category: categoryName, ...rest } = payload;
     let categoryEntity = template.category;
 
     if (categoryName) {
-        const found = await this.categoryRepo.findOne({ where: { name: categoryName } });
-        if (!found) throw new BadRequestException(`Category '${categoryName}' not found`);
-        categoryEntity = found;
+      const found = await this.categoryRepo.findOne({
+        where: { name: categoryName },
+      });
+      if (!found)
+        throw new BadRequestException(`Category '${categoryName}' not found`);
+      categoryEntity = found;
     }
 
     const data = this.normalizeTemplateDesignPayload(rest);
     Object.assign(template, { ...data, category: categoryEntity });
-    
+
     const saved = await this.templateDesignRepo.save(template);
     return this.transformTemplateDesign(saved);
   }
@@ -325,7 +372,7 @@ export class AdminService {
     result.tags = this.safeParse(template.tags);
     result.sectionOptions = this.safeParse(template.sectionOptions);
     if (template.category && typeof template.category === 'object') {
-        result.category = template.category.name as any;
+      result.category = template.category.name as any;
     }
     return result;
   }

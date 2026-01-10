@@ -215,4 +215,11 @@ export class CreateInvitationDto {
   @ApiProperty({ example: 1 })
   @IsNumber()
   templateDesignId: number;
+
+  @ApiPropertyOptional({
+    example: 'Halo [GuestName], berikut link undangan kami: [Link]',
+  })
+  @IsOptional()
+  @IsString()
+  whatsappMessageTemplate?: string;
 }

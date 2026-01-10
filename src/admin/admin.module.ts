@@ -14,7 +14,19 @@ import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Invitation, Guest, GuestMessage, TemplateDesign, Category, Section, Audio, Bank])],
+  imports: [
+    TypeOrmModule.forFeature([
+      User,
+      Invitation,
+      Guest,
+      GuestMessage,
+      TemplateDesign,
+      Category,
+      Section,
+      Audio,
+      Bank,
+    ]),
+  ],
   providers: [AdminService, AdminGuard],
   controllers: [AdminController],
 })

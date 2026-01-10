@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Category } from './category.entity';
@@ -22,8 +26,11 @@ export class CategoryService {
   }
 
   async create(dto: CreateCategoryDto) {
-    const existing = await this.categoryRepo.findOne({ where: { name: dto.name } });
-    if (existing) throw new BadRequestException('Category with this name already exists');
+    const existing = await this.categoryRepo.findOne({
+      where: { name: dto.name },
+    });
+    if (existing)
+      throw new BadRequestException('Category with this name already exists');
     const category = this.categoryRepo.create(dto);
     return this.categoryRepo.save(category);
   }
@@ -31,8 +38,11 @@ export class CategoryService {
   async update(id: string, dto: UpdateCategoryDto) {
     const category = await this.findOne(id);
     if (dto.name && dto.name !== category.name) {
-        const existing = await this.categoryRepo.findOne({ where: { name: dto.name } });
-        if (existing) throw new BadRequestException('Category with this name already exists');
+      const existing = await this.categoryRepo.findOne({
+        where: { name: dto.name },
+      });
+      if (existing)
+        throw new BadRequestException('Category with this name already exists');
     }
     Object.assign(category, dto);
     return this.categoryRepo.save(category);
@@ -44,6 +54,6 @@ export class CategoryService {
   }
 
   async findByName(name: string) {
-      return this.categoryRepo.findOne({ where: { name } });
+    return this.categoryRepo.findOne({ where: { name } });
   }
 }

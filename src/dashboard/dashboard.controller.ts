@@ -16,4 +16,10 @@ export class DashboardController {
   getStats(@CurrentUser() user: User) {
     return this.dashboardService.getStats(user.id);
   }
+
+  @Get('activity')
+  @ApiOperation({ summary: 'Get recent activity logs' })
+  getActivity(@CurrentUser() user: User) {
+    return this.dashboardService.getActivity(user.id);
+  }
 }

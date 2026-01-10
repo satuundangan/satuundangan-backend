@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  ManyToOne,
+} from 'typeorm';
 import { Invitation } from '../invitation/invitation.entity';
 import { Category } from '../category/category.entity';
 
@@ -15,14 +21,20 @@ export class TemplateDesign {
 
   @Column()
   previewUrl: string;
-  
+
   @Column()
   thumbnailUrl: string;
 
   @Column({ default: true })
   isActive: boolean;
 
-  @ManyToOne(() => Category, (category) => category.templates, { nullable: true, onDelete: 'SET NULL' })
+  @Column({ default: false })
+  isPremium: boolean;
+
+  @ManyToOne(() => Category, (category) => category.templates, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   category: Category;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })

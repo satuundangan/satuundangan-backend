@@ -1,4 +1,10 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class CreateAdminUserDto {
   @IsString()
@@ -43,4 +49,3 @@ export class UpdateAdminUserDto {
   @IsBoolean()
   isAdmin?: boolean;
 }
-

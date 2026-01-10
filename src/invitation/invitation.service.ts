@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +13,11 @@ import { User } from '../user/user.entity';
 import slugify from 'slugify';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
+import {
+  ActivityAction,
+  InvitationActivity,
+} from '../dashboard/invitation-activity.entity';
+import { TemplateDesign } from '../template-design/template-design.entity';
 
 @Injectable()
 export class InvitationService {
@@ -20,9 +26,26 @@ export class InvitationService {
     private readonly invitationRepo: Repository<Invitation>,
     @InjectRepository(Guest)
     private readonly guestRepo: Repository<Guest>,
+    @InjectRepository(InvitationActivity)
+    private readonly activityRepo: Repository<InvitationActivity>,
+    @InjectRepository(TemplateDesign)
+    private readonly templateRepo: Repository<TemplateDesign>,
   ) {}
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
+    // 1. Premium Validation
+    if (dto.isCustomMusic) {
+      const template = await this.templateRepo.findOne({
+        where: { id: dto.templateDesignId },
+      });
+      if (!template) throw new NotFoundException('Template design not found');
+      if (!template.isPremium) {
+        throw new ForbiddenException(
+          'Custom music is only available for Premium templates.',
+        );
+      }
+    }
+
     const invitation = this.invitationRepo.create({ ...dto, user });
     // Slug generation
     if (!dto.slug) {
@@ -78,7 +101,7 @@ export class InvitationService {
   async findOneById(id: number): Promise<Invitation> {
     const invitation = await this.invitationRepo.findOne({
       where: { id },
-      relations: ['user'],
+      relations: ['user', 'templateDesign'],
     });
 
     if (!invitation) throw new NotFoundException('Invitation not found');
@@ -87,6 +110,23 @@ export class InvitationService {
 
   async update(id: number, dto: UpdateInvitationDto): Promise<Invitation> {
     const invitation = await this.findOneById(id);
+
+    // 2. Premium Validation for Update
+    if (dto.isCustomMusic === true) {
+      // If user is enabling custom music, check current template or new template
+      const templateId = dto.templateDesignId || invitation.templateDesignId;
+      if (templateId) {
+        const template = await this.templateRepo.findOne({
+          where: { id: templateId },
+        });
+        if (template && !template.isPremium) {
+          throw new ForbiddenException(
+            'Custom music is only available for Premium templates.',
+          );
+        }
+      }
+    }
+
     Object.assign(invitation, dto);
     return this.invitationRepo.save(invitation);
   }
@@ -106,6 +146,9 @@ export class InvitationService {
       throw new NotFoundException('Invitation not found');
     }
 
+    // 3. Async Increment Views & Log Activity (Anonymous)
+    void this.logActivity(invitation, null, ActivityAction.VIEW);
+
     return {
       id: invitation.id,
       title: invitation.title,
@@ -117,7 +160,7 @@ export class InvitationService {
         brideName: invitation.brideName,
         quoteSource: invitation.quoteSource,
         quoteText: invitation.quoteText,
-        loveStory: invitation.loveStory,
+        loveStory: invitation.loveStory as unknown,
         musicChoice: invitation.musicChoice,
         isCustomMusic: invitation.isCustomMusic,
         bridePhotoUrl: invitation.bridePhotoUrl,
@@ -134,8 +177,9 @@ export class InvitationService {
         liveStreamingLink: invitation.liveStreamingLink,
         enableGuestMessage: invitation.enableGuestMessage,
         selectedSections: invitation.selectedSections,
+        whatsappMessageTemplate: invitation.whatsappMessageTemplate, // Include new field
       },
-      is_premium: false,
+      is_premium: invitation.templateDesign?.isPremium || false,
       is_active: invitation.isPublished,
     };
   }
@@ -143,7 +187,7 @@ export class InvitationService {
   async findWithGuest(invitationSlug: string, guestSlug: string) {
     const invitation = await this.invitationRepo.findOne({
       where: { slug: invitationSlug },
-      relations: ['guests'],
+      relations: ['guests', 'templateDesign'], // Added templateDesign to relations just in case
     });
 
     if (!invitation) throw new NotFoundException('Invitation not found');
@@ -159,6 +203,34 @@ export class InvitationService {
     }
     await this.guestRepo.save(guest);
 
+    // 4. Async Increment Views & Log Activity (Named Guest)
+    void this.logActivity(invitation, guest.name, ActivityAction.VIEW);
+
     return { invitation, guest, tracked: { updatedFirstVisit: needsUpdate } };
+  }
+
+  // Helper for Logging
+  private async logActivity(
+    invitation: Invitation,
+    guestName: string | null,
+    action: ActivityAction,
+  ) {
+    try {
+      // Increment Views
+      if (action === ActivityAction.VIEW) {
+        await this.invitationRepo.increment({ id: invitation.id }, 'views', 1);
+      }
+
+      // Save Log
+      const activity = this.activityRepo.create({
+        invitation,
+        guestName: guestName || null,
+        action,
+      });
+      await this.activityRepo.save(activity);
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+      // Fail silently to not block the response
+    }
   }
 }

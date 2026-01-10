@@ -18,4 +18,3 @@ export class PaginationQueryDto {
   @IsString()
   q?: string;
 }
-

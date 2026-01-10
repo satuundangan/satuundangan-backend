@@ -1,10 +1,23 @@
-import { Controller, Get, Query, UseGuards, Param, Post, Body, Patch, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  Param,
+  Post,
+  Body,
+  Patch,
+  Delete,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { CreateAdminUserDto, UpdateAdminUserDto } from './dto/admin-user.dto';
-import { CreateTemplateDesignDto, UpdateTemplateDesignDto } from './dto/template-design.dto';
+import {
+  CreateTemplateDesignDto,
+  UpdateTemplateDesignDto,
+} from './dto/template-design.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -112,7 +125,10 @@ export class AdminController {
   }
 
   @Patch('template-designs/:id')
-  updateTemplateDesign(@Param('id') id: number, @Body() dto: UpdateTemplateDesignDto) {
+  updateTemplateDesign(
+    @Param('id') id: number,
+    @Body() dto: UpdateTemplateDesignDto,
+  ) {
     return this.service.updateTemplateDesign(id, dto);
   }
 

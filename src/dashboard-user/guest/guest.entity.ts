@@ -41,6 +41,9 @@ export class Guest {
   @Column({ name: 'visit_count', type: 'int', default: 0 })
   visitCount: number;
 
+  @Column({ name: 'checked_in_at', type: 'datetime', nullable: true })
+  checkedInAt: Date | null;
+
   @ManyToOne(() => Invitation, (invitation) => invitation.guests, {
     onDelete: 'CASCADE',
   })

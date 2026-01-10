@@ -42,7 +42,7 @@ export class PaymentService {
     // Hardcode price for now as per requirement "Logic: Backend should calculate the price"
     // In a real app, this might come from a pricing table or strategy pattern
     const grossAmount = 49000;
-    
+
     // Generate unique order ID
     const orderId = `INV-${invitation.id}-${Date.now()}`;
 
@@ -80,7 +80,7 @@ export class PaymentService {
       paymentType: null,
       fraudStatus: null,
     } as DeepPartial<Payment>);
-    
+
     await this.paymentRepo.save(payment);
 
     return {

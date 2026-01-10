@@ -7,10 +7,7 @@ import { Payment } from './payment.entity';
 import { Invitation } from '../invitation/invitation.entity';
 
 @Module({
-  imports: [
-    ConfigModule,
-    TypeOrmModule.forFeature([Payment, Invitation])
-  ],
+  imports: [ConfigModule, TypeOrmModule.forFeature([Payment, Invitation])],
   providers: [PaymentService],
   controllers: [PaymentController],
 })

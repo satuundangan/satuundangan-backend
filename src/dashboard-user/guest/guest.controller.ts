@@ -8,6 +8,7 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { GuestService } from './guest.service';
 import { CreateGuestDto } from './dto/create-guest.dto';
@@ -15,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @Controller('guests')
 export class GuestController {
@@ -80,5 +82,11 @@ export class GuestController {
   @Get(':id/share')
   async share(@Param('id') id: number) {
     return this.guestService.buildWhatsAppLink(id);
+  }
+
+  @Post(':id/check-in')
+  @UseGuards(JwtAuthGuard)
+  checkIn(@Param('id') id: number) {
+    return this.guestService.checkIn(id);
   }
 }

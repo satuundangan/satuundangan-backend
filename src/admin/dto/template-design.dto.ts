@@ -1,5 +1,11 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, IsNumber } from 'class-validator';
+import {
+  IsBoolean,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsNumber,
+} from 'class-validator';
 
 export class CreateTemplateDesignDto {
   @IsString()
@@ -40,5 +46,6 @@ export class CreateTemplateDesignDto {
   sectionOptions?: any;
 }
 
-export class UpdateTemplateDesignDto extends PartialType(CreateTemplateDesignDto) {}
-
+export class UpdateTemplateDesignDto extends PartialType(
+  CreateTemplateDesignDto,
+) {}

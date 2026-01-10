@@ -42,7 +42,10 @@ export class TemplateDesignService {
   }
 
   async findById(id: number): Promise<TemplateDesign> {
-    const template = await this.templateRepo.findOne({ where: { id }, relations: ['category'] });
+    const template = await this.templateRepo.findOne({
+      where: { id },
+      relations: ['category'],
+    });
     if (!template) throw new NotFoundException('Template not found');
     return this.transformPalette(template);
   }
@@ -78,7 +81,10 @@ export class TemplateDesignService {
     if (category && category !== 'semua') {
       where.category = { name: category };
     }
-    const templates = await this.templateRepo.find({ where, relations: ['category'] });
+    const templates = await this.templateRepo.find({
+      where,
+      relations: ['category'],
+    });
 
     return templates.map((t) => this.transformPalette(t));
   }
@@ -105,7 +111,7 @@ export class TemplateDesignService {
       }
     }
     if (template.category && typeof template.category === 'object') {
-        (template as any).category = template.category.name;
+      (template as any).category = template.category.name;
     }
     return template;
   }

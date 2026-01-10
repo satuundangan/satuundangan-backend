@@ -16,7 +16,6 @@ export class PaymentController {
       invitation_id: number;
     },
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return this.paymentService.createTransaction(body.invitation_id);
   }
 
@@ -40,7 +39,6 @@ export class PaymentController {
 
   @Post('notification')
   async handleNotification(@Req() req: Request) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const result = await this.paymentService.handleMidtransNotification(
       req.body,
     );

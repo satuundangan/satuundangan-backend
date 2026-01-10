@@ -12,6 +12,7 @@ import { User } from '../user/user.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { Guest } from 'src/dashboard-user/guest/guest.entity';
+import { InvitationActivity } from '../dashboard/invitation-activity.entity';
 
 @Entity()
 export class Invitation {
@@ -115,6 +116,13 @@ export class Invitation {
   @Column({ default: true })
   enableGuestMessage: boolean;
 
+  // New Fields
+  @Column({ default: 0 })
+  views: number;
+
+  @Column({ type: 'text', nullable: true })
+  whatsappMessageTemplate: string;
+
   // Relasi user & template
   @ManyToOne(() => User, (user) => user.invitations, { onDelete: 'CASCADE' })
   user: User;
@@ -136,6 +144,9 @@ export class Invitation {
 
   @OneToMany(() => Guest, (guest) => guest.invitation)
   guests: Guest[];
+
+  @OneToMany(() => InvitationActivity, (activity) => activity.invitation)
+  activities: InvitationActivity[];
 
   @CreateDateColumn()
   createdAt: Date;

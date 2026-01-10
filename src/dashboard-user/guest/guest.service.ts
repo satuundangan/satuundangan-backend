@@ -73,26 +73,20 @@ export class GuestService {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call
     const workbook = xlsx.read(buffer, { type: 'buffer' });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     if (workbook.SheetNames.length === 0) {
       throw new Error('No sheets found in the Excel workbook.');
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access
+
     const sheetName: string = workbook.SheetNames[0];
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) {
       throw new Error(`Sheet '${sheetName}' not found in the workbook.`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call
-    const rows: Record<string, unknown>[] = xlsx.utils.sheet_to_json(
-      sheet,
-    ) as Record<string, unknown>[];
+    const rows: Record<string, unknown>[] = xlsx.utils.sheet_to_json(sheet);
 
     const guestsToSave: Guest[] = [];
 
@@ -143,16 +137,14 @@ export class GuestService {
     name: string,
     invitationId: number,
   ): Promise<string> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const baseSlug = slugify(name.toLowerCase());
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     let slug = baseSlug;
     let counter = 1;
 
     while (
       await this.guestRepo.findOne({
         where: {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           slug,
           invitation: { id: invitationId },
         },
@@ -161,7 +153,6 @@ export class GuestService {
       slug = `${baseSlug}-${counter++}`;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return slug;
   }
 
@@ -186,19 +177,58 @@ export class GuestService {
   async buildWhatsAppLink(
     guestId: number,
   ): Promise<{ url: string; waLink: string; message: string }> {
-    const { url } = await this.buildInviteUrlForGuest(guestId);
-    const guest = await this.guestRepo.findOne({ where: { id: guestId } });
+    const guest = await this.guestRepo.findOne({
+      where: { id: guestId },
+      relations: ['invitation'],
+    });
+
     if (!guest) throw new NotFoundException('Guest not found');
-    const name = guest.name?.split(' ')[0] || 'Teman';
-    const message = `Hai ${name}! Ini undangan pernikahan kami 🎉\nKlik untuk lihat: ${url}`;
+    if (!guest.invitation) throw new NotFoundException('Invitation not found');
+
+    const base = process.env.FRONTEND_URL || 'https://satuundangan.id';
+    let url = `${base.replace(/\/$/, '')}/inv/${guest.invitation.slug}/${guest.slug}`;
+
+    if (guest.invitation.encryptedGuestName) {
+      const encoded = Buffer.from(guest.name, 'utf-8').toString('base64');
+      url += `?e=${encodeURIComponent(encoded)}`;
+    }
+
+    let message = '';
+    const template = guest.invitation.whatsappMessageTemplate;
+
+    if (template) {
+      message = template
+        .replace(/\[GuestName\]/g, guest.name)
+        .replace(/\[Link\]/g, url);
+    } else {
+      const name = guest.name?.split(' ')[0] || 'Teman';
+      message = `Hai ${name}! Ini undangan pernikahan kami 🎉\nKlik untuk lihat: ${url}`;
+    }
+
     const phone = (guest.phoneNumber || '').replace(/[^0-9]/g, '');
     const waNumber = phone.startsWith('0')
       ? `62${phone.slice(1)}`
       : phone.startsWith('62')
         ? phone
         : phone;
+
     const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
+
     return { url, waLink, message };
+  }
+
+  async checkIn(id: number) {
+    const guest = await this.guestRepo.findOne({ where: { id } });
+    if (!guest) throw new NotFoundException('Guest not found');
+
+    guest.checkedInAt = new Date();
+    await this.guestRepo.save(guest);
+
+    return {
+      success: true,
+      message: `Tamu ${guest.name} berhasil Check-in`,
+      check_in_time: guest.checkedInAt,
+    };
   }
 
   async findAllByInvitationWithMessages(invitationId: number): Promise<
@@ -210,6 +240,7 @@ export class GuestService {
       rsvpStatus: string;
       firstVisitAt: Date | null;
       lastMessage?: string | null;
+      checkedInAt?: Date | null;
     }[]
   > {
     const guests = await this.guestRepo.find({
@@ -225,6 +256,7 @@ export class GuestService {
       slug: g.slug,
       rsvpStatus: g.rsvpStatus,
       firstVisitAt: g.firstVisitAt ?? null,
+      checkedInAt: g.checkedInAt ?? null,
       lastMessage:
         g.messages && g.messages.length > 0
           ? g.messages.sort(

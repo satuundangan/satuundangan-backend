@@ -7,16 +7,20 @@ import {
   Patch,
   Delete,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { TemplateDesignService } from './template-design.service';
 import { TemplateDesign } from './template-design.entity';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Controller('template-design')
 export class TemplateDesignController {
   constructor(private readonly templateService: TemplateDesignService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiTags('Template Design')
   @ApiOperation({ summary: 'Create a new template design' })
   @ApiBody({
@@ -30,24 +34,22 @@ export class TemplateDesignController {
   @Get()
   @ApiTags('Template Design')
   @ApiOperation({ summary: 'Find all template designs' })
-  findTemplates(@Query('category') category?: string) {
+  findAll(@Query('category') category?: string) {
     if (category) {
       return this.templateService.findByCategory(category);
     }
     return this.templateService.findAll();
   }
 
-  @Get()
-  findByCategory(@Query('category') category?: string) {
-    return this.templateService.findByCategory(category);
-  }
-
   @Get(':id')
+  @ApiTags('Template Design')
+  @ApiOperation({ summary: 'Get template design by ID' })
   findById(@Param('id') id: string) {
     return this.templateService.findById(+id);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiTags('Template Design')
   @ApiOperation({ summary: 'Update a template design' })
   @ApiBody({
@@ -59,24 +61,10 @@ export class TemplateDesignController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiTags('Template Design')
   @ApiOperation({ summary: 'Delete a template design' })
   remove(@Param('id') id: string) {
     return this.templateService.remove(+id);
   }
-
-  @Get()
-  @ApiTags('Template Design')
-  @ApiOperation({ summary: 'Get all template designs' })
-  findAll(): Promise<TemplateDesign[]> {
-    return this.templateService.findAll();
-  }
-
-  // @Get()
-  // getTemplates(@Query('category') category?: string) {
-  //   if (category) {
-  //     return this.templateService.find({ where: { category } });
-  //   }
-  //   return this.templateService.find();
-  // }
 }

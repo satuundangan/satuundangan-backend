@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Guest } from './guest.entity';
 import { Invitation } from 'src/invitation/invitation.entity';
 import { CreateGuestDto } from './dto/create-guest.dto';
+import { UpdateGuestDto } from './dto/update-guest.dto';
 import * as xlsx from 'xlsx';
 import * as fs from 'fs';
 import { slugify } from 'transliteration';
@@ -52,6 +53,17 @@ export class GuestService {
       where: { invitation: { id: invitationId } },
       order: { id: 'ASC' },
     });
+  }
+
+  async update(id: number, dto: UpdateGuestDto): Promise<Guest> {
+    const guest = await this.guestRepo.findOne({ where: { id } });
+    if (!guest) {
+      throw new NotFoundException(`Guest with ID ${id} not found.`);
+    }
+
+    Object.assign(guest, dto);
+
+    return this.guestRepo.save(guest);
   }
 
   async remove(id: number): Promise<void> {

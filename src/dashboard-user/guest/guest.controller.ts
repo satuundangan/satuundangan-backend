@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   UploadedFile,
   UseInterceptors,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { GuestService } from './guest.service';
 import { CreateGuestDto } from './dto/create-guest.dto';
+import { UpdateGuestDto } from './dto/update-guest.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as path from 'path';
@@ -26,6 +28,12 @@ export class GuestController {
   @Post()
   create(@Body() dto: CreateGuestDto) {
     return this.guestService.create(dto);
+  }
+
+  // ✅ Update guest
+  @Patch(':id')
+  update(@Param('id') id: number, @Body() dto: UpdateGuestDto) {
+    return this.guestService.update(id, dto);
   }
 
   // ✅ Get all guests by invitation

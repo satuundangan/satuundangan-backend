@@ -4,8 +4,11 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { PaymentStatus } from './types/payment.type';
+import { Invitation } from '../invitation/invitation.entity';
 
 @Entity()
 export class Payment {
@@ -38,6 +41,16 @@ export class Payment {
 
   @Column({ type: 'timestamp', nullable: true })
   settlementTime: Date;
+
+  @ManyToOne(() => Invitation, (invitation) => invitation.payments, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
+  @JoinColumn({ name: 'invitationId' })
+  invitation: Invitation;
+
+  @Column({ nullable: true })
+  invitationId: number;
 
   @CreateDateColumn()
   createdAt: Date;

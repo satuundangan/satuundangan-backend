@@ -32,16 +32,14 @@ export class PaymentService {
   async createTransaction(invitationId: number) {
     const invitation = await this.invitationRepo.findOne({
       where: { id: invitationId },
-      relations: ['user'],
+      relations: ['user', 'templateDesign'],
     });
 
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
     }
 
-    // Hardcode price for now as per requirement "Logic: Backend should calculate the price"
-    // In a real app, this might come from a pricing table or strategy pattern
-    const grossAmount = 49000;
+    const grossAmount = invitation.templateDesign?.price || 0;
 
     // Generate unique order ID
     const orderId = `INV-${invitation.id}-${Date.now()}`;
@@ -79,6 +77,7 @@ export class PaymentService {
       status: PaymentStatus.PENDING,
       paymentType: null,
       fraudStatus: null,
+      invitationId: invitation.id,
     } as DeepPartial<Payment>);
 
     await this.paymentRepo.save(payment);
@@ -130,6 +129,7 @@ export class PaymentService {
 
     const payment = await this.paymentRepo.findOne({
       where: { orderId: order_id },
+      relations: ['invitation'],
     });
     if (!payment) {
       throw new Error(`Payment with order_id ${order_id} not found`);
@@ -140,6 +140,11 @@ export class PaymentService {
       payment.settlementTime = settlement_time
         ? new Date(settlement_time)
         : new Date();
+
+      if (payment.invitation) {
+        payment.invitation.isActive = true;
+        await this.invitationRepo.save(payment.invitation);
+      }
     } else if (transaction_status === 'expire') {
       payment.status = PaymentStatus.EXPIRED;
     } else if (['deny', 'cancel'].includes(transaction_status)) {

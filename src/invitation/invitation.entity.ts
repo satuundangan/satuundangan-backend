@@ -59,14 +59,14 @@ export class Invitation {
   @Column()
   bridePhotoUrl: string;
 
-  @Column({ type: 'json' })
+  @Column({ type: 'json', nullable: true })
   akadLocation: {
     mapUrl: string;
     description: string;
     dateTime: string;
   };
 
-  @Column({ type: 'json' })
+  @Column({ type: 'json', nullable: true })
   resepsiLocation: {
     mapUrl: string;
     description: string;
@@ -126,6 +126,9 @@ export class Invitation {
 
   @Column({ default: false })
   isActive: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  expiredAt: Date;
 
   // Relasi user & template
   @ManyToOne(() => User, (user) => user.invitations, { onDelete: 'CASCADE' })

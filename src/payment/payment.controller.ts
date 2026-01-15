@@ -1,7 +1,18 @@
-import { Controller, Post, Body, Res, Get, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Res,
+  Get,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { Response, Request } from 'express';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { User } from '../user/user.entity';
 
 @Controller('payment')
 export class PaymentController {
@@ -10,13 +21,15 @@ export class PaymentController {
   @Post('create')
   @ApiTags('Payment')
   @ApiOperation({ summary: 'Create a new payment transaction' })
+  @UseGuards(JwtAuthGuard)
   async createSnap(
     @Body()
     body: {
       invitation_id: number;
     },
+    @CurrentUser() user: User,
   ) {
-    return this.paymentService.createTransaction(body.invitation_id);
+    return this.paymentService.createTransaction(body.invitation_id, user);
   }
 
   @Get('/success')

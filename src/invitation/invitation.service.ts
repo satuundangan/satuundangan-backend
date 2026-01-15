@@ -30,7 +30,7 @@ export class InvitationService {
     private readonly activityRepo: Repository<InvitationActivity>,
     @InjectRepository(TemplateDesign)
     private readonly templateRepo: Repository<TemplateDesign>,
-  ) {}
+  ) { }
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
     // 1. Premium Validation
@@ -46,34 +46,45 @@ export class InvitationService {
       }
     }
 
-    const invitation = this.invitationRepo.create({ ...dto, user });
-    // Slug generation
-    if (!dto.slug) {
-      const base: string = slugify(dto.coupleName || dto.title || 'undangan', {
+    const invitationData = {
+      ...dto,
+      akadLocation: dto.akadLocation || { mapUrl: '', description: '', dateTime: '' },
+      resepsiLocation: dto.resepsiLocation || { mapUrl: '', description: '', dateTime: '' },
+      menu: dto.menu || { title: 'Menu Makanan', items: [] },
+      socialMedia: dto.socialMedia || {},
+      parents: dto.parents || { brideParents: '', groomParents: '' },
+      galleryImages: dto.galleryImages || [],
+    };
+
+    const expiredAt = new Date();
+    expiredAt.setDate(expiredAt.getDate() + 60);
+
+    const invitation = this.invitationRepo.create({
+      ...invitationData,
+      user,
+      expiredAt,
+    });
+    
+    // Slug generation logic (Auto-resolve duplicates)
+    let baseSlug = dto.slug;
+
+    if (!baseSlug) {
+      baseSlug = slugify(dto.coupleName || dto.title || 'undangan', {
         lower: true,
         strict: true,
       });
-
-      let slug = base;
-      let count = 1;
-
-      while (await this.invitationRepo.findOne({ where: { slug } })) {
-        slug = `${base}-${count++}`;
-      }
-
-      invitation.slug = slug;
-    } else {
-      // Jika slug dikirim manual, tetap pastikan tidak duplikat
-      const existing = await this.invitationRepo.findOne({
-        where: { slug: dto.slug },
-      });
-
-      if (existing) {
-        throw new ConflictException('Slug already in use');
-      }
-
-      invitation.slug = dto.slug;
     }
+
+    let slug = baseSlug;
+    let count = 1;
+
+    // Check availability and append counter if necessary
+    while (await this.invitationRepo.findOne({ where: { slug } })) {
+      slug = `${baseSlug}-${count++}`;
+    }
+
+    invitation.slug = slug;
+
     return this.invitationRepo.save(invitation);
   }
 

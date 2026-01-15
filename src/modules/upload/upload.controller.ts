@@ -24,9 +24,9 @@ export class UploadController {
           // Example: Limit file size to 10MB
           // new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }),
           // Example: Only allow image files
-          new FileTypeValidator({
-            fileType: '.(png|jpeg|jpg|pdf|mp3|mp4|mkv)',
-          }),
+          // new FileTypeValidator({
+          //   fileType: new RegExp('image/|application/pdf'),
+          // }),
         ],
       }),
     )

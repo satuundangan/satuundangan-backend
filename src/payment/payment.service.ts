@@ -1,5 +1,9 @@
 import * as crypto from 'crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Snap } from 'midtrans-client';
 import { ConfigService } from '@nestjs/config';
 import { DeepPartial, Repository } from 'typeorm';
@@ -10,6 +14,7 @@ import {
   PaymentStatus,
 } from './types/payment.type';
 import { Invitation } from '../invitation/invitation.entity';
+import { User } from '../user/user.entity';
 
 @Injectable()
 export class PaymentService {
@@ -29,7 +34,7 @@ export class PaymentService {
     });
   }
 
-  async createTransaction(invitationId: number) {
+  async createTransaction(invitationId: number, user: User) {
     const invitation = await this.invitationRepo.findOne({
       where: { id: invitationId },
       relations: ['user', 'templateDesign'],
@@ -39,7 +44,45 @@ export class PaymentService {
       throw new NotFoundException('Invitation not found');
     }
 
-    const grossAmount = invitation.templateDesign?.price || 0;
+    // 1. Security Check: Pastikan user adalah pemilik undangan
+    if (invitation.user.id !== user.id) {
+      throw new ForbiddenException('You are not the owner of this invitation');
+    }
+
+    // 2. Handle Price Decimal & Free Template
+    const rawPrice = invitation.templateDesign?.price || 0;
+    const grossAmount = Number(rawPrice);
+
+    // Jika GRATIS (0), langsung aktifkan tanpa ke Midtrans
+    if (grossAmount === 0) {
+      invitation.isActive = true;
+      await this.invitationRepo.save(invitation);
+
+      // (Opsional) Catat history pembayaran "FREE"
+      const payment = this.paymentRepo.create({
+        orderId: `FREE-${invitation.id}-${Date.now()}`,
+        amount: 0,
+        name: user.name,
+        email: user.email,
+        paymentMethod: 'FREE_ACTIVATION',
+        status: PaymentStatus.SUCCESS,
+        paymentType: 'free',
+        fraudStatus: 'accept',
+        invitationId: invitation.id,
+        settlementTime: new Date(),
+      } as DeepPartial<Payment>);
+
+      await this.paymentRepo.save(payment);
+
+      return {
+        status: 'success',
+        message: 'Invitation activated successfully (Free Template)',
+        amount: 0,
+        is_free: true,
+        token: null,
+        redirect_url: null,
+      };
+    }
 
     // Generate unique order ID
     const orderId = `INV-${invitation.id}-${Date.now()}`;
@@ -86,6 +129,7 @@ export class PaymentService {
       token: transaction.token,
       redirect_url: transaction.redirect_url,
       order_id: orderId,
+      is_free: false,
     };
   }
 

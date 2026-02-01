@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -33,17 +34,21 @@ export class InvitationService {
   ) { }
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
-    // 1. Premium Validation
-    if (dto.isCustomMusic) {
+    // 1. Template Validation
+    if (dto.templateDesignId) {
       const template = await this.templateRepo.findOne({
         where: { id: dto.templateDesignId },
       });
-      if (!template) throw new NotFoundException('Template design not found');
-      if (!template.isPremium) {
+      if (!template) throw new NotFoundException(`Template design with ID ${dto.templateDesignId} not found`);
+
+      if (dto.isCustomMusic && !template.isPremium) {
         throw new ForbiddenException(
           'Custom music is only available for Premium templates.',
         );
       }
+    } else if (dto.isCustomMusic) {
+      // Custom music requires a template
+      throw new BadRequestException('Template Design ID is required for custom music');
     }
 
     const invitationData = {
@@ -64,7 +69,7 @@ export class InvitationService {
       user,
       expiredAt,
     });
-    
+
     // Slug generation logic (Auto-resolve duplicates)
     let baseSlug = dto.slug;
 

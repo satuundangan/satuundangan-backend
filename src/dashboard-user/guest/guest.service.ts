@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Guest } from './guest.entity';
-import { Invitation } from 'src/invitation/invitation.entity';
+import { Invitation } from '../../invitation/invitation.entity';
 import { CreateGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
 import * as xlsx from 'xlsx';

@@ -3,8 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Guest } from './guest.entity';
 import { GuestService } from './guest.service';
 import { GuestController } from './guest.controller';
-import { Invitation } from 'src/invitation/invitation.entity';
-import { InvitationModule } from 'src/invitation/invitation.module';
+import { Invitation } from '../../invitation/invitation.entity';
+import { InvitationModule } from '../../invitation/invitation.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Guest, Invitation]), InvitationModule],

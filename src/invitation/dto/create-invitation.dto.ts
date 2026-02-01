@@ -109,6 +109,14 @@ export class CreateInvitationDto {
   @IsString()
   coupleName?: string;
 
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  groomName: string;
+
+  @ApiProperty({ example: 'Jane Doe' })
+  @IsString()
+  brideName: string;
+
   @ApiPropertyOptional({ example: 'TemplateClassic01' })
   @IsOptional()
   @IsString()

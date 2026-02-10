@@ -38,10 +38,7 @@ export class Invitation {
   @Column({ default: false })
   isPublished: boolean;
 
-  @Column({
-    type: 'enum',
-    enum: ['islam', 'katolik', 'kristen', 'budha', 'hindu', 'bebas'],
-  })
+  @Column({ nullable: true })
   quoteSource: string;
 
   @Column({ nullable: true, type: 'text' })
@@ -56,8 +53,26 @@ export class Invitation {
   @Column({ default: false })
   isCustomMusic: boolean;
 
+  @Column({ nullable: true })
+  templateName: string;
+
   @Column()
   bridePhotoUrl: string;
+
+  @Column({ nullable: true })
+  groomPhotoUrl: string;
+
+  @Column({ nullable: true })
+  photoCoupleUrl: string;
+
+  @Column({ nullable: true })
+  videoPrewedding: string;
+
+  @Column({ default: 'default' })
+  quoteType: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  dateTime: Date;
 
   @Column({ type: 'json', nullable: true })
   akadLocation: {
@@ -72,6 +87,9 @@ export class Invitation {
     description: string;
     dateTime: string;
   };
+
+  @Column({ default: true })
+  isSingleEvent: boolean;
 
   @Column({ default: false })
   mergeEvents: boolean;
@@ -105,14 +123,42 @@ export class Invitation {
     lainnya?: string;
   };
 
+  @Column({ type: 'json', nullable: true })
+  socialMediaBrides: {
+    instagram?: string;
+    tiktok?: string;
+    youtube?: string;
+    lainnya?: string;
+  };
+
+  @Column({ type: 'json', nullable: true })
+  socialMediaGroom: {
+    instagram?: string;
+    tiktok?: string;
+    youtube?: string;
+    lainnya?: string;
+  };
+
   @Column({ type: 'json' })
   parents: {
     brideParents: string;
     groomParents: string;
   };
 
+  @Column({ nullable: true, type: 'text' })
+  turutMengundang: string;
+
   @Column({ nullable: true })
   liveStreamingLink: string;
+
+  @Column({ nullable: true, type: 'text' })
+  footerText: string;
+
+  @Column({ default: true })
+  enableCover: boolean;
+
+  @Column({ default: true })
+  healthProtocol: boolean;
 
   @Column({ default: true })
   enableGuestMessage: boolean;

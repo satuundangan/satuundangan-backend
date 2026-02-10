@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Guest } from './guest.entity';
@@ -18,14 +22,14 @@ export class GuestService {
     private readonly invitationRepo: Repository<Invitation>,
   ) {}
 
-  async create(dto: CreateGuestDto): Promise<Guest> {
+  async create(dto: CreateGuestDto, userId: number): Promise<Guest> {
     const invitation = await this.invitationRepo.findOne({
-      where: { id: dto.invitationId },
+      where: { id: dto.invitationId, user: { id: userId } },
     });
 
     if (!invitation) {
       throw new NotFoundException(
-        `Invitation with ID ${dto.invitationId} not found.`,
+        `Invitation with ID ${dto.invitationId} not found or not owned by you.`,
       );
     }
 
@@ -48,17 +52,38 @@ export class GuestService {
     return this.guestRepo.save(guest);
   }
 
-  async findAllByInvitation(invitationId: number): Promise<Guest[]> {
+  async findAllByInvitation(
+    invitationId: number,
+    userId: number,
+  ): Promise<Guest[]> {
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: invitationId, user: { id: userId } },
+    });
+    if (!invitation)
+      throw new ForbiddenException('You do not have access to this invitation');
+
     return this.guestRepo.find({
       where: { invitation: { id: invitationId } },
       order: { id: 'ASC' },
     });
   }
 
-  async update(id: number, dto: UpdateGuestDto): Promise<Guest> {
-    const guest = await this.guestRepo.findOne({ where: { id } });
+  async update(
+    id: number,
+    dto: UpdateGuestDto,
+    userId: number,
+  ): Promise<Guest> {
+    const guest = await this.guestRepo.findOne({
+      where: { id },
+      relations: ['invitation', 'invitation.user'],
+    });
     if (!guest) {
       throw new NotFoundException(`Guest with ID ${id} not found.`);
+    }
+    if (guest.invitation.user.id !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to update this guest',
+      );
     }
 
     Object.assign(guest, dto);
@@ -66,16 +91,24 @@ export class GuestService {
     return this.guestRepo.save(guest);
   }
 
-  async remove(id: number): Promise<void> {
-    const guest = await this.guestRepo.findOne({ where: { id } });
+  async remove(id: number, userId: number): Promise<void> {
+    const guest = await this.guestRepo.findOne({
+      where: { id },
+      relations: ['invitation', 'invitation.user'],
+    });
     if (!guest) {
       throw new NotFoundException(`Guest with ID ${id} not found.`);
+    }
+    if (guest.invitation.user.id !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this guest',
+      );
     }
 
     await this.guestRepo.remove(guest);
   }
 
-  async importFromExcel(filepath: string): Promise<Guest[]> {
+  async importFromExcel(filepath: string, userId: number): Promise<Guest[]> {
     let buffer: Buffer;
     try {
       buffer = fs.readFileSync(filepath);
@@ -113,6 +146,18 @@ export class GuestService {
       const phoneNumber = ((row['Phone Number'] as string) || '').toString();
       const rawSlug = ((row['Slug'] as string) || '').toString().trim();
       const invitationId = Number(row['Invitation ID']);
+
+      // Validate invitation ownership for each row
+      const invitation = await this.invitationRepo.findOne({
+        where: { id: invitationId, user: { id: userId } },
+      });
+      if (!invitation) {
+        console.warn(
+          `Skipping row: Invitation ${invitationId} not found or not owned by user ${userId}`,
+        );
+        continue;
+      }
+
       const slug =
         rawSlug || (await this.generateUniqueSlug(name, invitationId));
       const group = ((row['Group'] as string) || '').toString();
@@ -188,14 +233,20 @@ export class GuestService {
 
   async buildWhatsAppLink(
     guestId: number,
+    userId: number,
   ): Promise<{ url: string; waLink: string; message: string }> {
     const guest = await this.guestRepo.findOne({
       where: { id: guestId },
-      relations: ['invitation'],
+      relations: ['invitation', 'invitation.user'],
     });
 
     if (!guest) throw new NotFoundException('Guest not found');
     if (!guest.invitation) throw new NotFoundException('Invitation not found');
+    if (guest.invitation.user.id !== userId) {
+      throw new ForbiddenException(
+        'You do not have permission to access this guest',
+      );
+    }
 
     const base = process.env.FRONTEND_URL || 'https://satuundangan.id';
     let url = `${base.replace(/\/$/, '')}/inv/${guest.invitation.slug}/${guest.slug}`;
@@ -243,7 +294,10 @@ export class GuestService {
     };
   }
 
-  async findAllByInvitationWithMessages(invitationId: number): Promise<
+  async findAllByInvitationWithMessages(
+    invitationId: number,
+    userId: number,
+  ): Promise<
     {
       id: number;
       name: string;
@@ -255,6 +309,12 @@ export class GuestService {
       checkedInAt?: Date | null;
     }[]
   > {
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: invitationId, user: { id: userId } },
+    });
+    if (!invitation)
+      throw new ForbiddenException('You do not have access to this invitation');
+
     const guests = await this.guestRepo.find({
       where: { invitation: { id: invitationId } },
       relations: ['messages'],

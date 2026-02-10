@@ -8,11 +8,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
-import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
+import { PaymentStatus, MidtransNotificationPayload } from './types/payment.type';
 
 @Controller('payment')
 export class PaymentController {
@@ -30,6 +31,25 @@ export class PaymentController {
     @CurrentUser() user: User,
   ) {
     return this.paymentService.createTransaction(body.invitation_id, user);
+  }
+
+  @Post('simulate')
+  @ApiTags('Payment')
+  @ApiOperation({ summary: 'Simulate payment status (Dev only)' })
+  @UseGuards(JwtAuthGuard)
+  async simulate(
+    @Body()
+    body: {
+      invitation_id: number;
+      status: PaymentStatus;
+    },
+    @CurrentUser() user: User,
+  ) {
+    return this.paymentService.simulatePayment(
+      body.invitation_id,
+      body.status,
+      user,
+    );
   }
 
   @Get('/success')
@@ -53,7 +73,7 @@ export class PaymentController {
   @Post('notification')
   async handleNotification(@Req() req: Request) {
     const result = await this.paymentService.handleMidtransNotification(
-      req.body,
+      req.body as MidtransNotificationPayload,
     );
     return { message: 'Notification received', result };
   }

@@ -5,7 +5,6 @@ import {
   IsBoolean,
   IsArray,
   ValidateNested,
-  IsEnum,
   IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -25,6 +24,11 @@ export class LoveStoryItem {
   @ApiProperty({ example: 'Awal Bertemu' })
   @IsString()
   title: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.com/story.jpg' })
+  @IsOptional()
+  @IsString()
+  images?: string;
 
   @ApiProperty({ example: 'Kami bertemu di kampus' })
   @IsString()
@@ -127,9 +131,15 @@ export class CreateInvitationDto {
   @IsBoolean()
   isPublished?: boolean;
 
-  @ApiProperty({ enum: QuoteSource, example: 'bebas' })
-  @IsEnum(QuoteSource)
-  quoteSource: QuoteSource;
+  @ApiPropertyOptional({ example: 'QS. Ar-Rum: 21' })
+  @IsOptional()
+  @IsString()
+  quoteSource?: string;
+
+  @ApiPropertyOptional({ example: 'default' })
+  @IsOptional()
+  @IsString()
+  quoteType?: string;
 
   @ApiPropertyOptional({ example: 'Bismillah, semoga lancar!' })
   @IsOptional()
@@ -154,6 +164,25 @@ export class CreateInvitationDto {
   @IsString()
   bridePhotoUrl: string;
 
+  @ApiProperty({ example: 'https://cdn.com/photo_groom.jpg' })
+  @IsString()
+  groomPhotoUrl: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.com/couple.jpg' })
+  @IsOptional()
+  @IsString()
+  photoCoupleUrl?: string;
+
+  @ApiPropertyOptional({ example: 'https://youtube.com/prewedding' })
+  @IsOptional()
+  @IsString()
+  videoPrewedding?: string;
+
+  @ApiPropertyOptional({ example: '2026-02-10T19:38' })
+  @IsOptional()
+  @IsDateString()
+  dateTime?: string;
+
   @ApiProperty({ type: LocationDetail })
   @ValidateNested()
   @Type(() => LocationDetail)
@@ -163,6 +192,10 @@ export class CreateInvitationDto {
   @ValidateNested()
   @Type(() => LocationDetail)
   resepsiLocation: LocationDetail;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  isSingleEvent: boolean;
 
   @ApiProperty({ example: false })
   @IsBoolean()
@@ -203,15 +236,45 @@ export class CreateInvitationDto {
   @Type(() => SocialMedia)
   socialMedia: SocialMedia;
 
+  @ApiPropertyOptional({ type: SocialMedia })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SocialMedia)
+  socialMediaBrides?: SocialMedia;
+
+  @ApiPropertyOptional({ type: SocialMedia })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SocialMedia)
+  socialMediaGroom?: SocialMedia;
+
   @ApiProperty({ type: ParentName })
   @ValidateNested()
   @Type(() => ParentName)
   parents: ParentName;
 
+  @ApiPropertyOptional({ example: 'Keluarga Besar ...' })
+  @IsOptional()
+  @IsString()
+  turutMengundang?: string;
+
   @ApiPropertyOptional({ example: 'https://youtube.com/livestream' })
   @IsOptional()
   @IsString()
   liveStreamingLink?: string;
+
+  @ApiPropertyOptional({ example: 'Terima kasih...' })
+  @IsOptional()
+  @IsString()
+  footerText?: string;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  enableCover: boolean;
+
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  healthProtocol: boolean;
 
   @ApiPropertyOptional({ example: ['akad', 'resepsi', 'galeri'] })
   selectedSections?: string[];

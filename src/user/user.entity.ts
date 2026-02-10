@@ -21,6 +21,9 @@ export class User {
   @Column({ type: 'bool', default: false })
   isAdmin: boolean;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  avatar: string | null;
+
   @OneToMany(() => Invitation, (invitation) => invitation.user, {
     onDelete: 'CASCADE',
   })

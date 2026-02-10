@@ -8,6 +8,7 @@ import { TemplateDesign } from '../template-design/template-design.entity';
 import { Category } from '../category/category.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
+import { PublicSectionController } from './public-section.controller';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
@@ -28,6 +29,6 @@ import { Bank } from './entities/bank.entity';
     ]),
   ],
   providers: [AdminService, AdminGuard],
-  controllers: [AdminController],
+  controllers: [AdminController, PublicSectionController],
 })
 export class AdminModule {}

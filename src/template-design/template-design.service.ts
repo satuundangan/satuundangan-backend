@@ -11,15 +11,6 @@ export class TemplateDesignService {
   ) {}
 
   async create(data: Partial<TemplateDesign>): Promise<TemplateDesign> {
-    if (!data.paletteColor) {
-      throw new Error('paletteColor is required');
-    }
-
-    // Kalau paletteColor berupa object, stringify dulu
-    if (typeof data.paletteColor === 'object') {
-      data.paletteColor = JSON.stringify(data.paletteColor);
-    }
-
     if (typeof data.sectionOptions === 'object') {
       data.sectionOptions = JSON.stringify(data.sectionOptions);
     }
@@ -55,12 +46,6 @@ export class TemplateDesignService {
     data: Partial<TemplateDesign>,
   ): Promise<TemplateDesign> {
     const dataToUpdate = { ...data };
-    if (
-      dataToUpdate.paletteColor &&
-      typeof dataToUpdate.paletteColor === 'object'
-    ) {
-      dataToUpdate.paletteColor = JSON.stringify(dataToUpdate.paletteColor);
-    }
     if (dataToUpdate.tags && Array.isArray(dataToUpdate.tags)) {
       dataToUpdate.tags = (dataToUpdate.tags as string[]).join(', ');
     }
@@ -90,24 +75,11 @@ export class TemplateDesignService {
   }
 
   private transformPalette(template: TemplateDesign): TemplateDesign {
-    if (template.paletteColor) {
-      try {
-        template.paletteColor = JSON.parse(template.paletteColor) as string;
-      } catch (err: any) {
-        console.warn(
-          `Gagal parsing paletteColor untuk template ${template.id}`,
-        );
-        throw new Error(`Error parsing paletteColor: ${err}`);
-      }
-    }
     if (typeof template.tags === 'string') {
-      {
-        try {
-          template.tags = JSON.parse(template.tags) as string;
-        } catch (err: any) {
-          console.warn(`Gagal parsing tags untuk template ${template.id}`);
-          throw new Error(`Error parsing tags: ${err}`);
-        }
+      try {
+        template.tags = JSON.parse(template.tags) as string;
+      } catch (err: any) {
+        // Fallback if not JSON
       }
     }
     if (template.category && typeof template.category === 'object') {

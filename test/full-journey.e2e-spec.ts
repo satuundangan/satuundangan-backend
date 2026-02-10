@@ -35,7 +35,9 @@ describe('Full User Journey (E2E)', () => {
     createTransaction: jest.fn().mockImplementation((params) => {
       return Promise.resolve({
         token: 'mock-snap-token-' + Date.now(),
-        redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/' + params.transaction_details.order_id,
+        redirect_url:
+          'https://app.sandbox.midtrans.com/snap/v2/vtweb/' +
+          params.transaction_details.order_id,
       });
     }),
   };
@@ -46,7 +48,7 @@ describe('Full User Journey (E2E)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    
+
     // Inject Mocks
     const paymentService = moduleFixture.get(PaymentService);
     (paymentService as any).snap = mockSnap;
@@ -142,7 +144,7 @@ describe('Full User Journey (E2E)', () => {
 
     invitationId = res.body.id;
     invitationSlug = res.body.slug;
-    
+
     // Verify initial state: Not Active
     const inv = await invitationRepo.findOne({ where: { id: invitationId } });
     expect(inv).not.toBeNull();
@@ -165,7 +167,10 @@ describe('Full User Journey (E2E)', () => {
     const grossAmount = '100000.00';
     const statusCode = '200';
     const input = orderId + statusCode + grossAmount + serverKey;
-    const signatureKey = crypto.createHash('sha512').update(input).digest('hex');
+    const signatureKey = crypto
+      .createHash('sha512')
+      .update(input)
+      .digest('hex');
 
     const notificationPayload = {
       order_id: orderId,
@@ -236,7 +241,7 @@ describe('Full User Journey (E2E)', () => {
       message: 'Congrats on the wedding!',
       rsvpStatus: 'hadir',
       totalGuests: 2,
-      guestSlug: guestSlug // Linking message to the specific guest
+      guestSlug: guestSlug, // Linking message to the specific guest
     };
 
     await request(app.getHttpServer())

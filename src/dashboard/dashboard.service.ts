@@ -44,6 +44,13 @@ export class DashboardService {
 
     const totalViews = result?.sum ? parseInt(result.sum) : 0;
 
+    // Total Guests
+    const totalGuests = await this.guestRepo
+      .createQueryBuilder('guest')
+      .leftJoin('guest.invitation', 'invitation')
+      .where('invitation.userId = :userId', { userId })
+      .getCount();
+
     // RSVP Breakdown
 
     const rsvpStats: any[] = await this.guestRepo
@@ -62,7 +69,7 @@ export class DashboardService {
     };
 
     rsvpStats.forEach((stat) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       const s = (stat.status ? stat.status.toLowerCase() : 'belum') as string;
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
       const c = parseInt(stat.count);
@@ -81,7 +88,8 @@ export class DashboardService {
     return {
       total_invitations: totalInvitations,
       active_invitations: activeInvitations,
-      total_responses: totalResponses,
+      total_guests: totalGuests,
+      total_messages_received: totalResponses,
       rsvp_breakdown: rsvpBreakdown,
       total_views: totalViews,
     };

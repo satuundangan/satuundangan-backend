@@ -92,6 +92,7 @@ export class AuthService {
       name: googleUser.name,
       email: googleUser.email,
       provider: 'google',
+      avatar: googleUser.avatar,
     });
     return await this.userRepo.save(newUser);
   }

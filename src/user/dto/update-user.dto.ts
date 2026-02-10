@@ -19,5 +19,5 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  photoUrl?: string;
+  avatar?: string;
 }

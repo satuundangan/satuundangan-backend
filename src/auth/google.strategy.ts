@@ -29,9 +29,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     done: VerifiedCallback,
   ): Promise<any> {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const { emails, displayName } = profile;
+    const { emails, displayName, photos } = profile;
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const email = emails?.[0]?.value;
+    const avatar = photos?.[0]?.value;
 
     // Cari user di DB
     let user = await this.userRepo.findOne({ where: { email } });
@@ -42,8 +43,12 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         email,
         provider: 'google',
         password: null,
+        avatar,
       });
       user = await this.userRepo.save(user);
+    } else if (!user.avatar && avatar) {
+      user.avatar = avatar;
+      await this.userRepo.save(user);
     }
 
     this.logger.log(`Google user authenticated: ${email}`);

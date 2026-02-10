@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -31,7 +30,7 @@ export class InvitationService {
     private readonly activityRepo: Repository<InvitationActivity>,
     @InjectRepository(TemplateDesign)
     private readonly templateRepo: Repository<TemplateDesign>,
-  ) { }
+  ) {}
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
     // 1. Template Validation
@@ -39,7 +38,10 @@ export class InvitationService {
       const template = await this.templateRepo.findOne({
         where: { id: dto.templateDesignId },
       });
-      if (!template) throw new NotFoundException(`Template design with ID ${dto.templateDesignId} not found`);
+      if (!template)
+        throw new NotFoundException(
+          `Template design with ID ${dto.templateDesignId} not found`,
+        );
 
       if (dto.isCustomMusic && !template.isPremium) {
         throw new ForbiddenException(
@@ -48,18 +50,40 @@ export class InvitationService {
       }
     } else if (dto.isCustomMusic) {
       // Custom music requires a template
-      throw new BadRequestException('Template Design ID is required for custom music');
+      throw new BadRequestException(
+        'Template Design ID is required for custom music',
+      );
     }
 
     const invitationData = {
       ...dto,
-      akadLocation: dto.akadLocation || { mapUrl: '', description: '', dateTime: '' },
-      resepsiLocation: dto.resepsiLocation || { mapUrl: '', description: '', dateTime: '' },
+      akadLocation: dto.akadLocation || {
+        mapUrl: '',
+        description: '',
+        dateTime: '',
+      },
+      resepsiLocation: dto.resepsiLocation || {
+        mapUrl: '',
+        description: '',
+        dateTime: '',
+      },
       menu: dto.menu || { title: 'Menu Makanan', items: [] },
       socialMedia: dto.socialMedia || {},
+      socialMediaBrides: dto.socialMediaBrides || {},
+      socialMediaGroom: dto.socialMediaGroom || {},
       parents: dto.parents || { brideParents: '', groomParents: '' },
       galleryImages: dto.galleryImages || [],
     };
+
+    // Ensure Unified Logic for Events
+    if (invitationData.mergeEvents) {
+      // Prioritize akadLocation if available, otherwise use resepsiLocation
+      if (dto.akadLocation) {
+        invitationData.resepsiLocation = invitationData.akadLocation;
+      } else if (dto.resepsiLocation) {
+        invitationData.akadLocation = invitationData.resepsiLocation;
+      }
+    }
 
     const expiredAt = new Date();
     expiredAt.setDate(expiredAt.getDate() + 60);
@@ -97,13 +121,32 @@ export class InvitationService {
     const { page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
-    const [data, total] = await this.invitationRepo.findAndCount({
+    const [raw_data, total] = await this.invitationRepo.findAndCount({
       where: { user: { id: userId } },
       order: { createdAt: 'DESC' },
       skip,
       take: limit,
       relations: ['templateDesign'],
     });
+
+    const data = raw_data.map((invitation) => ({
+      ...invitation,
+      templateDesignId: invitation.templateDesignId,
+      templateName: invitation.templateName || invitation.templateDesign?.name || '',
+      isPublished: invitation.isPublished,
+      groomPhotoUrl: invitation.groomPhotoUrl || '',
+      photoCoupleUrl: invitation.photoCoupleUrl || '',
+      quoteType: invitation.quoteType || 'default',
+      isSingleEvent: invitation.isSingleEvent ?? true,
+      encryptedGuestName: invitation.encryptedGuestName,
+      socialMediaBrides: invitation.socialMediaBrides || {},
+      socialMediaGroom: invitation.socialMediaGroom || {},
+      videoPrewedding: invitation.videoPrewedding || '',
+      turutMengundang: invitation.turutMengundang || '',
+      footerText: invitation.footerText || '',
+      healthProtocol: invitation.healthProtocol ?? true,
+      enableCover: invitation.enableCover ?? true,
+    }));
 
     return {
       data,
@@ -144,6 +187,22 @@ export class InvitationService {
     }
 
     Object.assign(invitation, dto);
+
+    // Ensure Unified Logic for Events on Update
+    if (invitation.mergeEvents) {
+      // If we are updating and mergeEvents is true (or became true), sync them.
+      // We prioritize the one that was actively updated in this DTO if possible.
+      if (dto.akadLocation) {
+        invitation.resepsiLocation = invitation.akadLocation;
+      } else if (dto.resepsiLocation) {
+        invitation.akadLocation = invitation.resepsiLocation;
+      } else {
+        // If neither specific location was updated but mergeEvents is true,
+        // we sync them to be consistent (e.g. copy akad to resepsi).
+        invitation.resepsiLocation = invitation.akadLocation;
+      }
+    }
+
     return this.invitationRepo.save(invitation);
   }
 
@@ -171,17 +230,25 @@ export class InvitationService {
       slug: invitation.slug,
       template_slug: invitation.templateDesign?.slug || null,
       content: {
+        templateDesignId: invitation.templateDesignId,
+        templateName: invitation.templateName,
         coupleName: invitation.coupleName,
         groomName: invitation.groomName,
         brideName: invitation.brideName,
         quoteSource: invitation.quoteSource,
+        quoteType: invitation.quoteType,
         quoteText: invitation.quoteText,
         loveStory: invitation.loveStory as unknown,
         musicChoice: invitation.musicChoice,
         isCustomMusic: invitation.isCustomMusic,
         bridePhotoUrl: invitation.bridePhotoUrl,
+        groomPhotoUrl: invitation.groomPhotoUrl,
+        photoCoupleUrl: invitation.photoCoupleUrl,
+        videoPrewedding: invitation.videoPrewedding,
+        dateTime: invitation.dateTime,
         akadLocation: invitation.akadLocation,
         resepsiLocation: invitation.resepsiLocation,
+        isSingleEvent: invitation.isSingleEvent,
         mergeEvents: invitation.mergeEvents,
         floorPlanImageUrl: invitation.floorPlanImageUrl,
         menu: invitation.menu,
@@ -189,11 +256,17 @@ export class InvitationService {
         giftDeliveryAddress: invitation.giftDeliveryAddress,
         eWalletLink: invitation.eWalletLink,
         socialMedia: invitation.socialMedia,
+        socialMediaBrides: invitation.socialMediaBrides,
+        socialMediaGroom: invitation.socialMediaGroom,
         parents: invitation.parents,
+        turutMengundang: invitation.turutMengundang,
         liveStreamingLink: invitation.liveStreamingLink,
+        footerText: invitation.footerText,
+        enableCover: invitation.enableCover,
+        healthProtocol: invitation.healthProtocol,
         enableGuestMessage: invitation.enableGuestMessage,
         selectedSections: invitation.selectedSections,
-        whatsappMessageTemplate: invitation.whatsappMessageTemplate, // Include new field
+        whatsappMessageTemplate: invitation.whatsappMessageTemplate,
       },
       is_premium: invitation.templateDesign?.isPremium || false,
       is_active: invitation.isPublished,

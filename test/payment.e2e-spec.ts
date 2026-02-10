@@ -27,7 +27,9 @@ describe('Payment E2E', () => {
     createTransaction: jest.fn().mockImplementation((params) => {
       return Promise.resolve({
         token: 'mock-snap-token-' + Date.now(),
-        redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/' + params.transaction_details.order_id,
+        redirect_url:
+          'https://app.sandbox.midtrans.com/snap/v2/vtweb/' +
+          params.transaction_details.order_id,
       });
     }),
   };
@@ -153,7 +155,7 @@ describe('Payment E2E', () => {
     expect(res.body.is_free).toBe(false);
 
     orderId = res.body.order_id;
-    
+
     // Check if mock was called
     expect(mockSnap.createTransaction).toHaveBeenCalled();
   });
@@ -161,10 +163,13 @@ describe('Payment E2E', () => {
   it('should handle Midtrans Webhook (Success)', async () => {
     const grossAmount = '50000.00';
     const statusCode = '200';
-    
+
     // Create Signature: SHA512(order_id + status_code + gross_amount + ServerKey)
     const input = orderId + statusCode + grossAmount + serverKey;
-    const signatureKey = crypto.createHash('sha512').update(input).digest('hex');
+    const signatureKey = crypto
+      .createHash('sha512')
+      .update(input)
+      .digest('hex');
 
     const notificationPayload = {
       order_id: orderId,
@@ -174,14 +179,14 @@ describe('Payment E2E', () => {
       fraud_status: 'accept',
       status_code: statusCode,
       signature_key: signatureKey,
-      settlement_time: new Date().toISOString()
+      settlement_time: new Date().toISOString(),
     };
 
     const res = await request(app.getHttpServer())
       .post('/payment/notification')
       .send(notificationPayload)
       .expect(201);
-      
+
     // Expect some confirmation
     expect(res.body.message).toBe('Notification received');
     expect(res.body.result.updatedStatus).toBe('success');

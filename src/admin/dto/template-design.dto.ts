@@ -33,7 +33,7 @@ export class CreateTemplateDesignDto {
   price?: number;
 
   @IsOptional()
-  paletteColor?: any;
+  paletteColors?: string[];
 
   @IsOptional()
   @IsString()

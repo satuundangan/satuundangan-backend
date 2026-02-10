@@ -20,7 +20,7 @@ import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 
 @Controller('invitation')
 export class InvitationController {
-  constructor(private readonly invitationService: InvitationService) { }
+  constructor(private readonly invitationService: InvitationService) {}
 
   @Post()
   @ApiTags('Invitation')

@@ -347,10 +347,6 @@ export class AdminService {
     const data: any = { ...payload };
     delete data.category; // Handle category separately via relation
 
-    if (data.paletteColor && typeof data.paletteColor !== 'string') {
-      data.paletteColor = JSON.stringify(data.paletteColor);
-    }
-
     if (data.sectionOptions && typeof data.sectionOptions !== 'string') {
       data.sectionOptions = JSON.stringify(data.sectionOptions);
     }
@@ -368,7 +364,6 @@ export class AdminService {
 
   private transformTemplateDesign(template: TemplateDesign) {
     const result = { ...template } as TemplateDesign & Record<string, any>;
-    result.paletteColor = this.safeParse(template.paletteColor);
     result.tags = this.safeParse(template.tags);
     result.sectionOptions = this.safeParse(template.sectionOptions);
     if (template.category && typeof template.category === 'object') {

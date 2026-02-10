@@ -40,8 +40,8 @@ export class TemplateDesign {
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   price: number;
 
-  @Column({ type: 'text', nullable: true })
-  paletteColor: string;
+  @Column({ type: 'simple-array', nullable: true })
+  paletteColors: string[];
 
   @Column({ type: 'varchar', nullable: true })
   description: string | null;

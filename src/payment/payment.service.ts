@@ -206,4 +206,40 @@ export class PaymentService {
 
     return { orderId: order_id, updatedStatus: payment.status };
   }
+
+  async simulatePayment(
+    invitationId: number,
+    status: PaymentStatus,
+    user: User,
+  ) {
+    const payment = await this.paymentRepo.findOne({
+      where: { invitationId },
+      order: { createdAt: 'DESC' },
+      relations: ['invitation', 'invitation.user'],
+    });
+
+    if (!payment) {
+      throw new NotFoundException(
+        'No payment record found for this invitation to simulate.',
+      );
+    }
+
+    // Security Check: Only the owner can simulate payment
+    if (payment.invitation.user.id !== user.id) {
+      throw new ForbiddenException('You are not the owner of this invitation');
+    }
+
+    payment.status = status;
+    payment.paymentType = 'simulation';
+
+    if (status === PaymentStatus.SUCCESS) {
+      payment.settlementTime = new Date();
+      if (payment.invitation) {
+        payment.invitation.isActive = true;
+        await this.invitationRepo.save(payment.invitation);
+      }
+    }
+
+    return this.paymentRepo.save(payment);
+  }
 }

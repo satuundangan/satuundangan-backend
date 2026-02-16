@@ -13,8 +13,8 @@ export class UserController {
   @Get('me')
   @ApiTags('User')
   @ApiOperation({ summary: 'Get current user profile' })
-  getProfile(@CurrentUser() user: { userId: number; email: string }) {
-    return this.userService.findById(user.userId);
+  getProfile(@CurrentUser() user: { id: number; email: string }) {
+    return this.userService.findById(user.id);
   }
 
   @Patch()
@@ -22,9 +22,9 @@ export class UserController {
   @ApiOperation({ summary: 'Update user profile' })
   @ApiBody({ type: UpdateUserDto })
   updateProfile(
-    @CurrentUser() user: { userId: number; email: string },
+    @CurrentUser() user: { id: number; email: string },
     @Body() dto: UpdateUserDto,
   ) {
-    return this.userService.update(user.userId, dto);
+    return this.userService.update(user.id, dto);
   }
 }

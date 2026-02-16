@@ -4,9 +4,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Category } from './category.entity';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 
 @Injectable()
 export class CategoryService {
@@ -15,8 +16,18 @@ export class CategoryService {
     private readonly categoryRepo: Repository<Category>,
   ) {}
 
-  async findAll() {
-    return this.categoryRepo.find();
+  async findAll(query: PaginationQueryDto = {}) {
+    const { page = 1, limit = 20, q } = query;
+    const where = q ? { name: ILike(`%${q}%`) } : undefined;
+
+    const [data, total] = await this.categoryRepo.findAndCount({
+      where,
+      order: { name: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return { data, total, page, limit };
   }
 
   async findOne(id: string) {

@@ -20,6 +20,10 @@ import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
 } from './dto/template-design.dto';
+import {
+  CreatePaletteColorDto,
+  UpdatePaletteColorDto,
+} from './dto/palette-color.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -410,12 +414,12 @@ export class AdminService {
     return this.paletteColorRepo.find();
   }
 
-  async createPaletteColor(payload: Partial<PaletteColor>) {
+  async createPaletteColor(payload: CreatePaletteColorDto) {
     const palette = this.paletteColorRepo.create(payload);
     return this.paletteColorRepo.save(palette);
   }
 
-  async updatePaletteColor(id: string, payload: Partial<PaletteColor>) {
+  async updatePaletteColor(id: string, payload: UpdatePaletteColorDto) {
     const palette = await this.paletteColorRepo.findOne({ where: { id } });
     if (!palette) throw new NotFoundException('Palette color not found');
     Object.assign(palette, payload);

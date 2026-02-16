@@ -18,6 +18,10 @@ import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
 } from './dto/template-design.dto';
+import {
+  CreatePaletteColorDto,
+  UpdatePaletteColorDto,
+} from './dto/palette-color.dto';
 import { ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Admin')
@@ -199,13 +203,13 @@ export class AdminController {
   }
 
   @Post('palette-colors')
-  createPaletteColor(@Body() body: any) {
-    return this.service.createPaletteColor(body);
+  createPaletteColor(@Body() dto: CreatePaletteColorDto) {
+    return this.service.createPaletteColor(dto);
   }
 
   @Patch('palette-colors/:id')
-  updatePaletteColor(@Param('id') id: string, @Body() body: any) {
-    return this.service.updatePaletteColor(id, body);
+  updatePaletteColor(@Param('id') id: string, @Body() dto: UpdatePaletteColorDto) {
+    return this.service.updatePaletteColor(id, dto);
   }
 
   @Delete('palette-colors/:id')

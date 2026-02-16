@@ -18,7 +18,9 @@ import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
 } from './dto/template-design.dto';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Admin')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminController {

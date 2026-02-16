@@ -18,7 +18,13 @@ import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
 } from './dto/template-design.dto';
+import {
+  CreatePaletteColorDto,
+  UpdatePaletteColorDto,
+} from './dto/palette-color.dto';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Admin')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminController {
@@ -188,5 +194,27 @@ export class AdminController {
   @Delete('banks/:id')
   deleteBank(@Param('id') id: string) {
     return this.service.deleteBank(id);
+  }
+
+  // Palette Colors
+  @Get('palette-colors')
+  listPaletteColors(@Query() q: PaginationQueryDto) {
+    const { page = 1, limit = 20, q: search } = q;
+    return this.service.listPaletteColors(page, limit, search);
+  }
+
+  @Post('palette-colors')
+  createPaletteColor(@Body() dto: CreatePaletteColorDto) {
+    return this.service.createPaletteColor(dto);
+  }
+
+  @Patch('palette-colors/:id')
+  updatePaletteColor(@Param('id') id: string, @Body() dto: UpdatePaletteColorDto) {
+    return this.service.updatePaletteColor(id, dto);
+  }
+
+  @Delete('palette-colors/:id')
+  deletePaletteColor(@Param('id') id: string) {
+    return this.service.deletePaletteColor(id);
   }
 }

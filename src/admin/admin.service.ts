@@ -10,14 +10,20 @@ import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import { TemplateDesignSection } from '../template-design/template-design-section.entity';
 import { Category } from '../category/category.entity';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
+import { PaletteColor } from './entities/palette-color.entity';
 import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
 } from './dto/template-design.dto';
+import {
+  CreatePaletteColorDto,
+  UpdatePaletteColorDto,
+} from './dto/palette-color.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -31,15 +37,18 @@ export class AdminService {
     private readonly guestMessageRepo: Repository<GuestMessage>,
     @InjectRepository(TemplateDesign)
     private readonly templateDesignRepo: Repository<TemplateDesign>,
+    @InjectRepository(TemplateDesignSection)
+    private readonly templateDesignSectionRepo: Repository<TemplateDesignSection>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
     @InjectRepository(Section)
     private readonly sectionRepo: Repository<Section>,
     @InjectRepository(Audio) private readonly audioRepo: Repository<Audio>,
     @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
+    @InjectRepository(PaletteColor)
+    private readonly paletteColorRepo: Repository<PaletteColor>,
   ) {}
 
-  // ... (Users, Invitations, Guests, Guest Messages code remains same) ...
   // Users
   async listUsers(page = 1, limit = 20, q?: string) {
     const where = q
@@ -211,7 +220,7 @@ export class AdminService {
     const [data, total] = await this.templateDesignRepo.findAndCount({
       where,
       order: { id: 'DESC' },
-      relations: ['category'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -226,14 +235,14 @@ export class AdminService {
   async getTemplateDesign(id: number) {
     const template = await this.templateDesignRepo.findOne({
       where: { id },
-      relations: ['category'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
     });
     if (!template) throw new NotFoundException('Template design not found');
     return this.transformTemplateDesign(template);
   }
 
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
-    const { category: categoryName, ...rest } = payload;
+    const { category: categoryName, paletteId, sections, ...rest } = payload;
 
     const category = await this.categoryRepo.findOne({
       where: { name: categoryName },
@@ -241,24 +250,50 @@ export class AdminService {
     if (!category)
       throw new BadRequestException(`Category '${categoryName}' not found`);
 
+    let palette: PaletteColor | null = null;
+    if (paletteId) {
+      palette = await this.paletteColorRepo.findOne({
+        where: { id: paletteId },
+      });
+    }
+
     const data = this.normalizeTemplateDesignPayload(rest);
     const template = this.templateDesignRepo.create({
       ...data,
       category,
+      palette,
     });
-    const saved = await this.templateDesignRepo.save(template);
-    return this.transformTemplateDesign(saved);
+
+    const savedTemplate = await this.templateDesignRepo.save(template);
+
+    if (sections && sections.length > 0) {
+      for (const s of sections) {
+        const sectionMaster = await this.sectionRepo.findOne({
+          where: { id: s.sectionId },
+        });
+        if (sectionMaster) {
+          const tdSection = this.templateDesignSectionRepo.create({
+            templateDesign: savedTemplate,
+            section: sectionMaster,
+            order: s.order,
+            is_enabled: s.is_enabled,
+          });
+          await this.templateDesignSectionRepo.save(tdSection);
+        }
+      }
+    }
+
+    return this.getTemplateDesign(savedTemplate.id);
   }
 
   async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
     const template = await this.templateDesignRepo.findOne({
       where: { id },
-      relations: ['category'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
     });
     if (!template) throw new NotFoundException('Template design not found');
 
-    const { category: categoryName, ...rest } = payload;
-    let categoryEntity = template.category;
+    const { category: categoryName, paletteId, sections, ...rest } = payload;
 
     if (categoryName) {
       const found = await this.categoryRepo.findOne({
@@ -266,14 +301,47 @@ export class AdminService {
       });
       if (!found)
         throw new BadRequestException(`Category '${categoryName}' not found`);
-      categoryEntity = found;
+      template.category = found;
+    }
+
+    if (paletteId !== undefined) {
+      if (paletteId === null) {
+        template.palette = null;
+      } else if (paletteId) {
+        const foundPalette = await this.paletteColorRepo.findOne({
+          where: { id: paletteId },
+        });
+        if (foundPalette) template.palette = foundPalette;
+      }
     }
 
     const data = this.normalizeTemplateDesignPayload(rest);
-    Object.assign(template, { ...data, category: categoryEntity });
+    Object.assign(template, data);
 
-    const saved = await this.templateDesignRepo.save(template);
-    return this.transformTemplateDesign(saved);
+    const savedTemplate = await this.templateDesignRepo.save(template);
+
+    if (sections !== undefined) {
+      // Remove old sections and replace with new ones
+      await this.templateDesignSectionRepo.delete({ templateDesign: { id } });
+      if (sections && sections.length > 0) {
+        for (const s of sections) {
+          const sectionMaster = await this.sectionRepo.findOne({
+            where: { id: s.sectionId },
+          });
+          if (sectionMaster) {
+            const tdSection = this.templateDesignSectionRepo.create({
+              templateDesign: savedTemplate,
+              section: sectionMaster,
+              order: s.order,
+              is_enabled: s.is_enabled,
+            });
+            await this.templateDesignSectionRepo.save(tdSection);
+          }
+        }
+      }
+    }
+
+    return this.getTemplateDesign(id);
   }
 
   async deleteTemplateDesign(id: number) {
@@ -341,15 +409,44 @@ export class AdminService {
     return { success: true };
   }
 
+  // Palette Colors
+  async listPaletteColors(page = 1, limit = 20, q?: string) {
+    const where = q ? { name: ILike(`%${q}%`) } : undefined;
+    const [data, total] = await this.paletteColorRepo.findAndCount({
+      where,
+      order: { name: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { data, total, page, limit };
+  }
+
+  async createPaletteColor(payload: CreatePaletteColorDto) {
+    const palette = this.paletteColorRepo.create(payload);
+    return this.paletteColorRepo.save(palette);
+  }
+
+  async updatePaletteColor(id: string, payload: UpdatePaletteColorDto) {
+    const palette = await this.paletteColorRepo.findOne({ where: { id } });
+    if (!palette) throw new NotFoundException('Palette color not found');
+    Object.assign(palette, payload);
+    return this.paletteColorRepo.save(palette);
+  }
+
+  async deletePaletteColor(id: string) {
+    const palette = await this.paletteColorRepo.findOne({ where: { id } });
+    if (!palette) throw new NotFoundException('Palette color not found');
+    await this.paletteColorRepo.remove(palette);
+    return { success: true };
+  }
+
   private normalizeTemplateDesignPayload(
     payload: Partial<CreateTemplateDesignDto | UpdateTemplateDesignDto>,
   ): Partial<TemplateDesign> {
     const data: any = { ...payload };
-    delete data.category; // Handle category separately via relation
-
-    if (data.sectionOptions && typeof data.sectionOptions !== 'string') {
-      data.sectionOptions = JSON.stringify(data.sectionOptions);
-    }
+    delete data.category;
+    delete data.paletteId;
+    delete data.sections;
 
     if (data.tags) {
       if (Array.isArray(data.tags)) {
@@ -363,12 +460,38 @@ export class AdminService {
   }
 
   private transformTemplateDesign(template: TemplateDesign) {
-    const result = { ...template } as TemplateDesign & Record<string, any>;
+    const result = { ...template } as any;
     result.tags = this.safeParse(template.tags);
-    result.sectionOptions = this.safeParse(template.sectionOptions);
+
     if (template.category && typeof template.category === 'object') {
-      result.category = template.category.name as any;
+      result.category = template.category.name;
     }
+
+    if (template.palette) {
+      result.palette = {
+        id: template.palette.id,
+        name: template.palette.name,
+        primary: template.palette.primary,
+        secondary: template.palette.secondary,
+        accent: template.palette.accent,
+      };
+    }
+
+    if (template.sections) {
+      result.sections = template.sections
+        .sort((a, b) => a.order - b.order)
+        .map((ts) => ({
+          id: ts.section.id,
+          key: ts.section.key,
+          label: ts.section.label,
+          order: ts.order,
+          is_enabled: ts.is_enabled,
+        }));
+    }
+
+    delete result.paletteColors;
+    delete result.sectionOptions;
+
     return result;
   }
 

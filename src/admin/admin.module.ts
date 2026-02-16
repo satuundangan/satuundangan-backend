@@ -5,6 +5,7 @@ import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import { TemplateDesignSection } from '../template-design/template-design-section.entity';
 import { Category } from '../category/category.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
@@ -13,6 +14,7 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
+import { PaletteColor } from './entities/palette-color.entity';
 
 @Module({
   imports: [
@@ -22,10 +24,12 @@ import { Bank } from './entities/bank.entity';
       Guest,
       GuestMessage,
       TemplateDesign,
+      TemplateDesignSection,
       Category,
       Section,
       Audio,
       Bank,
+      PaletteColor,
     ]),
   ],
   providers: [AdminService, AdminGuard],

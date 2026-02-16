@@ -16,10 +16,10 @@ export class AdminGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
-    const user = req.user as { userId: number } | undefined;
-    if (!user?.userId) throw new ForbiddenException('Unauthorized');
+    const user = req.user as { id: number } | undefined;
+    if (!user?.id) throw new ForbiddenException('Unauthorized');
 
-    const found = await this.userRepo.findOne({ where: { id: user.userId } });
+    const found = await this.userRepo.findOne({ where: { id: user.id } });
     if (!found?.isAdmin) throw new ForbiddenException('Admins only');
     return true;
   }

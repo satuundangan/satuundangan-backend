@@ -19,9 +19,9 @@ async function bootstrap() {
     origin: [
       'https://satuundangan.id',
       'https://www.satuundangan.id',
-      'http://localhost:4000',
       'https://api.satuundangan.id',
-      'http://localhost:5173',
+      'http://localhost:5173', // untuk development
+      'http://localhost:5174', // untuk testing API langsung
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: ['Content-Type', 'Authorization'],

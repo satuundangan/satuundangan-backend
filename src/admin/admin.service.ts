@@ -410,8 +410,15 @@ export class AdminService {
   }
 
   // Palette Colors
-  async listPaletteColors() {
-    return this.paletteColorRepo.find();
+  async listPaletteColors(page = 1, limit = 20, q?: string) {
+    const where = q ? { name: ILike(`%${q}%`) } : undefined;
+    const [data, total] = await this.paletteColorRepo.findAndCount({
+      where,
+      order: { name: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { data, total, page, limit };
   }
 
   async createPaletteColor(payload: CreatePaletteColorDto) {

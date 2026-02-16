@@ -198,8 +198,9 @@ export class AdminController {
 
   // Palette Colors
   @Get('palette-colors')
-  listPaletteColors() {
-    return this.service.listPaletteColors();
+  listPaletteColors(@Query() q: PaginationQueryDto) {
+    const { page = 1, limit = 20, q: search } = q;
+    return this.service.listPaletteColors(page, limit, search);
   }
 
   @Post('palette-colors')

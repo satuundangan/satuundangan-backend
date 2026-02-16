@@ -170,9 +170,6 @@ export class Invitation {
   @Column({ type: 'text', nullable: true })
   whatsappMessageTemplate: string;
 
-  @Column({ default: false })
-  isActive: boolean;
-
   @Column({ type: 'timestamp', nullable: true })
   expiredAt: Date;
 

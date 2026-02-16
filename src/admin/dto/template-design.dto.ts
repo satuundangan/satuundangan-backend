@@ -6,6 +6,7 @@ import {
   IsString,
   IsNumber,
 } from 'class-validator';
+import { Expose } from 'class-transformer';
 
 export class CreateTemplateDesignDto {
   @IsString()
@@ -26,7 +27,8 @@ export class CreateTemplateDesignDto {
 
   @IsOptional()
   @IsBoolean()
-  isActive?: boolean;
+  @Expose({ name: 'is_published' })
+  isPublished?: boolean;
 
   @IsNumber()
   @IsOptional() // Making it optional to avoid breaking existing clients immediately, or IsNotEmpty if required. Requirement implies it's a new field. I'll make it Optional but default 0 in entity.

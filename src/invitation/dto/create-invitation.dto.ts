@@ -7,7 +7,7 @@ import {
   ValidateNested,
   IsNumber,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Expose } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum QuoteSource {
@@ -129,6 +129,7 @@ export class CreateInvitationDto {
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
+  @Expose({ name: 'is_published' })
   isPublished?: boolean;
 
   @ApiPropertyOptional({ example: 'QS. Ar-Rum: 21' })

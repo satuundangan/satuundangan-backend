@@ -60,7 +60,7 @@ describe('Payment E2E', () => {
       previewUrl: 'http://example.com/preview',
       thumbnailUrl: 'http://example.com/thumb.jpg',
       price: 50000, // Not free
-      isActive: true,
+      isPublished: true,
     });
     const savedTemplate = await templateRepo.save(template);
     templateId = savedTemplate.id;
@@ -139,7 +139,7 @@ describe('Payment E2E', () => {
     // Verify it is not active yet
     const inv = await invitationRepo.findOne({ where: { id: invitationId } });
     expect(inv).not.toBeNull();
-    expect(inv!.isActive).toBe(false);
+    expect(inv!.isPublished).toBe(false);
   });
 
   it('should create a payment transaction (Checkout)', async () => {
@@ -194,6 +194,6 @@ describe('Payment E2E', () => {
     // Verify invitation is now active
     const inv = await invitationRepo.findOne({ where: { id: invitationId } });
     expect(inv).not.toBeNull();
-    expect(inv!.isActive).toBe(true);
+    expect(inv!.isPublished).toBe(true);
   });
 });

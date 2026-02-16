@@ -67,7 +67,7 @@ describe('Full User Journey (E2E)', () => {
       previewUrl: 'http://example.com/preview',
       thumbnailUrl: 'http://example.com/thumb.jpg',
       price: 100000, // Not free
-      isActive: true,
+      isPublished: true,
       isPremium: true,
     });
     const savedTemplate = await templateRepo.save(template);
@@ -148,7 +148,7 @@ describe('Full User Journey (E2E)', () => {
     // Verify initial state: Not Active
     const inv = await invitationRepo.findOne({ where: { id: invitationId } });
     expect(inv).not.toBeNull();
-    expect(inv!.isActive).toBe(false);
+    expect(inv!.isPublished).toBe(false);
   });
 
   // --- STEP 3: PAYMENT & ACTIVATION ---
@@ -190,7 +190,7 @@ describe('Full User Journey (E2E)', () => {
 
     // Verify Activation
     const inv = await invitationRepo.findOne({ where: { id: invitationId } });
-    expect(inv!.isActive).toBe(true);
+    expect(inv!.isPublished).toBe(true);
   });
 
   // --- STEP 4: UPDATE INVITATION ---

@@ -34,7 +34,7 @@ describe('GuestMessages E2E', () => {
       previewUrl: 'http://example.com/preview',
       thumbnailUrl: 'http://example.com/thumb.jpg',
       price: 0,
-      isActive: true,
+      isPublished: true,
     });
     const savedTemplate = await templateRepo.save(template);
     templateId = savedTemplate.id;

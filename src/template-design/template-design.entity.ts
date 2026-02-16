@@ -26,7 +26,7 @@ export class TemplateDesign {
   thumbnailUrl: string;
 
   @Column({ default: true })
-  isActive: boolean;
+  isPublished: boolean;
 
   @Column({ default: false })
   isPremium: boolean;

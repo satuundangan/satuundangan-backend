@@ -134,6 +134,7 @@ export class InvitationService {
       templateDesignId: invitation.templateDesignId,
       templateName: invitation.templateName || invitation.templateDesign?.name || '',
       isPublished: invitation.isPublished,
+      is_published: invitation.isPublished,
       groomPhotoUrl: invitation.groomPhotoUrl || '',
       photoCoupleUrl: invitation.photoCoupleUrl || '',
       quoteType: invitation.quoteType || 'default',
@@ -269,7 +270,7 @@ export class InvitationService {
         whatsappMessageTemplate: invitation.whatsappMessageTemplate,
       },
       is_premium: invitation.templateDesign?.isPremium || false,
-      is_active: invitation.isPublished,
+      is_published: invitation.isPublished,
     };
   }
 

@@ -62,7 +62,7 @@ User membuat draft undangan.
     "whatsappMessageTemplate": "Halo [GuestName], mohon hadir di: [Link]" // Template pesan WA
   }
   ```
-- **Response:** Mengembalikan object Invitation (catat `id`-nya). Status awal `isActive: false`.
+- **Response:** Mengembalikan object Invitation (catat `id`-nya). Status awal `is_published: false`.
 
 ---
 
@@ -94,7 +94,7 @@ User ingin mengaktifkan undangan/fitur premium.
 ### B. Handling Payment (Frontend)
 1. Frontend menggunakan Snap.js Midtrans dengan `token` dari response di atas.
 2. Setelah user bayar sukses, Midtrans akan mengirim Webhook ke Backend.
-3. **Auto-Update:** Backend otomatis mengubah status `invitation.isActive = true`.
+3. **Auto-Update:** Backend otomatis mengubah status `invitation.isPublished = true`.
 
 ---
 

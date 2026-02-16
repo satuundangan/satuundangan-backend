@@ -55,7 +55,7 @@ export class PaymentService {
 
     // Jika GRATIS (0), langsung aktifkan tanpa ke Midtrans
     if (grossAmount === 0) {
-      invitation.isActive = true;
+      invitation.isPublished = true;
       await this.invitationRepo.save(invitation);
 
       // (Opsional) Catat history pembayaran "FREE"
@@ -186,7 +186,7 @@ export class PaymentService {
         : new Date();
 
       if (payment.invitation) {
-        payment.invitation.isActive = true;
+        payment.invitation.isPublished = true;
         await this.invitationRepo.save(payment.invitation);
       }
     } else if (transaction_status === 'expire') {
@@ -235,7 +235,7 @@ export class PaymentService {
     if (status === PaymentStatus.SUCCESS) {
       payment.settlementTime = new Date();
       if (payment.invitation) {
-        payment.invitation.isActive = true;
+        payment.invitation.isPublished = true;
         await this.invitationRepo.save(payment.invitation);
       }
     }

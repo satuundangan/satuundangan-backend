@@ -5,6 +5,7 @@ import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import { TemplateDesignSection } from '../template-design/template-design-section.entity';
 import { Category } from '../category/category.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
@@ -23,6 +24,7 @@ import { PaletteColor } from './entities/palette-color.entity';
       Guest,
       GuestMessage,
       TemplateDesign,
+      TemplateDesignSection,
       Category,
       Section,
       Audio,

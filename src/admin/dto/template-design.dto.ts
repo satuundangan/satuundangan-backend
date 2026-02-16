@@ -22,20 +22,28 @@ export class CreateTemplateDesignDto {
   previewUrl: string;
 
   @IsString()
+  @IsOptional()
+  thumbnailUrl?: string;
+
+  @IsString()
   @IsNotEmpty()
   category: string;
 
   @IsOptional()
   @IsBoolean()
-  @Expose({ name: 'is_published' })
   isPublished?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  isPremium?: boolean;
+
   @IsNumber()
-  @IsOptional() // Making it optional to avoid breaking existing clients immediately, or IsNotEmpty if required. Requirement implies it's a new field. I'll make it Optional but default 0 in entity.
+  @IsOptional()
   price?: number;
 
   @IsOptional()
-  paletteColors?: string[];
+  @IsString()
+  paletteId?: string;
 
   @IsOptional()
   @IsString()
@@ -45,7 +53,11 @@ export class CreateTemplateDesignDto {
   tags?: any;
 
   @IsOptional()
-  sectionOptions?: any;
+  sections?: {
+    sectionId: string;
+    order: number;
+    is_enabled: boolean;
+  }[];
 }
 
 export class UpdateTemplateDesignDto extends PartialType(

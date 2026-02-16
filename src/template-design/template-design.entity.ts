@@ -7,6 +7,8 @@ import {
 } from 'typeorm';
 import { Invitation } from '../invitation/invitation.entity';
 import { Category } from '../category/category.entity';
+import { PaletteColor } from '../admin/entities/palette-color.entity';
+import { TemplateDesignSection } from './template-design-section.entity';
 
 @Entity('template_designs')
 export class TemplateDesign {
@@ -37,6 +39,9 @@ export class TemplateDesign {
   })
   category: Category;
 
+  @ManyToOne(() => PaletteColor, { nullable: true, onDelete: 'SET NULL' })
+  palette: PaletteColor;
+
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   price: number;
 
@@ -51,6 +56,11 @@ export class TemplateDesign {
 
   @Column({ type: 'text', nullable: true })
   sectionOptions: string;
+
+  @OneToMany(() => TemplateDesignSection, (tds) => tds.templateDesign, {
+    cascade: true,
+  })
+  sections: TemplateDesignSection[];
 
   @OneToMany(() => Invitation, (invitation) => invitation.templateDesign)
   invitations: Invitation[];

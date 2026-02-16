@@ -14,6 +14,7 @@ import { Category } from '../category/category.entity';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
+import { PaletteColor } from './entities/palette-color.entity';
 import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
@@ -37,6 +38,8 @@ export class AdminService {
     private readonly sectionRepo: Repository<Section>,
     @InjectRepository(Audio) private readonly audioRepo: Repository<Audio>,
     @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
+    @InjectRepository(PaletteColor)
+    private readonly paletteColorRepo: Repository<PaletteColor>,
   ) {}
 
   // ... (Users, Invitations, Guests, Guest Messages code remains same) ...
@@ -338,6 +341,30 @@ export class AdminService {
     const bank = await this.bankRepo.findOne({ where: { id } });
     if (!bank) throw new NotFoundException('Bank not found');
     await this.bankRepo.remove(bank);
+    return { success: true };
+  }
+
+  // Palette Colors
+  async listPaletteColors() {
+    return this.paletteColorRepo.find();
+  }
+
+  async createPaletteColor(payload: Partial<PaletteColor>) {
+    const palette = this.paletteColorRepo.create(payload);
+    return this.paletteColorRepo.save(palette);
+  }
+
+  async updatePaletteColor(id: string, payload: Partial<PaletteColor>) {
+    const palette = await this.paletteColorRepo.findOne({ where: { id } });
+    if (!palette) throw new NotFoundException('Palette color not found');
+    Object.assign(palette, payload);
+    return this.paletteColorRepo.save(palette);
+  }
+
+  async deletePaletteColor(id: string) {
+    const palette = await this.paletteColorRepo.findOne({ where: { id } });
+    if (!palette) throw new NotFoundException('Palette color not found');
+    await this.paletteColorRepo.remove(palette);
     return { success: true };
   }
 

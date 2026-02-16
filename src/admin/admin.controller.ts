@@ -191,4 +191,25 @@ export class AdminController {
   deleteBank(@Param('id') id: string) {
     return this.service.deleteBank(id);
   }
+
+  // Palette Colors
+  @Get('palette-colors')
+  listPaletteColors() {
+    return this.service.listPaletteColors();
+  }
+
+  @Post('palette-colors')
+  createPaletteColor(@Body() body: any) {
+    return this.service.createPaletteColor(body);
+  }
+
+  @Patch('palette-colors/:id')
+  updatePaletteColor(@Param('id') id: string, @Body() body: any) {
+    return this.service.updatePaletteColor(id, body);
+  }
+
+  @Delete('palette-colors/:id')
+  deletePaletteColor(@Param('id') id: string) {
+    return this.service.deletePaletteColor(id);
+  }
 }

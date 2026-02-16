@@ -13,6 +13,7 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
+import { PaletteColor } from './entities/palette-color.entity';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { Bank } from './entities/bank.entity';
       Section,
       Audio,
       Bank,
+      PaletteColor,
     ]),
   ],
   providers: [AdminService, AdminGuard],

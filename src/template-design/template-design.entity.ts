@@ -40,13 +40,13 @@ export class TemplateDesign {
   category: Category;
 
   @ManyToOne(() => PaletteColor, { nullable: true, onDelete: 'SET NULL' })
-  palette: PaletteColor;
+  palette?: PaletteColor | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   price: number;
 
   @Column({ type: 'simple-array', nullable: true })
-  paletteColors: string[];
+  paletteColors?: string[];
 
   @Column({ type: 'varchar', nullable: true })
   description: string | null;
@@ -55,12 +55,12 @@ export class TemplateDesign {
   tags: string;
 
   @Column({ type: 'text', nullable: true })
-  sectionOptions: string;
+  sectionOptions?: string;
 
   @OneToMany(() => TemplateDesignSection, (tds) => tds.templateDesign, {
     cascade: true,
   })
-  sections: TemplateDesignSection[];
+  sections?: TemplateDesignSection[];
 
   @OneToMany(() => Invitation, (invitation) => invitation.templateDesign)
   invitations: Invitation[];

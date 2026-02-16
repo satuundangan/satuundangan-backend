@@ -45,7 +45,6 @@ export class AdminService {
     private readonly paletteColorRepo: Repository<PaletteColor>,
   ) {}
 
-  // ... (Users, Invitations, Guests, Guest Messages code remains same) ...
   // Users
   async listUsers(page = 1, limit = 20, q?: string) {
     const where = q
@@ -217,7 +216,7 @@ export class AdminService {
     const [data, total] = await this.templateDesignRepo.findAndCount({
       where,
       order: { id: 'DESC' },
-      relations: ['category'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -247,7 +246,7 @@ export class AdminService {
     if (!category)
       throw new BadRequestException(`Category '${categoryName}' not found`);
 
-    let palette = null;
+    let palette: PaletteColor | null = null;
     if (paletteId) {
       palette = await this.paletteColorRepo.findOne({
         where: { id: paletteId },
@@ -304,7 +303,7 @@ export class AdminService {
     if (paletteId !== undefined) {
       if (paletteId === null) {
         template.palette = null;
-      } else {
+      } else if (paletteId) {
         const foundPalette = await this.paletteColorRepo.findOne({
           where: { id: paletteId },
         });
@@ -450,11 +449,11 @@ export class AdminService {
   }
 
   private transformTemplateDesign(template: TemplateDesign) {
-    const result = { ...template } as TemplateDesign & Record<string, any>;
+    const result = { ...template } as any;
     result.tags = this.safeParse(template.tags);
 
     if (template.category && typeof template.category === 'object') {
-      result.category = template.category.name as any;
+      result.category = template.category.name;
     }
 
     if (template.palette) {
@@ -479,7 +478,6 @@ export class AdminService {
         }));
     }
 
-    // Clean up old fields from response if needed, or keep for safety
     delete result.paletteColors;
     delete result.sectionOptions;
 

@@ -62,8 +62,8 @@ export class PaymentService {
       const payment = this.paymentRepo.create({
         orderId: `FREE-${invitation.id}-${Date.now()}`,
         amount: 0,
-        name: user.name,
-        email: user.email,
+        name: invitation.user?.name || user.email,
+        email: invitation.user?.email || user.email,
         paymentMethod: 'FREE_ACTIVATION',
         status: PaymentStatus.SUCCESS,
         paymentType: 'free',

@@ -14,18 +14,19 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ Izinkan origin dari frontend production
   app.enableCors({
     origin: [
       'https://satuundangan.id',
       'https://www.satuundangan.id',
       'https://api.satuundangan.id',
-      'http://localhost:5173', // untuk development
-      'http://localhost:5174', // untuk testing API langsung
+      'http://localhost:5173',
+      'http://localhost:5174',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true, // penting kalau pakai cookie atau header auth
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   // Swagger config

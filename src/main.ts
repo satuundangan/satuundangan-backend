@@ -21,6 +21,8 @@ async function bootstrap() {
       'https://www.satuundangan.id',
       'https://api.satuundangan.id',
       'http://localhost:5173', // untuk development
+      'http://127.0.0.1:5173', // untuk development IPv4
+      'http://[::1]:5173', // untuk development IPv6
       'http://localhost:5174', // untuk testing API langsung
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',

@@ -14,7 +14,6 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ Izinkan origin dari frontend production
   app.enableCors({
     origin: [
       'https://satuundangan.id',
@@ -27,7 +26,8 @@ async function bootstrap() {
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true, // penting kalau pakai cookie atau header auth
+    credentials: true,
+    optionsSuccessStatus: 204,
   });
 
   // Swagger config

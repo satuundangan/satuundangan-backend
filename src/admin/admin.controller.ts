@@ -8,6 +8,7 @@ import {
   Body,
   Patch,
   Delete,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -23,12 +24,18 @@ import {
   UpdatePaletteColorDto,
 } from './dto/palette-color.dto';
 import { ApiTags } from '@nestjs/swagger';
+import { PromoService } from '../promo/promo.service';
+import { CreatePromoCodeDto } from '../promo/dto/create-promo-code.dto';
+import { UpdatePromoCodeDto } from '../promo/dto/update-promo-code.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminController {
-  constructor(private readonly service: AdminService) {}
+  constructor(
+    private readonly service: AdminService,
+    private readonly promoService: PromoService,
+  ) {}
 
   // Users
   @Get('users')
@@ -216,5 +223,30 @@ export class AdminController {
   @Delete('palette-colors/:id')
   deletePaletteColor(@Param('id') id: string) {
     return this.service.deletePaletteColor(id);
+  }
+
+  // Promo Codes
+  @Get('promo-codes')
+  listPromoCodes(@Query() q: PaginationQueryDto) {
+    const { page = 1, limit = 20, q: search } = q;
+    return this.promoService.list(page, limit, search);
+  }
+
+  @Post('promo-codes')
+  createPromoCode(@Body() dto: CreatePromoCodeDto) {
+    return this.promoService.create(dto);
+  }
+
+  @Patch('promo-codes/:id')
+  updatePromoCode(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePromoCodeDto,
+  ) {
+    return this.promoService.update(id, dto);
+  }
+
+  @Delete('promo-codes/:id')
+  deletePromoCode(@Param('id', ParseIntPipe) id: number) {
+    return this.promoService.remove(id);
   }
 }

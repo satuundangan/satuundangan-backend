@@ -27,10 +27,15 @@ export class PaymentController {
     @Body()
     body: {
       invitation_id: number;
+      promo_code?: string;
     },
     @CurrentUser() user: User,
   ) {
-    return this.paymentService.createTransaction(body.invitation_id, user);
+    return this.paymentService.createTransaction(
+      body.invitation_id,
+      user,
+      body.promo_code,
+    );
   }
 
   @Post('simulate')

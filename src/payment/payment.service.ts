@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Snap } from 'midtrans-client';
 import { ConfigService } from '@nestjs/config';
@@ -15,6 +16,8 @@ import {
 } from './types/payment.type';
 import { Invitation } from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
+import { PromoService } from '../promo/promo.service';
+import { PromoCode } from '../promo/promo-code.entity';
 
 @Injectable()
 export class PaymentService {
@@ -26,6 +29,7 @@ export class PaymentService {
     private paymentRepo: Repository<Payment>,
     @InjectRepository(Invitation)
     private readonly invitationRepo: Repository<Invitation>,
+    private readonly promoService: PromoService,
   ) {
     this.snap = new Snap({
       isProduction: false,
@@ -34,7 +38,11 @@ export class PaymentService {
     });
   }
 
-  async createTransaction(invitationId: number, user: User) {
+  async createTransaction(
+    invitationId: number,
+    user: User,
+    promoCode?: string,
+  ) {
     const invitation = await this.invitationRepo.findOne({
       where: { id: invitationId },
       relations: ['user', 'templateDesign'],
@@ -49,16 +57,44 @@ export class PaymentService {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
 
-    // 2. Handle Price Decimal & Free Template
+    // 2. Handle Price Decimal & resolve promo code server-side
     const rawPrice = invitation.templateDesign?.price || 0;
-    const grossAmount = Number(rawPrice);
+    let grossAmount = Number(rawPrice);
+    let appliedPromo: PromoCode | undefined;
+    let discountAmount = 0;
+
+    if (promoCode) {
+      const promoResult = await this.promoService.validate(
+        promoCode,
+        invitationId,
+      );
+      if (!promoResult.valid) {
+        throw new BadRequestException(
+          promoResult.message || 'Kode promo tidak valid',
+        );
+      }
+      appliedPromo = promoResult.promoCode!;
+      discountAmount = promoResult.discountAmount!;
+      grossAmount = promoResult.finalPrice!;
+    }
+
+    // Atomically reserve a promo slot BEFORE any external call.
+    // This single DB UPDATE with a conditional WHERE prevents two concurrent
+    // requests from both "winning" the last available slot.
+    if (appliedPromo) {
+      const reserved = await this.promoService.tryReserve(appliedPromo.id);
+      if (!reserved) {
+        throw new BadRequestException(
+          'Kode promo sudah habis atau tidak berlaku',
+        );
+      }
+    }
 
     // Jika GRATIS (0), langsung aktifkan tanpa ke Midtrans
     if (grossAmount === 0) {
       invitation.isPublished = true;
       await this.invitationRepo.save(invitation);
 
-      // (Opsional) Catat history pembayaran "FREE"
       const payment = this.paymentRepo.create({
         orderId: `FREE-${invitation.id}-${Date.now()}`,
         amount: 0,
@@ -70,6 +106,8 @@ export class PaymentService {
         fraudStatus: 'accept',
         invitationId: invitation.id,
         settlementTime: new Date(),
+        promoCodeId: appliedPromo?.id ?? null,
+        discountAmount: discountAmount || null,
       } as DeepPartial<Payment>);
 
       await this.paymentRepo.save(payment);
@@ -109,7 +147,16 @@ export class PaymentService {
       ],
     };
 
-    const transaction = await this.snap.createTransaction(parameter);
+    let transaction: { token: string; redirect_url: string };
+    try {
+      transaction = await this.snap.createTransaction(parameter);
+    } catch (err) {
+      // Midtrans failed — release the promo slot we reserved above.
+      if (appliedPromo) {
+        await this.promoService.release(appliedPromo.id);
+      }
+      throw err;
+    }
 
     const payment = this.paymentRepo.create({
       orderId,
@@ -121,6 +168,8 @@ export class PaymentService {
       paymentType: null,
       fraudStatus: null,
       invitationId: invitation.id,
+      promoCodeId: appliedPromo?.id ?? null,
+      discountAmount: discountAmount || null,
     } as DeepPartial<Payment>);
 
     await this.paymentRepo.save(payment);
@@ -179,7 +228,11 @@ export class PaymentService {
       throw new Error(`Payment with order_id ${order_id} not found`);
     }
 
-    if (transaction_status === 'settlement' && fraud_status === 'accept') {
+    const isSuccess =
+      (transaction_status === 'settlement' || transaction_status === 'capture') &&
+      fraud_status === 'accept';
+
+    if (isSuccess) {
       payment.status = PaymentStatus.SUCCESS;
       payment.settlementTime = settlement_time
         ? new Date(settlement_time)

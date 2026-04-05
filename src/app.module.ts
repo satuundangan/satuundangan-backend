@@ -12,6 +12,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CategoryModule } from './category/category.module';
+import { PromoModule } from './promo/promo.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CategoryModule } from './category/category.module';
     AdminModule,
     DashboardModule,
     CategoryModule,
+    PromoModule,
   ],
 })
 export class AppModule {}

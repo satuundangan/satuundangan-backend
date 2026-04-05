@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { PaymentStatus } from './types/payment.type';
 import { Invitation } from '../invitation/invitation.entity';
+import { PromoCode } from '../promo/promo-code.entity';
 
 @Entity()
 export class Payment {
@@ -26,6 +27,9 @@ export class Payment {
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  paymentMethod: string | null;
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   paymentType: string | null;
@@ -51,6 +55,16 @@ export class Payment {
 
   @Column({ nullable: true })
   invitationId: number;
+
+  @ManyToOne(() => PromoCode, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'promoCodeId' })
+  promoCode: PromoCode | null;
+
+  @Column({ nullable: true })
+  promoCodeId: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  discountAmount: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

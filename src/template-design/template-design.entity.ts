@@ -24,7 +24,7 @@ export class TemplateDesign {
   @Column()
   previewUrl: string;
 
-  @Column()
+  @Column({ nullable: true })
   thumbnailUrl: string;
 
   @Column({ default: true })

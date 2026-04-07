@@ -388,12 +388,15 @@ export class AdminService {
       order: { label: 'ASC' },
     });
 
-    return sections.map(s => ({
-      id: s.id,
-      label: s.label,
-      key: s.key,
-      is_active: s.is_active !== undefined ? s.is_active : (s as any).is_published,
-    }));
+    return sections.map(s => {
+      const raw = s as any;
+      return {
+        id: s.id,
+        label: s.label,
+        key: s.key,
+        is_active: s.is_active ?? raw.is_published ?? true,
+      };
+    });
   }
 
   async createSection(payload: any) {

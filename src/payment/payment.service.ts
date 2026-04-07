@@ -211,6 +211,23 @@ export class PaymentService {
     return { orderId: payment.orderId, updatedStatus: payment.status };
   }
 
+  async getPaymentStatus(orderId: string) {
+    const payment = await this.paymentRepo.findOne({
+      where: { orderId },
+      relations: ['invitation'],
+    });
+
+    if (!payment) {
+      throw new NotFoundException(`Payment with order_id ${orderId} not found`);
+    }
+
+    return {
+      orderId: payment.orderId,
+      status: payment.status,
+      invitationSlug: payment.invitation?.slug ?? null,
+    };
+  }
+
   async simulatePayment(
     invitationId: number,
     status: PaymentStatus,

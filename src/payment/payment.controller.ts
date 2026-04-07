@@ -5,6 +5,7 @@ import {
   Res,
   Get,
   Req,
+  Param,
   Headers,
   UseGuards,
 } from '@nestjs/common';
@@ -56,6 +57,13 @@ export class PaymentController {
       body.status,
       user,
     );
+  }
+
+  @Get('status/:orderId')
+  @ApiTags('Payment')
+  @ApiOperation({ summary: 'Get payment status by order ID' })
+  async getStatus(@Param('orderId') orderId: string) {
+    return this.paymentService.getPaymentStatus(orderId);
   }
 
   @Get('/finish')

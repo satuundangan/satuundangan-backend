@@ -388,13 +388,17 @@ export class AdminService {
       order: { label: 'ASC' },
     });
 
+    console.log(`[DEBUG] listSections found ${sections.length} items. Raw first item:`, sections[0]);
+
     return sections.map(s => {
       const raw = s as any;
+      const isActive = s.is_active ?? raw.is_published ?? true;
+      console.log(`[DEBUG] Mapping item ${s.key}: is_active=${s.is_active}, is_published=${raw.is_published} -> result=${isActive}`);
       return {
         id: s.id,
         label: s.label,
         key: s.key,
-        is_active: s.is_active ?? raw.is_published ?? true,
+        is_active: isActive,
       };
     });
   }

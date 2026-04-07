@@ -352,8 +352,21 @@ export class AdminService {
   }
 
   // Sections
-  async listSections() {
-    return this.sectionRepo.find();
+  async listSections(q?: string, activeOnly = false) {
+    let where: any;
+    if (q) {
+      where = [
+        { label: ILike(`%${q}%`), ...(activeOnly ? { is_active: true } : {}) },
+        { key: ILike(`%${q}%`), ...(activeOnly ? { is_active: true } : {}) },
+      ];
+    } else if (activeOnly) {
+      where = { is_active: true };
+    }
+
+    return this.sectionRepo.find({
+      where,
+      order: { label: 'ASC' },
+    });
   }
 
   async createSection(payload: Partial<Section>) {

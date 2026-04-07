@@ -12,5 +12,5 @@ export class Section {
   key: string;
 
   @Column({ default: true })
-  is_published: boolean;
+  is_active: boolean;
 }

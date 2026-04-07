@@ -152,8 +152,8 @@ export class AdminController {
 
   // Sections
   @Get('sections')
-  listSections() {
-    return this.service.listSections();
+  listSections(@Query('q') q?: string) {
+    return this.service.listSections(q);
   }
 
   @Post('sections')

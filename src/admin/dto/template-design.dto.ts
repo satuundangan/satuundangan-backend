@@ -17,8 +17,8 @@ export class CreateTemplateDesignDto {
   slug: string;
 
   @IsString()
-  @IsNotEmpty()
-  previewUrl: string;
+  @IsOptional()
+  previewUrl?: string;
 
   @IsString()
   @IsOptional()

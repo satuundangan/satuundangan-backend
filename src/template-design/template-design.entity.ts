@@ -21,7 +21,7 @@ export class TemplateDesign {
   @Column({ unique: true })
   slug: string;
 
-  @Column()
+  @Column({ nullable: true })
   previewUrl: string;
 
   @Column({ nullable: true })

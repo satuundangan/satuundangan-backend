@@ -49,6 +49,9 @@ export class CreateTemplateDesignDto {
   paletteId?: string;
 
   @IsOptional()
+  paletteColors?: string[];
+
+  @IsOptional()
   @IsString()
   description?: string | null;
 

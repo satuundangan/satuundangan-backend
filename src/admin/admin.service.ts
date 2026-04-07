@@ -530,6 +530,11 @@ export class AdminService {
       delete data.isActive;
     }
 
+    // paletteColors is already handled by TypeORM simple-array if it's an array of strings
+    if (data.paletteColors && !Array.isArray(data.paletteColors)) {
+      delete data.paletteColors;
+    }
+
     if (data.tags) {
       if (Array.isArray(data.tags)) {
         data.tags = JSON.stringify(data.tags);
@@ -545,6 +550,19 @@ export class AdminService {
     const result = { ...template } as any;
     result.tags = this.safeParse(template.tags);
     result.isActive = template.isPublished;
+
+    // Use linked palette colors if available, otherwise use custom paletteColors
+    if (template.palette) {
+      result.paletteColors = [
+        template.palette.primary,
+        template.palette.secondary,
+        template.palette.accent,
+      ];
+    } else if (template.paletteColors) {
+      result.paletteColors = template.paletteColors;
+    } else {
+      result.paletteColors = [];
+    }
 
     if (template.category && typeof template.category === 'object') {
       result.category = template.category.name;

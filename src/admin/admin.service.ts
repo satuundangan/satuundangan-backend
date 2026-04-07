@@ -389,16 +389,42 @@ export class AdminService {
     });
   }
 
-  async createSection(payload: Partial<Section>) {
-    const section = this.sectionRepo.create(payload);
-    return this.sectionRepo.save(section);
+  async createSection(payload: any) {
+    try {
+      console.log('Creating section with payload:', payload);
+      const section = this.sectionRepo.create({
+        label: payload.label,
+        key: payload.key,
+        is_active: payload.is_active === true || payload.is_active === 1 || payload.is_active === 'true',
+      });
+      const saved = await this.sectionRepo.save(section);
+      console.log('Saved section:', saved);
+      return saved;
+    } catch (error) {
+      console.error('Error creating section:', error);
+      throw new BadRequestException(error.message || 'Failed to create section');
+    }
   }
 
-  async updateSection(id: string, payload: Partial<Section>) {
-    const section = await this.sectionRepo.findOne({ where: { id } });
-    if (!section) throw new NotFoundException('Section not found');
-    Object.assign(section, payload);
-    return this.sectionRepo.save(section);
+  async updateSection(id: string, payload: any) {
+    try {
+      console.log(`Updating section ${id} with payload:`, payload);
+      const section = await this.sectionRepo.findOne({ where: { id } });
+      if (!section) throw new NotFoundException('Section not found');
+      
+      if (payload.label !== undefined) section.label = payload.label;
+      if (payload.key !== undefined) section.key = payload.key;
+      if (payload.is_active !== undefined) {
+        section.is_active = payload.is_active === true || payload.is_active === 1 || payload.is_active === 'true';
+      }
+      
+      const saved = await this.sectionRepo.save(section);
+      console.log('Updated section result:', saved);
+      return saved;
+    } catch (error) {
+      console.error('Error updating section:', error);
+      throw new BadRequestException(error.message || 'Failed to update section');
+    }
   }
 
   async deleteSection(id: string) {

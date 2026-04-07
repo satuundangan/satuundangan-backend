@@ -392,7 +392,7 @@ export class AdminService {
       id: s.id,
       label: s.label,
       key: s.key,
-      is_active: s.is_active,
+      is_active: s.is_active !== undefined ? s.is_active : (s as any).is_published,
     }));
   }
 

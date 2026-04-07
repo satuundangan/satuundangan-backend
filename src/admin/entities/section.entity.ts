@@ -11,6 +11,6 @@ export class Section {
   @Column({ unique: true })
   key: string;
 
-  @Column({ default: true })
+  @Column({ type: 'boolean', default: true, name: 'is_active' })
   is_active: boolean;
 }

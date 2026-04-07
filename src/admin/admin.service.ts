@@ -590,7 +590,6 @@ export class AdminService {
         }));
     }
 
-    delete result.paletteColors;
     delete result.sectionOptions;
 
     return result;

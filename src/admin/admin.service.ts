@@ -389,8 +389,9 @@ export class AdminService {
   }
 
   // Audio
-  async listAudio() {
-    return this.audioRepo.find();
+  async listAudio(q?: string) {
+    const where = q ? { title: ILike(`%${q}%`) } : undefined;
+    return this.audioRepo.find({ where, order: { title: 'ASC' } });
   }
 
   async createAudio(payload: Partial<Audio>) {
@@ -406,8 +407,11 @@ export class AdminService {
   }
 
   // Banks
-  async listBanks() {
-    return this.bankRepo.find();
+  async listBanks(q?: string) {
+    const where = q
+      ? [{ name: ILike(`%${q}%`) }, { code: ILike(`%${q}%`) }]
+      : undefined;
+    return this.bankRepo.find({ where, order: { name: 'ASC' } });
   }
 
   async createBank(payload: Partial<Bank>) {
@@ -461,6 +465,11 @@ export class AdminService {
     delete data.paletteId;
     delete data.sections;
 
+    if (data.isActive !== undefined) {
+      data.isPublished = data.isActive;
+      delete data.isActive;
+    }
+
     if (data.tags) {
       if (Array.isArray(data.tags)) {
         data.tags = JSON.stringify(data.tags);
@@ -475,6 +484,7 @@ export class AdminService {
   private transformTemplateDesign(template: TemplateDesign) {
     const result = { ...template } as any;
     result.tags = this.safeParse(template.tags);
+    result.isActive = template.isPublished;
 
     if (template.category && typeof template.category === 'object') {
       result.category = template.category.name;

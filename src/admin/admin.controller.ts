@@ -173,8 +173,8 @@ export class AdminController {
 
   // Audio
   @Get('audio')
-  listAudio() {
-    return this.service.listAudio();
+  listAudio(@Query('q') q?: string) {
+    return this.service.listAudio(q);
   }
 
   @Post('audio')
@@ -189,8 +189,8 @@ export class AdminController {
 
   // Banks
   @Get('banks')
-  listBanks() {
-    return this.service.listBanks();
+  listBanks(@Query('q') q?: string) {
+    return this.service.listBanks(q);
   }
 
   @Post('banks')

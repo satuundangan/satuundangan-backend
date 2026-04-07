@@ -135,7 +135,23 @@ export class PromoService {
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data, total, page, limit };
+    return {
+      data: data.map((promo) => ({
+        id: promo.id,
+        code: promo.code,
+        discount_type: promo.discountType,
+        discount_value: promo.discountValue,
+        max_uses: promo.maxUses,
+        used_count: promo.usedCount,
+        valid_from: promo.validFrom,
+        valid_until: promo.validUntil,
+        is_active: promo.isActive,
+        createdAt: promo.createdAt,
+      })),
+      total,
+      page,
+      limit,
+    };
   }
 
   async create(dto: CreatePromoCodeDto): Promise<PromoCode> {

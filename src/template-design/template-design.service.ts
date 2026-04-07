@@ -27,7 +27,7 @@ export class TemplateDesignService {
   async findAll(): Promise<TemplateDesign[]> {
     const templates = await this.templateRepo.find({
       order: { name: 'ASC' },
-      relations: ['category'],
+      relations: ['category', 'sections', 'sections.section'],
     });
     return templates.map((t) => this.transformPalette(t));
   }
@@ -35,7 +35,7 @@ export class TemplateDesignService {
   async findById(id: number): Promise<TemplateDesign> {
     const template = await this.templateRepo.findOne({
       where: { id },
-      relations: ['category'],
+      relations: ['category', 'sections', 'sections.section'],
     });
     if (!template) throw new NotFoundException('Template not found');
     return this.transformPalette(template);
@@ -68,24 +68,40 @@ export class TemplateDesignService {
     }
     const templates = await this.templateRepo.find({
       where,
-      relations: ['category'],
+      relations: ['category', 'sections', 'sections.section'],
     });
 
     return templates.map((t) => this.transformPalette(t));
   }
 
   private transformPalette(template: TemplateDesign): TemplateDesign {
+    const result = { ...template } as any;
+
     if (typeof template.tags === 'string') {
       try {
-        template.tags = JSON.parse(template.tags) as string;
+        result.tags = JSON.parse(template.tags) as string;
       } catch (err: any) {
         // Fallback if not JSON
       }
     }
+
     if (template.category && typeof template.category === 'object') {
-      (template as any).category = template.category.name;
+      result.category = template.category.name;
     }
-    return template;
+
+    if (template.sections) {
+      result.sections = template.sections
+        .sort((a, b) => a.order - b.order)
+        .map((ts) => ({
+          id: ts.section.id,
+          key: ts.section.key,
+          label: ts.section.label,
+          order: ts.order,
+          is_enabled: ts.is_enabled,
+        }));
+    }
+
+    return result;
   }
 
   private async getAllTemplateDesigns(): Promise<TemplateDesign[]> {

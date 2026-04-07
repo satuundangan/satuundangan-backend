@@ -242,87 +242,31 @@ export class AdminService {
   }
 
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
-    const { category: categoryName, paletteId, sections, ...rest } = payload;
+    try {
+      const { category: categoryName, paletteId, sections, ...rest } = payload;
 
-    const category = await this.categoryRepo.findOne({
-      where: { name: categoryName },
-    });
-    if (!category)
-      throw new BadRequestException(`Category '${categoryName}' not found`);
-
-    let palette: PaletteColor | null = null;
-    if (paletteId) {
-      palette = await this.paletteColorRepo.findOne({
-        where: { id: paletteId },
-      });
-    }
-
-    const data = this.normalizeTemplateDesignPayload(rest);
-    const template = this.templateDesignRepo.create({
-      ...data,
-      category,
-      palette,
-    });
-
-    const savedTemplate = await this.templateDesignRepo.save(template);
-
-    if (sections && sections.length > 0) {
-      for (const s of sections) {
-        const sectionMaster = await this.sectionRepo.findOne({
-          where: { id: s.sectionId },
-        });
-        if (sectionMaster) {
-          const tdSection = this.templateDesignSectionRepo.create({
-            templateDesign: savedTemplate,
-            section: sectionMaster,
-            order: s.order,
-            is_enabled: s.is_enabled,
-          });
-          await this.templateDesignSectionRepo.save(tdSection);
-        }
-      }
-    }
-
-    return this.getTemplateDesign(savedTemplate.id);
-  }
-
-  async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
-    const template = await this.templateDesignRepo.findOne({
-      where: { id },
-      relations: ['category', 'palette', 'sections', 'sections.section'],
-    });
-    if (!template) throw new NotFoundException('Template design not found');
-
-    const { category: categoryName, paletteId, sections, ...rest } = payload;
-
-    if (categoryName) {
-      const found = await this.categoryRepo.findOne({
+      const category = await this.categoryRepo.findOne({
         where: { name: categoryName },
       });
-      if (!found)
+      if (!category)
         throw new BadRequestException(`Category '${categoryName}' not found`);
-      template.category = found;
-    }
 
-    if (paletteId !== undefined) {
-      if (paletteId === null) {
-        template.palette = null;
-      } else if (paletteId) {
-        const foundPalette = await this.paletteColorRepo.findOne({
+      let palette: PaletteColor | null = null;
+      if (paletteId) {
+        palette = await this.paletteColorRepo.findOne({
           where: { id: paletteId },
         });
-        if (foundPalette) template.palette = foundPalette;
       }
-    }
 
-    const data = this.normalizeTemplateDesignPayload(rest);
-    Object.assign(template, data);
+      const data = this.normalizeTemplateDesignPayload(rest);
+      const template = this.templateDesignRepo.create({
+        ...data,
+        category,
+        palette,
+      });
 
-    const savedTemplate = await this.templateDesignRepo.save(template);
+      const savedTemplate = await this.templateDesignRepo.save(template);
 
-    if (sections !== undefined) {
-      // Remove old sections and replace with new ones
-      await this.templateDesignSectionRepo.delete({ templateDesign: { id } });
       if (sections && sections.length > 0) {
         for (const s of sections) {
           const sectionMaster = await this.sectionRepo.findOne({
@@ -339,9 +283,85 @@ export class AdminService {
           }
         }
       }
-    }
 
-    return this.getTemplateDesign(id);
+      return this.getTemplateDesign(savedTemplate.id);
+    } catch (error) {
+      console.error('Error creating template design:', error);
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(
+        error.message || 'Failed to create template design',
+      );
+    }
+  }
+
+  async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
+    try {
+      const template = await this.templateDesignRepo.findOne({
+        where: { id },
+        relations: ['category', 'palette', 'sections', 'sections.section'],
+      });
+      if (!template) throw new NotFoundException('Template design not found');
+
+      const { category: categoryName, paletteId, sections, ...rest } = payload;
+
+      if (categoryName) {
+        const found = await this.categoryRepo.findOne({
+          where: { name: categoryName },
+        });
+        if (!found)
+          throw new BadRequestException(`Category '${categoryName}' not found`);
+        template.category = found;
+      }
+
+      if (paletteId !== undefined) {
+        if (paletteId === null) {
+          template.palette = null;
+        } else if (paletteId) {
+          const foundPalette = await this.paletteColorRepo.findOne({
+            where: { id: paletteId },
+          });
+          if (foundPalette) template.palette = foundPalette;
+        }
+      }
+
+      const data = this.normalizeTemplateDesignPayload(rest);
+      Object.assign(template, data);
+
+      const savedTemplate = await this.templateDesignRepo.save(template);
+
+      if (sections !== undefined) {
+        // Remove old sections and replace with new ones
+        await this.templateDesignSectionRepo.delete({ templateDesign: { id } });
+        if (sections && sections.length > 0) {
+          for (const s of sections) {
+            const sectionMaster = await this.sectionRepo.findOne({
+              where: { id: s.sectionId },
+            });
+            if (sectionMaster) {
+              const tdSection = this.templateDesignSectionRepo.create({
+                templateDesign: savedTemplate,
+                section: sectionMaster,
+                order: s.order,
+                is_enabled: s.is_enabled,
+              });
+              await this.templateDesignSectionRepo.save(tdSection);
+            }
+          }
+        }
+      }
+
+      return this.getTemplateDesign(id);
+    } catch (error) {
+      console.error('Error updating template design:', error);
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      )
+        throw error;
+      throw new BadRequestException(
+        error.message || 'Failed to update template design',
+      );
+    }
   }
 
   async deleteTemplateDesign(id: number) {

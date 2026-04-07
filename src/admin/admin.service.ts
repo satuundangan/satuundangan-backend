@@ -383,10 +383,17 @@ export class AdminService {
       where = { is_active: true };
     }
 
-    return this.sectionRepo.find({
+    const sections = await this.sectionRepo.find({
       where,
       order: { label: 'ASC' },
     });
+
+    return sections.map(s => ({
+      id: s.id,
+      label: s.label,
+      key: s.key,
+      is_active: s.is_active,
+    }));
   }
 
   async createSection(payload: any) {

@@ -5,6 +5,7 @@ import {
   Res,
   Get,
   Req,
+  Headers,
   UseGuards,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
@@ -13,7 +14,7 @@ import { Response, Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
-import { PaymentStatus, MidtransNotificationPayload } from './types/payment.type';
+import { PaymentStatus, FlipWebhookPayload } from './types/payment.type';
 
 @Controller('payment')
 export class PaymentController {
@@ -57,28 +58,23 @@ export class PaymentController {
     );
   }
 
-  @Get('/success')
-  @ApiTags('Payment')
-  @ApiOperation({
-    summary: 'Handle webhook for successful payment for midtrans',
-  })
-  handleSuccess(@Res() res: Response) {
-    return res.status(200).send('Payment successful!');
-  }
-
   @Get('/finish')
   @ApiTags('Payment')
-  @ApiOperation({
-    summary: 'Handle webhook for finished payment for midtrans',
-  })
+  @ApiOperation({ summary: 'Redirect page after payment finished' })
   handleFinish(@Res() res: Response) {
     return res.status(200).send('Payment finished!');
   }
 
   @Post('notification')
-  async handleNotification(@Req() req: Request) {
-    const result = await this.paymentService.handleMidtransNotification(
-      req.body as MidtransNotificationPayload,
+  @ApiTags('Payment')
+  @ApiOperation({ summary: 'Handle Flip webhook notification' })
+  async handleNotification(
+    @Req() req: Request,
+    @Headers('x-callback-token') callbackToken: string,
+  ) {
+    const result = await this.paymentService.handleFlipNotification(
+      req.body as FlipWebhookPayload,
+      callbackToken,
     );
     return { message: 'Notification received', result };
   }

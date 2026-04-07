@@ -1,19 +1,16 @@
-import * as crypto from 'crypto';
 import {
   Injectable,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { Snap } from 'midtrans-client';
+import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 import { DeepPartial, Repository } from 'typeorm';
 import { Payment } from './payment.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  MidtransNotificationPayload,
-  PaymentStatus,
-} from './types/payment.type';
+import { FlipWebhookPayload, PaymentStatus } from './types/payment.type';
 import { Invitation } from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
 import { PromoService } from '../promo/promo.service';
@@ -21,7 +18,9 @@ import { PromoCode } from '../promo/promo-code.entity';
 
 @Injectable()
 export class PaymentService {
-  private snap: Snap;
+  private readonly flipBaseUrl: string;
+  private readonly flipAuthHeader: string;
+  private readonly flipValidationToken: string;
 
   constructor(
     private configService: ConfigService,
@@ -31,11 +30,16 @@ export class PaymentService {
     private readonly invitationRepo: Repository<Invitation>,
     private readonly promoService: PromoService,
   ) {
-    this.snap = new Snap({
-      isProduction: false,
-      serverKey: this.configService.get('SERVER_KEY')!,
-      clientKey: this.configService.get('CLIENT_KEY')!,
-    });
+    const isProduction = this.configService.get('NODE_ENV') === 'production';
+    this.flipBaseUrl = isProduction
+      ? 'https://bigflip.id/api/v3'
+      : 'https://bigflip.id/big_sandbox_api/v3';
+
+    const secretKey = this.configService.get<string>('FLIP_SECRET_KEY')!;
+    const encoded = Buffer.from(`${secretKey}:`).toString('base64');
+    this.flipAuthHeader = `Basic ${encoded}`;
+
+    this.flipValidationToken = this.configService.get<string>('FLIP_VALIDATION_TOKEN')!;
   }
 
   async createTransaction(
@@ -52,45 +56,33 @@ export class PaymentService {
       throw new NotFoundException('Invitation not found');
     }
 
-    // 1. Security Check: Pastikan user adalah pemilik undangan
     if (invitation.user.id !== user.id) {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
 
-    // 2. Handle Price Decimal & resolve promo code server-side
     const rawPrice = invitation.templateDesign?.price || 0;
     let grossAmount = Number(rawPrice);
     let appliedPromo: PromoCode | undefined;
     let discountAmount = 0;
 
     if (promoCode) {
-      const promoResult = await this.promoService.validate(
-        promoCode,
-        invitationId,
-      );
+      const promoResult = await this.promoService.validate(promoCode, invitationId);
       if (!promoResult.valid) {
-        throw new BadRequestException(
-          promoResult.message || 'Kode promo tidak valid',
-        );
+        throw new BadRequestException(promoResult.message || 'Kode promo tidak valid');
       }
       appliedPromo = promoResult.promoCode!;
       discountAmount = promoResult.discountAmount!;
       grossAmount = promoResult.finalPrice!;
     }
 
-    // Atomically reserve a promo slot BEFORE any external call.
-    // This single DB UPDATE with a conditional WHERE prevents two concurrent
-    // requests from both "winning" the last available slot.
     if (appliedPromo) {
       const reserved = await this.promoService.tryReserve(appliedPromo.id);
       if (!reserved) {
-        throw new BadRequestException(
-          'Kode promo sudah habis atau tidak berlaku',
-        );
+        throw new BadRequestException('Kode promo sudah habis atau tidak berlaku');
       }
     }
 
-    // Jika GRATIS (0), langsung aktifkan tanpa ke Midtrans
+    // Jika GRATIS (0), langsung aktifkan tanpa ke Flip
     if (grossAmount === 0) {
       invitation.isPublished = true;
       await this.invitationRepo.save(invitation);
@@ -103,7 +95,7 @@ export class PaymentService {
         paymentMethod: 'FREE_ACTIVATION',
         status: PaymentStatus.SUCCESS,
         paymentType: 'free',
-        fraudStatus: 'accept',
+        fraudStatus: null,
         invitationId: invitation.id,
         settlementTime: new Date(),
         promoCodeId: appliedPromo?.id ?? null,
@@ -122,36 +114,31 @@ export class PaymentService {
       };
     }
 
-    // Generate unique order ID
     const orderId = `INV-${invitation.id}-${Date.now()}`;
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
 
-    const parameter = {
-      transaction_details: {
-        order_id: orderId,
-        gross_amount: grossAmount,
-      },
-      customer_details: {
-        first_name: invitation.user?.name || 'Customer',
-        email: invitation.user?.email || 'customer@example.com',
-      },
-      credit_card: {
-        secure: true,
-      },
-      item_details: [
-        {
-          id: `INV-${invitation.id}`,
-          price: grossAmount,
-          quantity: 1,
-          name: `Undangan Digital: ${invitation.title}`,
-        },
-      ],
-    };
-
-    let transaction: { token: string; redirect_url: string };
+    let flipResponse: { link_id: number; link_url: string };
     try {
-      transaction = await this.snap.createTransaction(parameter);
+      const { data } = await axios.post(
+        `${this.flipBaseUrl}/pwf/bill`,
+        new URLSearchParams({
+          title: `Undangan Digital: ${invitation.title}`,
+          amount: String(grossAmount),
+          type: 'SINGLE',
+          expired_date: this.getExpiredDate(),
+          redirect_url: `${frontendUrl}/payment/finish?order_id=${orderId}`,
+          sender_name: invitation.user?.name || 'Customer',
+          sender_email: invitation.user?.email || 'customer@example.com',
+        }),
+        {
+          headers: {
+            Authorization: this.flipAuthHeader,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+      flipResponse = data;
     } catch (err) {
-      // Midtrans failed — release the promo slot we reserved above.
       if (appliedPromo) {
         await this.promoService.release(appliedPromo.id);
       }
@@ -163,11 +150,12 @@ export class PaymentService {
       amount: grossAmount,
       name: invitation.user?.name || 'Customer',
       email: invitation.user?.email || 'customer@example.com',
-      paymentMethod: 'midtrans',
+      paymentMethod: 'flip',
       status: PaymentStatus.PENDING,
       paymentType: null,
       fraudStatus: null,
       invitationId: invitation.id,
+      transactionId: String(flipResponse.link_id),
       promoCodeId: appliedPromo?.id ?? null,
       discountAmount: discountAmount || null,
     } as DeepPartial<Payment>);
@@ -175,89 +163,52 @@ export class PaymentService {
     await this.paymentRepo.save(payment);
 
     return {
-      token: transaction.token,
-      redirect_url: transaction.redirect_url,
+      token: null,
+      redirect_url: flipResponse.link_url,
       order_id: orderId,
       is_free: false,
     };
   }
 
-  async handleMidtransNotification(payload: MidtransNotificationPayload) {
-    const {
-      order_id,
-      transaction_status,
-      payment_type,
-      gross_amount,
-      fraud_status,
-      signature_key,
-      status_code,
-      settlement_time,
-    } = payload;
-
-    // ✅ Kalau order_id dari test notif Midtrans, jangan paksa cek DB
-    if (order_id.startsWith('payment_notif_test')) {
-      console.log('📩 Received Midtrans TEST notification:', payload);
-      return {
-        orderId: order_id,
-        status: transaction_status,
-        note: 'Test notification',
-      };
+  async handleFlipNotification(
+    payload: FlipWebhookPayload,
+    callbackToken: string,
+  ) {
+    // Verifikasi token dari header x-callback-token
+    if (callbackToken !== this.flipValidationToken) {
+      throw new UnauthorizedException('Invalid callback token');
     }
 
-    const serverKey: string = this.configService.get('SERVER_KEY')!;
-    const input: string = order_id + status_code + gross_amount + serverKey;
-    const expectedSignature = crypto
-      .createHash('sha512')
-      .update(input)
-      .digest('hex');
-
-    const isValid = expectedSignature === signature_key;
-    if (!isValid) {
-      // 👉 Tambahin ini biar test notif dari Midtrans gak bikin error 500
-      console.warn(
-        '⚠️ Signature tidak valid (mungkin test notification dari Midtrans)',
-      );
-      return { orderId: order_id, status: 'signature_invalid_test_mode' };
-    }
-
+    // Cari payment berdasarkan flip bill_link_id yang tersimpan di transactionId
     const payment = await this.paymentRepo.findOne({
-      where: { orderId: order_id },
+      where: { transactionId: String(payload.bill_link_id) },
       relations: ['invitation'],
     });
+
     if (!payment) {
-      throw new Error(`Payment with order_id ${order_id} not found`);
+      throw new NotFoundException(`Payment with bill_link_id ${payload.bill_link_id} not found`);
     }
 
-    const isSuccess =
-      (transaction_status === 'settlement' || transaction_status === 'capture') &&
-      fraud_status === 'accept';
+    const status = payload.status;
 
-    if (isSuccess) {
+    if (status === 'SUCCESSFUL') {
       payment.status = PaymentStatus.SUCCESS;
-      payment.settlementTime = settlement_time
-        ? new Date(settlement_time)
-        : new Date();
+      payment.settlementTime = new Date(payload.created_at);
+      payment.paymentType = payload.sender_bank_type || null;
 
       if (payment.invitation) {
         payment.invitation.isPublished = true;
         await this.invitationRepo.save(payment.invitation);
       }
-    } else if (transaction_status === 'expire') {
+    } else if (status === 'CANCELLED') {
       payment.status = PaymentStatus.EXPIRED;
-    } else if (['deny', 'cancel'].includes(transaction_status)) {
+    } else if (status === 'FAILED') {
       payment.status = PaymentStatus.FAILURE;
-    } else if (transaction_status === 'pending') {
-      payment.status = PaymentStatus.PENDING;
-    } else {
-      payment.status = transaction_status;
     }
-
-    payment.paymentType = payment_type;
-    payment.fraudStatus = fraud_status;
 
     await this.paymentRepo.save(payment);
 
-    return { orderId: order_id, updatedStatus: payment.status };
+    return { orderId: payment.orderId, updatedStatus: payment.status };
   }
 
   async simulatePayment(
@@ -277,7 +228,6 @@ export class PaymentService {
       );
     }
 
-    // Security Check: Only the owner can simulate payment
     if (payment.invitation.user.id !== user.id) {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
@@ -294,5 +244,12 @@ export class PaymentService {
     }
 
     return this.paymentRepo.save(payment);
+  }
+
+  private getExpiredDate(): string {
+    const date = new Date();
+    date.setDate(date.getDate() + 1); // expired 24 jam
+    // Format: YYYY-MM-DD HH:mm:ss
+    return date.toISOString().replace('T', ' ').substring(0, 19);
   }
 }

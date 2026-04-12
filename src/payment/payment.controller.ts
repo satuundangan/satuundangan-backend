@@ -4,18 +4,16 @@ import {
   Body,
   Res,
   Get,
-  Req,
   Param,
-  Headers,
   UseGuards,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { Response, Request } from 'express';
+import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
-import { PaymentStatus, FlipWebhookPayload } from './types/payment.type';
+import { PaymentStatus, MidtransNotificationPayload } from './types/payment.type';
 
 @Controller('payment')
 export class PaymentController {
@@ -75,15 +73,11 @@ export class PaymentController {
 
   @Post('notification')
   @ApiTags('Payment')
-  @ApiOperation({ summary: 'Handle Flip webhook notification' })
+  @ApiOperation({ summary: 'Handle Midtrans webhook notification' })
   async handleNotification(
-    @Req() req: Request,
-    @Headers('x-callback-token') callbackToken: string,
+    @Body() payload: MidtransNotificationPayload,
   ) {
-    const result = await this.paymentService.handleFlipNotification(
-      req.body as FlipWebhookPayload,
-      callbackToken,
-    );
+    const result = await this.paymentService.handleMidtransNotification(payload);
     return { message: 'Notification received', result };
   }
 }

@@ -1,11 +1,11 @@
 import {
   Controller,
-  Post,
-  Body,
-  Res,
   Get,
   Param,
   UseGuards,
+  Post,
+  Body,
+  Res,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -74,10 +74,8 @@ export class PaymentController {
   @Post('notification')
   @ApiTags('Payment')
   @ApiOperation({ summary: 'Handle Midtrans webhook notification' })
-  async handleNotification(
-    @Body() payload: MidtransNotificationPayload,
-  ) {
-    const result = await this.paymentService.handleMidtransNotification(payload);
+  async handleNotification(@Body() body: MidtransNotificationPayload) {
+    const result = await this.paymentService.handleMidtransNotification(body);
     return { message: 'Notification received', result };
   }
 }

@@ -1,19 +1,17 @@
-import * as crypto from 'crypto';
+import { createHash } from 'crypto';
 import {
   Injectable,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Snap } from 'midtrans-client';
 import { ConfigService } from '@nestjs/config';
 import { DeepPartial, Repository } from 'typeorm';
 import { Payment } from './payment.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  MidtransNotificationPayload,
-  PaymentStatus,
-} from './types/payment.type';
+import { MidtransNotificationPayload, PaymentStatus } from './types/payment.type';
 import { Invitation } from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
 import { PromoService } from '../promo/promo.service';
@@ -32,9 +30,9 @@ export class PaymentService {
     private readonly promoService: PromoService,
   ) {
     this.snap = new Snap({
-      isProduction: this.configService.get('NODE_ENV') === 'production',
-      serverKey: this.configService.get('MERCHANT_SERVER_KEY') || this.configService.get('SERVER_KEY')!,
-      clientKey: this.configService.get('MERCHANT_CLIENT_KEY') || this.configService.get('CLIENT_KEY')!,
+      isProduction: this.getMidtransIsProduction(),
+      serverKey: this.getMidtransServerKey() || '',
+      clientKey: this.getMidtransClientKey() || '',
     });
   }
 
@@ -78,7 +76,6 @@ export class PaymentService {
       }
     }
 
-    // Jika GRATIS (0), langsung aktifkan tanpa ke Midtrans
     if (grossAmount === 0) {
       invitation.isPublished = true;
       await this.invitationRepo.save(invitation);
@@ -110,28 +107,42 @@ export class PaymentService {
       };
     }
 
+    const serverKey = this.getMidtransServerKey();
+    if (!serverKey) {
+      if (appliedPromo) {
+        await this.promoService.release(appliedPromo.id);
+      }
+      throw new UnauthorizedException('Midtrans server key is not configured');
+    }
+
     const orderId = `INV-${invitation.id}-${Date.now()}`;
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
 
     const parameter = {
       transaction_details: {
         order_id: orderId,
-        gross_amount: grossAmount,
+        gross_amount: Math.round(grossAmount),
       },
       customer_details: {
         first_name: invitation.user?.name || 'Customer',
-        email: invitation.user?.email || 'customer@example.com',
+        email: invitation.user?.email || user.email,
       },
       credit_card: {
         secure: true,
       },
       item_details: [
         {
-          id: `INV-${invitation.id}`,
-          price: grossAmount,
+          id: `invitation-${invitation.id}`,
+          price: Math.round(grossAmount),
           quantity: 1,
           name: `Undangan Digital: ${invitation.title}`,
         },
       ],
+      callbacks: {
+        finish: `${frontendUrl}/payment/finish`,
+        error: `${frontendUrl}/payment/finish`,
+        pending: `${frontendUrl}/payment/finish`,
+      },
     };
 
     let transaction: { token: string; redirect_url: string };
@@ -154,6 +165,7 @@ export class PaymentService {
       paymentType: null,
       fraudStatus: null,
       invitationId: invitation.id,
+      transactionId: null,
       promoCodeId: appliedPromo?.id ?? null,
       discountAmount: discountAmount || null,
     } as DeepPartial<Payment>);
@@ -169,81 +181,54 @@ export class PaymentService {
   }
 
   async handleMidtransNotification(payload: MidtransNotificationPayload) {
-    const {
-      order_id,
-      transaction_status,
-      payment_type,
-      gross_amount,
-      fraud_status,
-      signature_key,
-      status_code,
-      settlement_time,
-    } = payload;
-
-    // ✅ Kalau order_id dari test notif Midtrans, jangan paksa cek DB
-    if (order_id.startsWith('payment_notif_test')) {
-      console.log('📩 Received Midtrans TEST notification:', payload);
-      return {
-        orderId: order_id,
-        status: transaction_status,
-        note: 'Test notification',
-      };
+    const serverKey = this.getMidtransServerKey();
+    if (!serverKey) {
+      throw new UnauthorizedException('Midtrans server key is not configured');
     }
 
-    const serverKey: string = this.configService.get('MERCHANT_SERVER_KEY') || this.configService.get('SERVER_KEY')!;
-    const input: string = order_id + status_code + gross_amount + serverKey;
-    const expectedSignature = crypto
-      .createHash('sha512')
-      .update(input)
+    const expectedSignature = createHash('sha512')
+      .update(
+        `${payload.order_id}${payload.status_code}${payload.gross_amount}${serverKey}`,
+      )
       .digest('hex');
 
-    const isValid = expectedSignature === signature_key;
-    if (!isValid) {
-      console.warn(
-        '⚠️ Signature tidak valid (mungkin test notification dari Midtrans)',
-      );
-      return { orderId: order_id, status: 'signature_invalid_test_mode' };
+    if (payload.signature_key !== expectedSignature) {
+      throw new UnauthorizedException('Invalid Midtrans signature');
     }
 
     const payment = await this.paymentRepo.findOne({
-      where: { orderId: order_id },
+      where: { orderId: payload.order_id },
       relations: ['invitation'],
     });
 
     if (!payment) {
-      throw new NotFoundException(`Payment with order_id ${order_id} not found`);
+      throw new NotFoundException(
+        `Payment with order_id ${payload.order_id} not found`,
+      );
     }
 
-    const isSuccess =
-      (transaction_status === 'settlement' || transaction_status === 'capture') &&
-      fraud_status === 'accept';
+    payment.transactionId = payload.transaction_id ?? payment.transactionId ?? null;
+    payment.paymentMethod = 'midtrans';
+    payment.paymentType = payload.payment_type ?? payment.paymentType ?? null;
+    payment.fraudStatus = payload.fraud_status ?? null;
 
-    if (isSuccess) {
-      payment.status = PaymentStatus.SUCCESS;
-      payment.settlementTime = settlement_time
-        ? new Date(settlement_time)
-        : new Date();
+    const mappedStatus = this.mapMidtransStatus(payload);
+    payment.status = mappedStatus;
+
+    if (mappedStatus === PaymentStatus.SUCCESS) {
+      const settlementAt =
+        payload.settlement_time || payload.transaction_time || null;
+      payment.settlementTime = settlementAt ? new Date(settlementAt) : new Date();
 
       if (payment.invitation) {
         payment.invitation.isPublished = true;
         await this.invitationRepo.save(payment.invitation);
       }
-    } else if (transaction_status === 'expire') {
-      payment.status = PaymentStatus.EXPIRED;
-    } else if (['deny', 'cancel'].includes(transaction_status)) {
-      payment.status = PaymentStatus.FAILURE;
-    } else if (transaction_status === 'pending') {
-      payment.status = PaymentStatus.PENDING;
-    } else {
-      payment.status = transaction_status as any;
     }
-
-    payment.paymentType = payment_type;
-    payment.fraudStatus = fraud_status;
 
     await this.paymentRepo.save(payment);
 
-    return { orderId: order_id, updatedStatus: payment.status };
+    return { orderId: payment.orderId, updatedStatus: payment.status };
   }
 
   async getPaymentStatus(orderId: string) {
@@ -296,5 +281,70 @@ export class PaymentService {
     }
 
     return this.paymentRepo.save(payment);
+  }
+
+  private mapMidtransStatus(
+    payload: MidtransNotificationPayload,
+  ): PaymentStatus {
+    if (payload.transaction_status === 'capture') {
+      if (
+        payload.payment_type === 'credit_card' &&
+        payload.fraud_status === 'challenge'
+      ) {
+        return PaymentStatus.PENDING;
+      }
+
+      return PaymentStatus.SUCCESS;
+    }
+
+    if (payload.transaction_status === 'settlement') {
+      return PaymentStatus.SUCCESS;
+    }
+
+    if (
+      payload.transaction_status === 'pending' ||
+      payload.transaction_status === 'authorize'
+    ) {
+      return PaymentStatus.PENDING;
+    }
+
+    if (payload.transaction_status === 'expire') {
+      return PaymentStatus.EXPIRED;
+    }
+
+    if (
+      payload.transaction_status === 'deny' ||
+      payload.transaction_status === 'cancel' ||
+      payload.transaction_status === 'failure'
+    ) {
+      return PaymentStatus.FAILURE;
+    }
+
+    return PaymentStatus.PENDING;
+  }
+
+  private getMidtransServerKey(): string | null {
+    return (
+      this.configService.get<string>('MIDTRANS_SERVER_KEY') ||
+      this.configService.get<string>('MERCHANT_SERVER_KEY') ||
+      this.configService.get<string>('SERVER_KEY') ||
+      null
+    );
+  }
+
+  private getMidtransClientKey(): string | null {
+    return (
+      this.configService.get<string>('MIDTRANS_CLIENT_KEY') ||
+      this.configService.get<string>('MERCHANT_CLIENT_KEY') ||
+      this.configService.get<string>('CLIENT_KEY') ||
+      null
+    );
+  }
+
+  private getMidtransIsProduction(): boolean {
+    return (
+      this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true' ||
+      this.configService.get('NODE_ENV') === 'production'
+    );
   }
 }

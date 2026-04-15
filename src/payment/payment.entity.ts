@@ -35,7 +35,7 @@ export class Payment {
   paymentType: string | null;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
-  transactionId: string;
+  transactionId: string | null;
 
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })
   status: PaymentStatus | string;
@@ -44,7 +44,7 @@ export class Payment {
   fraudStatus: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  settlementTime: Date;
+  settlementTime: Date | null;
 
   @ManyToOne(() => Invitation, (invitation) => invitation.payments, {
     onDelete: 'SET NULL',

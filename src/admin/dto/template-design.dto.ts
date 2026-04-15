@@ -6,7 +6,6 @@ import {
   IsString,
   IsNumber,
 } from 'class-validator';
-import { Expose } from 'class-transformer';
 
 export class CreateTemplateDesignDto {
   @IsString()
@@ -18,8 +17,8 @@ export class CreateTemplateDesignDto {
   slug: string;
 
   @IsString()
-  @IsNotEmpty()
-  previewUrl: string;
+  @IsOptional()
+  previewUrl?: string;
 
   @IsString()
   @IsOptional()
@@ -35,6 +34,10 @@ export class CreateTemplateDesignDto {
 
   @IsOptional()
   @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   isPremium?: boolean;
 
   @IsNumber()
@@ -44,6 +47,9 @@ export class CreateTemplateDesignDto {
   @IsOptional()
   @IsString()
   paletteId?: string;
+
+  @IsOptional()
+  paletteColors?: string[];
 
   @IsOptional()
   @IsString()

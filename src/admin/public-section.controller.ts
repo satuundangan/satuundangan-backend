@@ -10,6 +10,6 @@ export class PublicSectionController {
   @Get()
   @ApiOperation({ summary: 'Get all master sections' })
   listSections() {
-    return this.adminService.listSections();
+    return this.adminService.listSections(undefined, true);
   }
 }

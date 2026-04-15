@@ -13,7 +13,10 @@ import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
-import { PaymentStatus, MidtransNotificationPayload } from './types/payment.type';
+import {
+  PaymentStatus,
+  MidtransNotificationPayload,
+} from './types/payment.type';
 
 @Controller('payment')
 export class PaymentController {

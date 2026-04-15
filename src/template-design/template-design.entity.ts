@@ -21,10 +21,10 @@ export class TemplateDesign {
   @Column({ unique: true })
   slug: string;
 
-  @Column()
+  @Column({ nullable: true })
   previewUrl: string;
 
-  @Column()
+  @Column({ nullable: true })
   thumbnailUrl: string;
 
   @Column({ default: true })

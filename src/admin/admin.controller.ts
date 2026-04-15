@@ -152,8 +152,8 @@ export class AdminController {
 
   // Sections
   @Get('sections')
-  listSections() {
-    return this.service.listSections();
+  listSections(@Query('q') q?: string) {
+    return this.service.listSections(q);
   }
 
   @Post('sections')
@@ -173,8 +173,8 @@ export class AdminController {
 
   // Audio
   @Get('audio')
-  listAudio() {
-    return this.service.listAudio();
+  listAudio(@Query('q') q?: string) {
+    return this.service.listAudio(q);
   }
 
   @Post('audio')
@@ -189,8 +189,8 @@ export class AdminController {
 
   // Banks
   @Get('banks')
-  listBanks() {
-    return this.service.listBanks();
+  listBanks(@Query('q') q?: string) {
+    return this.service.listBanks(q);
   }
 
   @Post('banks')
@@ -216,7 +216,10 @@ export class AdminController {
   }
 
   @Patch('palette-colors/:id')
-  updatePaletteColor(@Param('id') id: string, @Body() dto: UpdatePaletteColorDto) {
+  updatePaletteColor(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaletteColorDto,
+  ) {
     return this.service.updatePaletteColor(id, dto);
   }
 

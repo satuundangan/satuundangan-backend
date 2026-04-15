@@ -132,7 +132,8 @@ export class InvitationService {
     const data = raw_data.map((invitation) => ({
       ...invitation,
       templateDesignId: invitation.templateDesignId,
-      templateName: invitation.templateName || invitation.templateDesign?.name || '',
+      templateName:
+        invitation.templateName || invitation.templateDesign?.name || '',
       isPublished: invitation.isPublished,
       is_published: invitation.isPublished,
       groomPhotoUrl: invitation.groomPhotoUrl || '',

@@ -33,23 +33,38 @@ export class PromoService {
     });
 
     if (!promo) {
-      return { valid: false, message: 'Kode promo tidak valid atau sudah tidak berlaku' };
+      return {
+        valid: false,
+        message: 'Kode promo tidak valid atau sudah tidak berlaku',
+      };
     }
 
     if (!promo.isActive) {
-      return { valid: false, message: 'Kode promo tidak valid atau sudah tidak berlaku' };
+      return {
+        valid: false,
+        message: 'Kode promo tidak valid atau sudah tidak berlaku',
+      };
     }
 
     const now = new Date();
     if (promo.validFrom && now < promo.validFrom) {
-      return { valid: false, message: 'Kode promo tidak valid atau sudah tidak berlaku' };
+      return {
+        valid: false,
+        message: 'Kode promo tidak valid atau sudah tidak berlaku',
+      };
     }
     if (promo.validUntil && now > promo.validUntil) {
-      return { valid: false, message: 'Kode promo tidak valid atau sudah tidak berlaku' };
+      return {
+        valid: false,
+        message: 'Kode promo tidak valid atau sudah tidak berlaku',
+      };
     }
 
     if (promo.maxUses !== null && promo.usedCount >= promo.maxUses) {
-      return { valid: false, message: 'Kode promo tidak valid atau sudah tidak berlaku' };
+      return {
+        valid: false,
+        message: 'Kode promo tidak valid atau sudah tidak berlaku',
+      };
     }
 
     const invitation = await this.invitationRepo.findOne({
@@ -135,7 +150,23 @@ export class PromoService {
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data, total, page, limit };
+    return {
+      data: data.map((promo) => ({
+        id: promo.id,
+        code: promo.code,
+        discount_type: promo.discountType,
+        discount_value: promo.discountValue,
+        max_uses: promo.maxUses,
+        used_count: promo.usedCount,
+        valid_from: promo.validFrom,
+        valid_until: promo.validUntil,
+        is_active: promo.isActive,
+        createdAt: promo.createdAt,
+      })),
+      total,
+      page,
+      limit,
+    };
   }
 
   async create(dto: CreatePromoCodeDto): Promise<PromoCode> {
@@ -155,12 +186,18 @@ export class PromoService {
     if (dto.code) dto.code = dto.code.toUpperCase();
     const updated: Partial<PromoCode> = {
       ...dto,
-      validFrom: dto.validFrom !== undefined
-        ? (dto.validFrom ? new Date(dto.validFrom) : null)
-        : promo.validFrom,
-      validUntil: dto.validUntil !== undefined
-        ? (dto.validUntil ? new Date(dto.validUntil) : null)
-        : promo.validUntil,
+      validFrom:
+        dto.validFrom !== undefined
+          ? dto.validFrom
+            ? new Date(dto.validFrom)
+            : null
+          : promo.validFrom,
+      validUntil:
+        dto.validUntil !== undefined
+          ? dto.validUntil
+            ? new Date(dto.validUntil)
+            : null
+          : promo.validUntil,
     };
 
     Object.assign(promo, updated);

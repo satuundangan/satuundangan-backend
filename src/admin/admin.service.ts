@@ -242,87 +242,31 @@ export class AdminService {
   }
 
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
-    const { category: categoryName, paletteId, sections, ...rest } = payload;
+    try {
+      const { category: categoryName, paletteId, sections, ...rest } = payload;
 
-    const category = await this.categoryRepo.findOne({
-      where: { name: categoryName },
-    });
-    if (!category)
-      throw new BadRequestException(`Category '${categoryName}' not found`);
-
-    let palette: PaletteColor | null = null;
-    if (paletteId) {
-      palette = await this.paletteColorRepo.findOne({
-        where: { id: paletteId },
-      });
-    }
-
-    const data = this.normalizeTemplateDesignPayload(rest);
-    const template = this.templateDesignRepo.create({
-      ...data,
-      category,
-      palette,
-    });
-
-    const savedTemplate = await this.templateDesignRepo.save(template);
-
-    if (sections && sections.length > 0) {
-      for (const s of sections) {
-        const sectionMaster = await this.sectionRepo.findOne({
-          where: { id: s.sectionId },
-        });
-        if (sectionMaster) {
-          const tdSection = this.templateDesignSectionRepo.create({
-            templateDesign: savedTemplate,
-            section: sectionMaster,
-            order: s.order,
-            is_enabled: s.is_enabled,
-          });
-          await this.templateDesignSectionRepo.save(tdSection);
-        }
-      }
-    }
-
-    return this.getTemplateDesign(savedTemplate.id);
-  }
-
-  async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
-    const template = await this.templateDesignRepo.findOne({
-      where: { id },
-      relations: ['category', 'palette', 'sections', 'sections.section'],
-    });
-    if (!template) throw new NotFoundException('Template design not found');
-
-    const { category: categoryName, paletteId, sections, ...rest } = payload;
-
-    if (categoryName) {
-      const found = await this.categoryRepo.findOne({
+      const category = await this.categoryRepo.findOne({
         where: { name: categoryName },
       });
-      if (!found)
+      if (!category)
         throw new BadRequestException(`Category '${categoryName}' not found`);
-      template.category = found;
-    }
 
-    if (paletteId !== undefined) {
-      if (paletteId === null) {
-        template.palette = null;
-      } else if (paletteId) {
-        const foundPalette = await this.paletteColorRepo.findOne({
+      let palette: PaletteColor | null = null;
+      if (paletteId) {
+        palette = await this.paletteColorRepo.findOne({
           where: { id: paletteId },
         });
-        if (foundPalette) template.palette = foundPalette;
       }
-    }
 
-    const data = this.normalizeTemplateDesignPayload(rest);
-    Object.assign(template, data);
+      const data = this.normalizeTemplateDesignPayload(rest);
+      const template = this.templateDesignRepo.create({
+        ...data,
+        category,
+        palette,
+      });
 
-    const savedTemplate = await this.templateDesignRepo.save(template);
+      const savedTemplate = await this.templateDesignRepo.save(template);
 
-    if (sections !== undefined) {
-      // Remove old sections and replace with new ones
-      await this.templateDesignSectionRepo.delete({ templateDesign: { id } });
       if (sections && sections.length > 0) {
         for (const s of sections) {
           const sectionMaster = await this.sectionRepo.findOne({
@@ -339,9 +283,85 @@ export class AdminService {
           }
         }
       }
-    }
 
-    return this.getTemplateDesign(id);
+      return this.getTemplateDesign(savedTemplate.id);
+    } catch (error) {
+      console.error('Error creating template design:', error);
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(
+        error.message || 'Failed to create template design',
+      );
+    }
+  }
+
+  async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
+    try {
+      const template = await this.templateDesignRepo.findOne({
+        where: { id },
+        relations: ['category', 'palette', 'sections', 'sections.section'],
+      });
+      if (!template) throw new NotFoundException('Template design not found');
+
+      const { category: categoryName, paletteId, sections, ...rest } = payload;
+
+      if (categoryName) {
+        const found = await this.categoryRepo.findOne({
+          where: { name: categoryName },
+        });
+        if (!found)
+          throw new BadRequestException(`Category '${categoryName}' not found`);
+        template.category = found;
+      }
+
+      if (paletteId !== undefined) {
+        if (paletteId === null) {
+          template.palette = null;
+        } else if (paletteId) {
+          const foundPalette = await this.paletteColorRepo.findOne({
+            where: { id: paletteId },
+          });
+          if (foundPalette) template.palette = foundPalette;
+        }
+      }
+
+      const data = this.normalizeTemplateDesignPayload(rest);
+      Object.assign(template, data);
+
+      const savedTemplate = await this.templateDesignRepo.save(template);
+
+      if (sections !== undefined) {
+        // Remove old sections and replace with new ones
+        await this.templateDesignSectionRepo.delete({ templateDesign: { id } });
+        if (sections && sections.length > 0) {
+          for (const s of sections) {
+            const sectionMaster = await this.sectionRepo.findOne({
+              where: { id: s.sectionId },
+            });
+            if (sectionMaster) {
+              const tdSection = this.templateDesignSectionRepo.create({
+                templateDesign: savedTemplate,
+                section: sectionMaster,
+                order: s.order,
+                is_enabled: s.is_enabled,
+              });
+              await this.templateDesignSectionRepo.save(tdSection);
+            }
+          }
+        }
+      }
+
+      return this.getTemplateDesign(id);
+    } catch (error) {
+      console.error('Error updating template design:', error);
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      )
+        throw error;
+      throw new BadRequestException(
+        error.message || 'Failed to update template design',
+      );
+    }
   }
 
   async deleteTemplateDesign(id: number) {
@@ -352,20 +372,88 @@ export class AdminService {
   }
 
   // Sections
-  async listSections() {
-    return this.sectionRepo.find();
+  async listSections(q?: string, activeOnly = false) {
+    let where: any;
+    if (q) {
+      where = [
+        { label: ILike(`%${q}%`), ...(activeOnly ? { is_active: true } : {}) },
+        { key: ILike(`%${q}%`), ...(activeOnly ? { is_active: true } : {}) },
+      ];
+    } else if (activeOnly) {
+      where = { is_active: true };
+    }
+
+    const sections = await this.sectionRepo.find({
+      where,
+      order: { label: 'ASC' },
+    });
+
+    console.log(
+      `[DEBUG] listSections found ${sections.length} items. Raw first item:`,
+      sections[0],
+    );
+
+    return sections.map((s) => {
+      const raw = s as any;
+      const isActive = s.is_active ?? raw.is_published ?? true;
+      console.log(
+        `[DEBUG] Mapping item ${s.key}: is_active=${s.is_active}, is_published=${raw.is_published} -> result=${isActive}`,
+      );
+      return {
+        id: s.id,
+        label: s.label,
+        key: s.key,
+        is_active: isActive,
+      };
+    });
   }
 
-  async createSection(payload: Partial<Section>) {
-    const section = this.sectionRepo.create(payload);
-    return this.sectionRepo.save(section);
+  async createSection(payload: any) {
+    try {
+      console.log('Creating section with payload:', payload);
+      const section = this.sectionRepo.create({
+        label: payload.label,
+        key: payload.key,
+        is_active:
+          payload.is_active === true ||
+          payload.is_active === 1 ||
+          payload.is_active === 'true',
+      });
+      const saved = await this.sectionRepo.save(section);
+      console.log('Saved section:', saved);
+      return saved;
+    } catch (error) {
+      console.error('Error creating section:', error);
+      throw new BadRequestException(
+        error.message || 'Failed to create section',
+      );
+    }
   }
 
-  async updateSection(id: string, payload: Partial<Section>) {
-    const section = await this.sectionRepo.findOne({ where: { id } });
-    if (!section) throw new NotFoundException('Section not found');
-    Object.assign(section, payload);
-    return this.sectionRepo.save(section);
+  async updateSection(id: string, payload: any) {
+    try {
+      console.log(`Updating section ${id} with payload:`, payload);
+      const section = await this.sectionRepo.findOne({ where: { id } });
+      if (!section) throw new NotFoundException('Section not found');
+
+      if (payload.label !== undefined) section.label = payload.label;
+      if (payload.key !== undefined) section.key = payload.key;
+      if (payload.is_active !== undefined) {
+        section.is_active =
+          payload.is_active === true ||
+          payload.is_active === 1 ||
+          payload.is_active === 'true';
+      }
+
+      const saved = await this.sectionRepo.save(section);
+      console.log('Updated section result:', saved);
+      return saved;
+    } catch (error) {
+      console.error('Error updating section:', error);
+      throw new BadRequestException(
+        error.message || 'Failed to update section',
+      );
+    }
   }
 
   async deleteSection(id: string) {
@@ -376,8 +464,9 @@ export class AdminService {
   }
 
   // Audio
-  async listAudio() {
-    return this.audioRepo.find();
+  async listAudio(q?: string) {
+    const where = q ? { title: ILike(`%${q}%`) } : undefined;
+    return this.audioRepo.find({ where, order: { title: 'ASC' } });
   }
 
   async createAudio(payload: Partial<Audio>) {
@@ -393,8 +482,11 @@ export class AdminService {
   }
 
   // Banks
-  async listBanks() {
-    return this.bankRepo.find();
+  async listBanks(q?: string) {
+    const where = q
+      ? [{ name: ILike(`%${q}%`) }, { code: ILike(`%${q}%`) }]
+      : undefined;
+    return this.bankRepo.find({ where, order: { name: 'ASC' } });
   }
 
   async createBank(payload: Partial<Bank>) {
@@ -448,6 +540,16 @@ export class AdminService {
     delete data.paletteId;
     delete data.sections;
 
+    if (data.isActive !== undefined) {
+      data.isPublished = data.isActive;
+      delete data.isActive;
+    }
+
+    // paletteColors is already handled by TypeORM simple-array if it's an array of strings
+    if (data.paletteColors && !Array.isArray(data.paletteColors)) {
+      delete data.paletteColors;
+    }
+
     if (data.tags) {
       if (Array.isArray(data.tags)) {
         data.tags = JSON.stringify(data.tags);
@@ -462,6 +564,20 @@ export class AdminService {
   private transformTemplateDesign(template: TemplateDesign) {
     const result = { ...template } as any;
     result.tags = this.safeParse(template.tags);
+    result.isActive = template.isPublished;
+
+    // Use linked palette colors if available, otherwise use custom paletteColors
+    if (template.palette) {
+      result.paletteColors = [
+        template.palette.primary,
+        template.palette.secondary,
+        template.palette.accent,
+      ];
+    } else if (template.paletteColors) {
+      result.paletteColors = template.paletteColors;
+    } else {
+      result.paletteColors = [];
+    }
 
     if (template.category && typeof template.category === 'object') {
       result.category = template.category.name;
@@ -489,7 +605,6 @@ export class AdminService {
         }));
     }
 
-    delete result.paletteColors;
     delete result.sectionOptions;
 
     return result;

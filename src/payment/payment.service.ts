@@ -229,7 +229,8 @@ export class PaymentService {
     }
 
     const isSuccess =
-      (transaction_status === 'settlement' || transaction_status === 'capture') &&
+      (transaction_status === 'settlement' ||
+        transaction_status === 'capture') &&
       fraud_status === 'accept';
 
     if (isSuccess) {

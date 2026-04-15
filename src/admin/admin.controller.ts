@@ -216,7 +216,10 @@ export class AdminController {
   }
 
   @Patch('palette-colors/:id')
-  updatePaletteColor(@Param('id') id: string, @Body() dto: UpdatePaletteColorDto) {
+  updatePaletteColor(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaletteColorDto,
+  ) {
     return this.service.updatePaletteColor(id, dto);
   }
 

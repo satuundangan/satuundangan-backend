@@ -50,7 +50,7 @@ export class PaymentService {
       throw new NotFoundException('Invitation not found');
     }
 
-    if (invitation.user.id !== user.id) {
+    if (Number(invitation.user.id) !== Number(user.id)) {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
 
@@ -265,7 +265,7 @@ export class PaymentService {
       );
     }
 
-    if (payment.invitation.user.id !== user.id) {
+    if (Number(payment.invitation.user.id) !== Number(user.id)) {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
 

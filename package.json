@@ -50,6 +50,7 @@
     "swagger-ui-express": "^5.0.1",
     "transliteration": "^2.3.5",
     "typeorm": "^0.3.25",
+    "xendit-node": "^7.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

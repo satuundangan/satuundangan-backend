@@ -1,15 +1,15 @@
 import {
   Controller,
+  Get,
+  Param,
+  UseGuards,
   Post,
   Body,
   Res,
-  Get,
-  Req,
-  UseGuards,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { Response, Request } from 'express';
+import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
@@ -60,29 +60,25 @@ export class PaymentController {
     );
   }
 
-  @Get('/success')
+  @Get('status/:orderId')
   @ApiTags('Payment')
-  @ApiOperation({
-    summary: 'Handle webhook for successful payment for midtrans',
-  })
-  handleSuccess(@Res() res: Response) {
-    return res.status(200).send('Payment successful!');
+  @ApiOperation({ summary: 'Get payment status by order ID' })
+  async getStatus(@Param('orderId') orderId: string) {
+    return this.paymentService.getPaymentStatus(orderId);
   }
 
   @Get('/finish')
   @ApiTags('Payment')
-  @ApiOperation({
-    summary: 'Handle webhook for finished payment for midtrans',
-  })
+  @ApiOperation({ summary: 'Redirect page after payment finished' })
   handleFinish(@Res() res: Response) {
     return res.status(200).send('Payment finished!');
   }
 
   @Post('notification')
-  async handleNotification(@Req() req: Request) {
-    const result = await this.paymentService.handleMidtransNotification(
-      req.body as MidtransNotificationPayload,
-    );
+  @ApiTags('Payment')
+  @ApiOperation({ summary: 'Handle Midtrans webhook notification' })
+  async handleNotification(@Body() body: MidtransNotificationPayload) {
+    const result = await this.paymentService.handleMidtransNotification(body);
     return { message: 'Notification received', result };
   }
 }

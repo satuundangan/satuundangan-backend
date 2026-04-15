@@ -231,9 +231,11 @@ export class InvitationService {
       title: invitation.title,
       slug: invitation.slug,
       template_slug: invitation.templateDesign?.slug || null,
+      price: Number(invitation.templateDesign?.price || 0),
       content: {
         templateDesignId: invitation.templateDesignId,
         templateName: invitation.templateName,
+        templatePrice: Number(invitation.templateDesign?.price || 0),
         coupleName: invitation.coupleName,
         groomName: invitation.groomName,
         brideName: invitation.brideName,

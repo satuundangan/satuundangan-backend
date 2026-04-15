@@ -62,6 +62,14 @@ export class InvitationController {
     return this.invitationService.remove(+id);
   }
 
+  @Get('my/slug/:slug')
+  @ApiTags('Invitation')
+  @ApiOperation({ summary: 'Find own invitation by slug (requires auth)' })
+  @UseGuards(JwtAuthGuard)
+  findMySlug(@Param('slug') slug: string, @CurrentUser() user: User) {
+    return this.invitationService.findBySlugForOwner(slug, user.id);
+  }
+
   @Get('slug/:slug')
   @ApiTags('Invitation')
   @ApiOperation({ summary: 'Find an invitation by slug' })

@@ -213,6 +213,23 @@ export class InvitationService {
     await this.invitationRepo.remove(invitation);
   }
 
+  async findBySlugForOwner(slug: string, userId: number): Promise<any> {
+    const invitation = await this.invitationRepo.findOne({
+      where: { slug },
+      relations: ['user', 'templateDesign'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    if (Number(invitation.user?.id) !== Number(userId)) {
+      throw new ForbiddenException('You are not the owner of this invitation');
+    }
+
+    return this.buildInvitationResponse(invitation);
+  }
+
   async findBySlug(slug: string): Promise<any> {
     const invitation = await this.invitationRepo.findOne({
       where: { slug },
@@ -226,6 +243,10 @@ export class InvitationService {
     // 3. Async Increment Views & Log Activity (Anonymous)
     void this.logActivity(invitation, null, ActivityAction.VIEW);
 
+    return this.buildInvitationResponse(invitation);
+  }
+
+  private buildInvitationResponse(invitation: Invitation): any {
     return {
       id: invitation.id,
       title: invitation.title,

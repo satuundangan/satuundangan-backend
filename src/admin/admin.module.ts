@@ -10,6 +10,7 @@ import { Category } from '../category/category.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { PublicSectionController } from './public-section.controller';
+import { PublicAudioController } from './public-audio.controller';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
@@ -35,6 +36,6 @@ import { PromoModule } from '../promo/promo.module';
     PromoModule,
   ],
   providers: [AdminService, AdminGuard],
-  controllers: [AdminController, PublicSectionController],
+  controllers: [AdminController, PublicSectionController, PublicAudioController],
 })
 export class AdminModule {}

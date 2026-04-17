@@ -166,6 +166,49 @@ describe('PaymentService', () => {
       expect(result.updatedStatus).toBe(PaymentStatus.SUCCESS);
     });
 
+    it.each([
+      ['virtual account', 'bank_transfer'],
+      ['GoPay', 'gopay'],
+      ['QRIS', 'qris'],
+    ])('should mark %s settlement as SUCCESS', async (_label, paymentType) => {
+      const mockPayment = {
+        orderId: `INV-${paymentType}-123`,
+        status: PaymentStatus.PENDING,
+        invitation: { isPublished: false },
+        paymentType: null,
+        paymentMethod: null,
+        fraudStatus: null,
+        transactionId: null,
+        settlementTime: null,
+      };
+
+      mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+      mockPaymentRepo.save.mockResolvedValue(mockPayment);
+      mockInvitationRepo.save.mockResolvedValue({});
+
+      const grossAmount = '79000.00';
+      const signature = createHash('sha512')
+        .update(`${mockPayment.orderId}200${grossAmount}mock-midtrans-server-key`)
+        .digest('hex');
+
+      const result = await service.handleMidtransNotification({
+        order_id: mockPayment.orderId,
+        status_code: '200',
+        gross_amount: grossAmount,
+        signature_key: signature,
+        transaction_status: 'settlement',
+        transaction_id: `midtrans-${paymentType}-tx`,
+        payment_type: paymentType,
+        fraud_status: 'accept',
+      });
+
+      expect(mockPayment.status).toBe(PaymentStatus.SUCCESS);
+      expect(mockPayment.paymentMethod).toBe('midtrans');
+      expect(mockPayment.paymentType).toBe(paymentType);
+      expect(mockPayment.invitation.isPublished).toBe(true);
+      expect(result.updatedStatus).toBe(PaymentStatus.SUCCESS);
+    });
+
     it('should keep payment pending on challenged credit card capture', async () => {
       const mockPayment = {
         orderId: 'INV-2-123',

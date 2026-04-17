@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
   UnauthorizedException,
+  BadGatewayException,
 } from '@nestjs/common';
 import { Snap } from 'midtrans-client';
 import { ConfigService } from '@nestjs/config';
@@ -48,6 +49,10 @@ export class PaymentService {
 
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
+    }
+
+    if (!invitation.user) {
+      throw new BadRequestException('Invitation owner is missing');
     }
 
     if (Number(invitation.user.id) !== Number(user.id)) {
@@ -117,6 +122,19 @@ export class PaymentService {
 
     const orderId = `INV-${invitation.id}-${Date.now()}`;
     const frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
+    const customerName = this.sanitizeMidtransText(
+      invitation.user?.name || user.email || 'Customer',
+      'Customer',
+      255,
+    );
+    const customerEmail = this.sanitizeEmail(
+      invitation.user?.email || user.email,
+    );
+    const itemName = this.sanitizeMidtransText(
+      `Undangan Digital: ${invitation.title || invitation.slug || invitation.id}`,
+      `Undangan Digital ${invitation.id}`,
+      50,
+    );
 
     const parameter = {
       transaction_details: {
@@ -124,8 +142,8 @@ export class PaymentService {
         gross_amount: Math.round(grossAmount),
       },
       customer_details: {
-        first_name: invitation.user?.name || 'Customer',
-        email: invitation.user?.email || user.email,
+        first_name: customerName,
+        email: customerEmail,
       },
       credit_card: {
         secure: true,
@@ -135,7 +153,7 @@ export class PaymentService {
           id: `invitation-${invitation.id}`,
           price: Math.round(grossAmount),
           quantity: 1,
-          name: `Undangan Digital: ${invitation.title}`,
+          name: itemName,
         },
       ],
       callbacks: {
@@ -152,14 +170,14 @@ export class PaymentService {
       if (appliedPromo) {
         await this.promoService.release(appliedPromo.id);
       }
-      throw err;
+      throw new BadGatewayException(this.getMidtransErrorMessage(err));
     }
 
     const payment = this.paymentRepo.create({
       orderId,
       amount: grossAmount,
-      name: invitation.user?.name || 'Customer',
-      email: invitation.user?.email || 'customer@example.com',
+      name: customerName,
+      email: customerEmail,
       paymentMethod: 'midtrans',
       status: PaymentStatus.PENDING,
       paymentType: null,
@@ -346,5 +364,46 @@ export class PaymentService {
       this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true' ||
       this.configService.get('NODE_ENV') === 'production'
     );
+  }
+
+  private sanitizeMidtransText(
+    value: unknown,
+    fallback: string,
+    maxLength: number,
+  ): string {
+    const text = String(value ?? '')
+      .replace(/[^\p{L}\p{N}\s.,&'()/-]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return (text || fallback).slice(0, maxLength);
+  }
+
+  private sanitizeEmail(value: unknown): string {
+    const email = String(value ?? '').trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? email.slice(0, 255)
+      : 'customer@satuundangan.id';
+  }
+
+  private getMidtransErrorMessage(err: unknown): string {
+    const response = err as {
+      ApiResponse?: { error_messages?: string[] };
+      response?: { data?: { error_messages?: string[]; message?: string } };
+      message?: string;
+    };
+
+    const messages =
+      response?.ApiResponse?.error_messages ||
+      response?.response?.data?.error_messages;
+
+    if (Array.isArray(messages) && messages.length) {
+      return `Gagal membuat transaksi Midtrans: ${messages.join(', ')}`;
+    }
+
+    const message = response?.response?.data?.message || response?.message;
+    return message
+      ? `Gagal membuat transaksi Midtrans: ${message}`
+      : 'Gagal membuat transaksi Midtrans';
   }
 }

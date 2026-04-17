@@ -8,6 +8,7 @@ import { Invitation } from '../invitation/invitation.entity';
 import { PromoCode } from '../promo/promo-code.entity';
 import { PromoService } from '../promo/promo.service';
 import { PaymentStatus } from './types/payment.type';
+import { BadGatewayException } from '@nestjs/common';
 
 const mockCreateTransaction = jest.fn();
 
@@ -101,6 +102,72 @@ describe('PaymentService', () => {
         is_free: false,
         order_id: expect.stringContaining(`INV-${invitationId}-`),
       });
+    });
+
+    it('should sanitize Midtrans customer and item fields', async () => {
+      const invitationId = 9;
+      const mockUser = {
+        id: 9,
+        name: 'Nainggolan 🚀 Utami',
+        email: 'naingggolanutami@gmail.com',
+      };
+      const mockInvitation = {
+        id: invitationId,
+        title: 'putra & putri dengan judul undangan yang sangat panjang sekali',
+        slug: 'putra-putri',
+        user: mockUser,
+        templateDesign: { price: 10000 },
+      };
+
+      mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
+      mockCreateTransaction.mockResolvedValue({
+        token: 'snap-token-456',
+        redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-456',
+      });
+      mockPaymentRepo.create.mockReturnValue({ id: 9 });
+      mockPaymentRepo.save.mockResolvedValue({ id: 9 });
+
+      await service.createTransaction(invitationId, mockUser as any);
+
+      expect(mockCreateTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_details: {
+            first_name: 'Nainggolan Utami',
+            email: 'naingggolanutami@gmail.com',
+          },
+          item_details: [
+            expect.objectContaining({
+              name: expect.stringMatching(/^Undangan Digital putra & putri/),
+            }),
+          ],
+        }),
+      );
+      const parameter = mockCreateTransaction.mock.calls[0][0];
+      expect(parameter.item_details[0].name.length).toBeLessThanOrEqual(50);
+    });
+
+    it('should expose Midtrans create transaction errors as BadGatewayException', async () => {
+      const invitationId = 3;
+      const mockUser = { id: 3, name: 'Test User', email: 'test@example.com' };
+      const mockInvitation = {
+        id: invitationId,
+        title: 'Wedding',
+        user: mockUser,
+        templateDesign: { price: 10000 },
+      };
+
+      mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
+      mockCreateTransaction.mockRejectedValue({
+        ApiResponse: { error_messages: ['Validation failed'] },
+      });
+      mockPromoService.release.mockResolvedValue(undefined);
+
+      await expect(
+        service.createTransaction(invitationId, mockUser as any),
+      ).rejects.toThrow(BadGatewayException);
+      await expect(
+        service.createTransaction(invitationId, mockUser as any),
+      ).rejects.toThrow('Gagal membuat transaksi Midtrans: Validation failed');
     });
 
     it('should activate free template without calling payment gateway', async () => {

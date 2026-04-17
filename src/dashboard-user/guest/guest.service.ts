@@ -265,7 +265,7 @@ export class GuestService {
         .replace(/\[Link\]/g, url);
     } else {
       const name = guest.name?.split(' ')[0] || 'Teman';
-      message = `Hai ${name}! Ini undangan pernikahan kami 🎉\nKlik untuk lihat: ${url}`;
+      message = `Hai ${name}! Ini undangan pernikahan kami.\nKlik untuk lihat: ${url}`;
     }
 
     const phone = (guest.phoneNumber || '').replace(/[^0-9]/g, '');

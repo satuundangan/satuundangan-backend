@@ -115,6 +115,14 @@ export class Invitation {
   @Column({ nullable: true })
   eWalletLink: string;
 
+  @Column({ type: 'json', nullable: true })
+  bankAccounts: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    bankLogoUrl?: string;
+  }[];
+
   @Column({ type: 'json' })
   socialMedia: {
     instagram?: string;

@@ -6,6 +6,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   BadGatewayException,
+  Logger,
 } from '@nestjs/common';
 import { Snap } from 'midtrans-client';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +21,7 @@ import { PromoCode } from '../promo/promo-code.entity';
 
 @Injectable()
 export class PaymentService {
+  private readonly logger = new Logger(PaymentService.name);
   private snap: Snap;
 
   constructor(
@@ -42,6 +44,10 @@ export class PaymentService {
     user: User,
     promoCode?: string,
   ) {
+    this.logger.log(
+      `Creating payment transaction invitationId=${invitationId} userId=${user.id} promo=${promoCode ? 'yes' : 'no'}`,
+    );
+
     const invitation = await this.invitationRepo.findOne({
       where: { id: invitationId },
       relations: ['user', 'templateDesign'],
@@ -59,6 +65,30 @@ export class PaymentService {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
 
+    const existingPendingPayment = await this.paymentRepo.findOne({
+      where: {
+        invitationId: invitation.id,
+        status: PaymentStatus.PENDING,
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (
+      existingPendingPayment?.snapToken ||
+      existingPendingPayment?.redirectUrl
+    ) {
+      this.logger.log(
+        `Resuming pending payment orderId=${existingPendingPayment.orderId} invitationId=${invitation.id}`,
+      );
+      return {
+        token: existingPendingPayment.snapToken,
+        redirect_url: existingPendingPayment.redirectUrl,
+        order_id: existingPendingPayment.orderId,
+        is_free: false,
+        resumed: true,
+      };
+    }
+
     const rawPrice = invitation.templateDesign?.price || 0;
     let grossAmount = Number(rawPrice);
     let appliedPromo: PromoCode | undefined;
@@ -67,16 +97,25 @@ export class PaymentService {
     if (promoCode) {
       const promoResult = await this.promoService.validate(promoCode, invitationId);
       if (!promoResult.valid) {
+        this.logger.warn(
+          `Promo rejected invitationId=${invitationId} reason="${promoResult.message || 'invalid'}"`,
+        );
         throw new BadRequestException(promoResult.message || 'Kode promo tidak valid');
       }
       appliedPromo = promoResult.promoCode!;
       discountAmount = promoResult.discountAmount!;
       grossAmount = promoResult.finalPrice!;
+      this.logger.log(
+        `Promo applied invitationId=${invitationId} promoId=${appliedPromo.id} discount=${discountAmount} finalAmount=${grossAmount}`,
+      );
     }
 
     if (appliedPromo) {
       const reserved = await this.promoService.tryReserve(appliedPromo.id);
       if (!reserved) {
+        this.logger.warn(
+          `Promo reserve failed invitationId=${invitationId} promoId=${appliedPromo.id}`,
+        );
         throw new BadRequestException('Kode promo sudah habis atau tidak berlaku');
       }
     }
@@ -101,6 +140,9 @@ export class PaymentService {
       } as DeepPartial<Payment>);
 
       await this.paymentRepo.save(payment);
+      this.logger.log(
+        `Free invitation activated invitationId=${invitation.id} promoId=${appliedPromo?.id ?? 'none'}`,
+      );
 
       return {
         status: 'success',
@@ -117,6 +159,9 @@ export class PaymentService {
       if (appliedPromo) {
         await this.promoService.release(appliedPromo.id);
       }
+      this.logger.error(
+        `Midtrans server key missing invitationId=${invitation.id}`,
+      );
       throw new UnauthorizedException('Midtrans server key is not configured');
     }
 
@@ -170,6 +215,9 @@ export class PaymentService {
       if (appliedPromo) {
         await this.promoService.release(appliedPromo.id);
       }
+      this.logger.error(
+        `Midtrans create transaction failed orderId=${orderId} invitationId=${invitation.id}: ${this.getMidtransErrorMessage(err)}`,
+      );
       throw new BadGatewayException(this.getMidtransErrorMessage(err));
     }
 
@@ -184,11 +232,16 @@ export class PaymentService {
       fraudStatus: null,
       invitationId: invitation.id,
       transactionId: null,
+      snapToken: transaction.token,
+      redirectUrl: transaction.redirect_url,
       promoCodeId: appliedPromo?.id ?? null,
       discountAmount: discountAmount || null,
     } as DeepPartial<Payment>);
 
     await this.paymentRepo.save(payment);
+    this.logger.log(
+      `Payment transaction created orderId=${orderId} invitationId=${invitation.id} amount=${grossAmount} promoId=${appliedPromo?.id ?? 'none'}`,
+    );
 
     return {
       token: transaction.token,
@@ -199,8 +252,13 @@ export class PaymentService {
   }
 
   async handleMidtransNotification(payload: MidtransNotificationPayload) {
+    this.logger.log(
+      `Midtrans notification received orderId=${payload.order_id} transactionStatus=${payload.transaction_status} statusCode=${payload.status_code}`,
+    );
+
     const serverKey = this.getMidtransServerKey();
     if (!serverKey) {
+      this.logger.error('Midtrans notification rejected: server key missing');
       throw new UnauthorizedException('Midtrans server key is not configured');
     }
 
@@ -211,6 +269,9 @@ export class PaymentService {
       .digest('hex');
 
     if (payload.signature_key !== expectedSignature) {
+      this.logger.warn(
+        `Midtrans notification rejected: invalid signature orderId=${payload.order_id}`,
+      );
       throw new UnauthorizedException('Invalid Midtrans signature');
     }
 
@@ -220,6 +281,9 @@ export class PaymentService {
     });
 
     if (!payment) {
+      this.logger.warn(
+        `Midtrans notification payment not found orderId=${payload.order_id}`,
+      );
       throw new NotFoundException(
         `Payment with order_id ${payload.order_id} not found`,
       );
@@ -230,6 +294,7 @@ export class PaymentService {
     payment.paymentType = payload.payment_type ?? payment.paymentType ?? null;
     payment.fraudStatus = payload.fraud_status ?? null;
 
+    const previousStatus = payment.status;
     const mappedStatus = this.mapMidtransStatus(payload);
     payment.status = mappedStatus;
 
@@ -241,10 +306,29 @@ export class PaymentService {
       if (payment.invitation) {
         payment.invitation.isPublished = true;
         await this.invitationRepo.save(payment.invitation);
+        this.logger.log(
+          `Invitation published from payment orderId=${payment.orderId} invitationId=${payment.invitation.id}`,
+        );
       }
     }
 
+    if (
+      previousStatus === PaymentStatus.PENDING &&
+      [PaymentStatus.EXPIRED, PaymentStatus.FAILURE, PaymentStatus.FAILED].includes(
+        mappedStatus,
+      ) &&
+      payment.promoCodeId
+    ) {
+      await this.promoService.release(payment.promoCodeId);
+      this.logger.log(
+        `Promo reservation released after payment ${mappedStatus} orderId=${payment.orderId} promoId=${payment.promoCodeId}`,
+      );
+    }
+
     await this.paymentRepo.save(payment);
+    this.logger.log(
+      `Payment status updated orderId=${payment.orderId} previousStatus=${previousStatus} newStatus=${payment.status}`,
+    );
 
     return { orderId: payment.orderId, updatedStatus: payment.status };
   }

@@ -37,6 +37,12 @@ export class Payment {
   @Column({ type: 'varchar', length: 100, nullable: true })
   transactionId: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  snapToken: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  redirectUrl: string | null;
+
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })
   status: PaymentStatus | string;
 

@@ -1,9 +1,10 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UploadService {
+  private readonly logger = new Logger(UploadService.name);
   private readonly s3Client: S3Client;
   private readonly bucketName: string;
   private readonly publicUrl: string;
@@ -34,10 +35,14 @@ export class UploadService {
    */
   async uploadFile(file: Express.Multer.File) {
     if (!file) {
+      this.logger.warn('Upload rejected: no file provided');
       throw new InternalServerErrorException('No file provided for upload.');
     }
 
     const fileKey = `${Date.now()}-${file.originalname}`;
+    this.logger.log(
+      `Uploading file to R2 key=${fileKey} size=${file.size} mimetype=${file.mimetype}`,
+    );
 
     try {
       const command = new PutObjectCommand({
@@ -48,6 +53,7 @@ export class UploadService {
       });
 
       await this.s3Client.send(command);
+      this.logger.log(`Upload successful key=${fileKey} size=${file.size}`);
 
       // ✅ Correctly construct the final URL using your public domain
       return {
@@ -55,7 +61,10 @@ export class UploadService {
         message: 'Upload successful ✅',
       };
     } catch (error) {
-      console.error('Error uploading to R2:', error);
+      this.logger.error(
+        `Error uploading to R2 key=${fileKey} size=${file.size}`,
+        error instanceof Error ? error.stack : String(error),
+      );
       throw new InternalServerErrorException('Failed to upload file.');
     }
   }

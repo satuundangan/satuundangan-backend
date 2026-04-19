@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { PromoCode, DiscountType } from './promo-code.entity';
@@ -17,6 +17,8 @@ export interface PromoValidationResult {
 
 @Injectable()
 export class PromoService {
+  private readonly logger = new Logger(PromoService.name);
+
   constructor(
     @InjectRepository(PromoCode)
     private readonly promoRepo: Repository<PromoCode>,
@@ -33,6 +35,9 @@ export class PromoService {
     });
 
     if (!promo) {
+      this.logger.warn(
+        `Promo validation failed code=${code.toUpperCase()} invitationId=${invitationId} reason=not_found`,
+      );
       return {
         valid: false,
         message: 'Kode promo tidak valid atau sudah tidak berlaku',
@@ -40,6 +45,9 @@ export class PromoService {
     }
 
     if (!promo.isActive) {
+      this.logger.warn(
+        `Promo validation failed promoId=${promo.id} invitationId=${invitationId} reason=inactive`,
+      );
       return {
         valid: false,
         message: 'Kode promo tidak valid atau sudah tidak berlaku',
@@ -48,12 +56,18 @@ export class PromoService {
 
     const now = new Date();
     if (promo.validFrom && now < promo.validFrom) {
+      this.logger.warn(
+        `Promo validation failed promoId=${promo.id} invitationId=${invitationId} reason=not_started`,
+      );
       return {
         valid: false,
         message: 'Kode promo tidak valid atau sudah tidak berlaku',
       };
     }
     if (promo.validUntil && now > promo.validUntil) {
+      this.logger.warn(
+        `Promo validation failed promoId=${promo.id} invitationId=${invitationId} reason=expired`,
+      );
       return {
         valid: false,
         message: 'Kode promo tidak valid atau sudah tidak berlaku',
@@ -61,6 +75,9 @@ export class PromoService {
     }
 
     if (promo.maxUses !== null && promo.usedCount >= promo.maxUses) {
+      this.logger.warn(
+        `Promo validation failed promoId=${promo.id} invitationId=${invitationId} reason=max_uses`,
+      );
       return {
         valid: false,
         message: 'Kode promo tidak valid atau sudah tidak berlaku',
@@ -73,6 +90,9 @@ export class PromoService {
     });
 
     if (!invitation) {
+      this.logger.warn(
+        `Promo validation failed promoId=${promo.id} invitationId=${invitationId} reason=invitation_not_found`,
+      );
       return { valid: false, message: 'Undangan tidak ditemukan' };
     }
 
@@ -80,6 +100,9 @@ export class PromoService {
     const { discountAmount, finalPrice } = this.calculateDiscount(
       originalPrice,
       promo,
+    );
+    this.logger.log(
+      `Promo validation success promoId=${promo.id} invitationId=${invitationId} originalPrice=${originalPrice} discount=${discountAmount} finalPrice=${finalPrice}`,
     );
 
     return {
@@ -115,17 +138,23 @@ export class PromoService {
    * Returns true if a slot was reserved, false if the code is exhausted.
    */
   async tryReserve(promoId: number): Promise<boolean> {
+    const usedCountColumn = this.getEscapedColumnName('usedCount');
+    const maxUsesColumn = this.getEscapedColumnName('maxUses');
+    const isActiveColumn = this.getEscapedColumnName('isActive');
+
     const result = await this.promoRepo
       .createQueryBuilder()
       .update(PromoCode)
-      .set({ usedCount: () => 'used_count + 1' })
+      .set({ usedCount: () => `${usedCountColumn} + 1` })
       .where(
-        'id = :id AND is_active = true AND (max_uses IS NULL OR used_count < max_uses)',
+        `id = :id AND ${isActiveColumn} = true AND (${maxUsesColumn} IS NULL OR ${usedCountColumn} < ${maxUsesColumn})`,
         { id: promoId },
       )
       .execute();
 
-    return (result.affected ?? 0) > 0;
+    const reserved = (result.affected ?? 0) > 0;
+    this.logger.log(`Promo reserve promoId=${promoId} reserved=${reserved}`);
+    return reserved;
   }
 
   /**
@@ -133,12 +162,27 @@ export class PromoService {
    * the downstream operation (e.g. Midtrans) subsequently failed.
    */
   async release(promoId: number): Promise<void> {
+    const usedCountColumn = this.getEscapedColumnName('usedCount');
+
     await this.promoRepo
       .createQueryBuilder()
       .update(PromoCode)
-      .set({ usedCount: () => 'GREATEST(0, used_count - 1)' })
+      .set({ usedCount: () => `GREATEST(0, ${usedCountColumn} - 1)` })
       .where('id = :id', { id: promoId })
       .execute();
+    this.logger.log(`Promo reservation released promoId=${promoId}`);
+  }
+
+  private getEscapedColumnName(propertyName: keyof PromoCode): string {
+    const column = this.promoRepo.metadata.findColumnWithPropertyName(
+      propertyName,
+    );
+
+    if (!column) {
+      throw new Error(`PromoCode column ${String(propertyName)} not found`);
+    }
+
+    return this.promoRepo.manager.connection.driver.escape(column.databaseName);
   }
 
   // Admin CRUD

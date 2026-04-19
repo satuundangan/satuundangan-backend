@@ -83,6 +83,25 @@ export class ParentName {
   groomParents: string;
 }
 
+export class BankAccount {
+  @ApiProperty({ example: 'BCA' })
+  @IsString()
+  bankName: string;
+
+  @ApiProperty({ example: '1234567890' })
+  @IsString()
+  accountNumber: string;
+
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  accountName: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.com/bca.png' })
+  @IsOptional()
+  @IsString()
+  bankLogoUrl?: string;
+}
+
 export class LocationDetail {
   @ApiProperty({ example: 'https://maps.google.com/akad' })
   @IsString()
@@ -231,6 +250,13 @@ export class CreateInvitationDto {
   @IsOptional()
   @IsString()
   eWalletLink?: string;
+
+  @ApiPropertyOptional({ type: [BankAccount] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BankAccount)
+  bankAccounts?: BankAccount[];
 
   @ApiProperty({ type: SocialMedia })
   @ValidateNested()

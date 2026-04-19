@@ -4,35 +4,36 @@ import {
   UploadedFile,
   UseInterceptors,
   ParseFilePipe,
-  FileTypeValidator,
+  MaxFileSizeValidator,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
+
+const UPLOAD_MAX_FILE_SIZE_BYTES =
+  (Number(process.env.UPLOAD_MAX_FILE_SIZE_MB) || 25) * 1024 * 1024;
 
 @Controller('upload')
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: UPLOAD_MAX_FILE_SIZE_BYTES,
+      },
+    }),
+  )
   async uploadFile(
     @UploadedFile(
-      // Use ParseFilePipe for built-in validation
       new ParseFilePipe({
-        // You can add validators here for file type, size, etc.
         validators: [
-          // Example: Limit file size to 10MB
-          // new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 }),
-          // Example: Only allow image files
-          // new FileTypeValidator({
-          //   fileType: new RegExp('image/|application/pdf'),
-          // }),
+          new MaxFileSizeValidator({ maxSize: UPLOAD_MAX_FILE_SIZE_BYTES }),
         ],
       }),
     )
     file: Express.Multer.File,
   ) {
-    // Call the updated method name from the service
     return this.uploadService.uploadFile(file);
   }
 }

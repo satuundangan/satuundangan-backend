@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -21,6 +22,8 @@ import { TemplateDesign } from '../template-design/template-design.entity';
 
 @Injectable()
 export class InvitationService {
+  private readonly logger = new Logger(InvitationService.name);
+
   constructor(
     @InjectRepository(Invitation)
     private readonly invitationRepo: Repository<Invitation>,
@@ -33,6 +36,10 @@ export class InvitationService {
   ) {}
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
+    this.logger.log(
+      `Creating invitation userId=${user.id} templateDesignId=${dto.templateDesignId ?? 'none'} mergeEvents=${dto.mergeEvents}`,
+    );
+
     // 1. Template Validation
     if (dto.templateDesignId) {
       const template = await this.templateRepo.findOne({
@@ -73,6 +80,7 @@ export class InvitationService {
       socialMediaGroom: dto.socialMediaGroom || {},
       parents: dto.parents || { brideParents: '', groomParents: '' },
       galleryImages: dto.galleryImages || [],
+      bankAccounts: dto.bankAccounts || [],
     };
 
     // Ensure Unified Logic for Events
@@ -84,6 +92,11 @@ export class InvitationService {
         invitationData.akadLocation = invitationData.resepsiLocation;
       }
     }
+    this.validateEventSchedule(
+      invitationData.akadLocation,
+      invitationData.resepsiLocation,
+      invitationData.mergeEvents,
+    );
 
     const expiredAt = new Date();
     expiredAt.setDate(expiredAt.getDate() + 60);
@@ -114,7 +127,11 @@ export class InvitationService {
 
     invitation.slug = slug;
 
-    return this.invitationRepo.save(invitation);
+    const saved = await this.invitationRepo.save(invitation);
+    this.logger.log(
+      `Invitation created invitationId=${saved.id} slug=${saved.slug} userId=${user.id}`,
+    );
+    return saved;
   }
 
   async findAllByUser(userId: number, query: PaginationQueryDto) {
@@ -171,6 +188,7 @@ export class InvitationService {
 
   async update(id: number, dto: UpdateInvitationDto): Promise<Invitation> {
     const invitation = await this.findOneById(id);
+    this.logger.log(`Updating invitation invitationId=${id}`);
 
     // 2. Premium Validation for Update
     if (dto.isCustomMusic === true) {
@@ -204,8 +222,17 @@ export class InvitationService {
         invitation.resepsiLocation = invitation.akadLocation;
       }
     }
+    this.validateEventSchedule(
+      invitation.akadLocation,
+      invitation.resepsiLocation,
+      invitation.mergeEvents,
+    );
 
-    return this.invitationRepo.save(invitation);
+    const saved = await this.invitationRepo.save(invitation);
+    this.logger.log(
+      `Invitation updated invitationId=${saved.id} slug=${saved.slug} isPublished=${saved.isPublished}`,
+    );
+    return saved;
   }
 
   async remove(id: number): Promise<void> {
@@ -231,6 +258,7 @@ export class InvitationService {
   }
 
   async findBySlug(slug: string): Promise<any> {
+    this.logger.log(`Public invitation requested slug=${slug}`);
     const invitation = await this.invitationRepo.findOne({
       where: { slug },
       relations: ['user', 'templateDesign'],
@@ -238,6 +266,13 @@ export class InvitationService {
 
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
+    }
+
+    if (!invitation.isPublished) {
+      this.logger.warn(
+        `Public invitation blocked unpublished slug=${slug} invitationId=${invitation.id}`,
+      );
+      throw new ForbiddenException('Undangan belum dipublikasikan');
     }
 
     // 3. Async Increment Views & Log Activity (Anonymous)
@@ -280,6 +315,7 @@ export class InvitationService {
         galleryImages: invitation.galleryImages,
         giftDeliveryAddress: invitation.giftDeliveryAddress,
         eWalletLink: invitation.eWalletLink,
+        bankAccounts: invitation.bankAccounts || [],
         socialMedia: invitation.socialMedia,
         socialMediaBrides: invitation.socialMediaBrides,
         socialMediaGroom: invitation.socialMediaGroom,
@@ -299,12 +335,22 @@ export class InvitationService {
   }
 
   async findWithGuest(invitationSlug: string, guestSlug: string) {
+    this.logger.log(
+      `Guest invitation requested invitationSlug=${invitationSlug} guestSlug=${guestSlug}`,
+    );
     const invitation = await this.invitationRepo.findOne({
       where: { slug: invitationSlug },
       relations: ['guests', 'templateDesign'], // Added templateDesign to relations just in case
     });
 
     if (!invitation) throw new NotFoundException('Invitation not found');
+
+    if (!invitation.isPublished) {
+      this.logger.warn(
+        `Guest invitation blocked unpublished invitationSlug=${invitationSlug} invitationId=${invitation.id}`,
+      );
+      throw new ForbiddenException('Undangan belum dipublikasikan');
+    }
 
     const guest = invitation.guests.find((g) => g.slug === guestSlug);
     if (!guest) throw new NotFoundException('Guest not found');
@@ -343,8 +389,50 @@ export class InvitationService {
       });
       await this.activityRepo.save(activity);
     } catch (err) {
-      console.error('Failed to log activity:', err);
+      this.logger.error(
+        `Failed to log activity invitationId=${invitation.id} action=${action}`,
+        err instanceof Error ? err.stack : String(err),
+      );
       // Fail silently to not block the response
     }
+  }
+
+  private validateEventSchedule(
+    akadLocation: Invitation['akadLocation'],
+    resepsiLocation: Invitation['resepsiLocation'],
+    mergeEvents: boolean,
+  ) {
+    if (mergeEvents) return;
+
+    const akadDate = this.parseRequiredEventDate(
+      akadLocation?.dateTime,
+      'Tanggal Akad wajib diisi',
+    );
+    const resepsiDate = this.parseRequiredEventDate(
+      resepsiLocation?.dateTime,
+      'Tanggal Resepsi wajib diisi',
+    );
+
+    if (resepsiDate <= akadDate) {
+      this.logger.warn(
+        `Invalid event schedule akad=${akadDate.toISOString()} resepsi=${resepsiDate.toISOString()}`,
+      );
+      throw new BadRequestException(
+        'Tanggal Resepsi harus setelah tanggal Akad',
+      );
+    }
+  }
+
+  private parseRequiredEventDate(value: unknown, message: string): Date {
+    if (!value) {
+      throw new BadRequestException(message);
+    }
+
+    const date = new Date(String(value));
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(message);
+    }
+
+    return date;
   }
 }

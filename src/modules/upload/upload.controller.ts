@@ -1,6 +1,8 @@
 import {
   Controller,
   Post,
+  Delete,
+  Body,
   UploadedFile,
   UseInterceptors,
   ParseFilePipe,
@@ -35,5 +37,10 @@ export class UploadController {
     file: Express.Multer.File,
   ) {
     return this.uploadService.uploadFile(file);
+  }
+
+  @Delete()
+  async deleteFile(@Body('fileUrl') fileUrl: string) {
+    return this.uploadService.deleteFile(fileUrl);
   }
 }

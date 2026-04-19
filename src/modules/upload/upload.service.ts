@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -66,6 +66,37 @@ export class UploadService {
         error instanceof Error ? error.stack : String(error),
       );
       throw new InternalServerErrorException('Failed to upload file.');
+    }
+  }
+
+  /**
+   * Deletes a file from Cloudflare R2.
+   * @param fileUrl The public URL of the file to delete.
+   */
+  async deleteFile(fileUrl: string) {
+    if (!fileUrl) return;
+
+    // Extract the key from the URL
+    // e.g., https://pub-xxx.r2.dev/123456-image.jpg -> 123456-image.jpg
+    const fileKey = fileUrl.replace(`${this.publicUrl}/`, '');
+
+    this.logger.log(`Deleting file from R2 key=${fileKey}`);
+
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: fileKey,
+      });
+
+      await this.s3Client.send(command);
+      this.logger.log(`Delete successful key=${fileKey}`);
+      return { message: 'File deleted successfully' };
+    } catch (error) {
+      this.logger.error(
+        `Error deleting from R2 key=${fileKey}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw new InternalServerErrorException('Failed to delete file.');
     }
   }
 }

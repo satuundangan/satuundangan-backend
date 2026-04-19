@@ -3,11 +3,20 @@ import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  //belajar git
   constructor(private readonly appService: AppService) {}
 
   @Get()
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  @Get('health')
+  getHealth() {
+    return {
+      status: 'ok',
+      service: 'satu-undangan-api',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    };
   }
 }

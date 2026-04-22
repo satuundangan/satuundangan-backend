@@ -6,10 +6,12 @@ import {
   Post,
   Body,
   Res,
+  Query,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response } from 'express';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
@@ -20,7 +22,10 @@ import {
 
 @Controller('payment')
 export class PaymentController {
-  constructor(private paymentService: PaymentService) {}
+  constructor(
+    private paymentService: PaymentService,
+    private configService: ConfigService,
+  ) {}
 
   @Post('create')
   @ApiTags('Payment')
@@ -70,8 +75,31 @@ export class PaymentController {
   @Get('/finish')
   @ApiTags('Payment')
   @ApiOperation({ summary: 'Redirect page after payment finished' })
-  handleFinish(@Res() res: Response) {
-    return res.status(200).send('Payment finished!');
+  handleFinish(
+    @Query() query: Record<string, string | string[]>,
+    @Res() res: Response,
+  ) {
+    return res.redirect(this.buildPaymentRedirectUrl('/payment/finish', query));
+  }
+
+  @Get('/pending')
+  @ApiTags('Payment')
+  @ApiOperation({ summary: 'Redirect page after payment is pending' })
+  handlePending(
+    @Query() query: Record<string, string | string[]>,
+    @Res() res: Response,
+  ) {
+    return res.redirect(this.buildPaymentRedirectUrl('/payment/pending', query));
+  }
+
+  @Get('/error')
+  @ApiTags('Payment')
+  @ApiOperation({ summary: 'Redirect page after payment error' })
+  handleError(
+    @Query() query: Record<string, string | string[]>,
+    @Res() res: Response,
+  ) {
+    return res.redirect(this.buildPaymentRedirectUrl('/payment/error', query));
   }
 
   @Post('notification')
@@ -80,5 +108,28 @@ export class PaymentController {
   async handleNotification(@Body() body: MidtransNotificationPayload) {
     const result = await this.paymentService.handleMidtransNotification(body);
     return { message: 'Notification received', result };
+  }
+
+  private buildPaymentRedirectUrl(
+    path: '/payment/finish' | '/payment/pending' | '/payment/error',
+    query: Record<string, string | string[]>,
+  ) {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      'https://satuundangan.id';
+    const url = new URL(path, frontendUrl);
+
+    Object.entries(query).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach((item) => url.searchParams.append(key, item));
+        return;
+      }
+
+      if (value !== undefined) {
+        url.searchParams.set(key, value);
+      }
+    });
+
+    return url.toString();
   }
 }

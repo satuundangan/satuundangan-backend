@@ -203,8 +203,8 @@ export class PaymentService {
       ],
       callbacks: {
         finish: `${frontendUrl}/payment/finish`,
-        error: `${frontendUrl}/payment/finish`,
-        pending: `${frontendUrl}/payment/finish`,
+        error: `${frontendUrl}/payment/error`,
+        pending: `${frontendUrl}/payment/pending`,
       },
     };
 

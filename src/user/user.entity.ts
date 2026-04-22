@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Invitation } from '../invitation/invitation.entity';
+import { UserConsent } from './user-consent.entity';
 
 @Entity('users')
 export class User {
@@ -24,8 +25,14 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true })
   avatar: string | null;
 
+  @Column({ default: false })
+  isApproved: boolean;
+
   @OneToMany(() => Invitation, (invitation) => invitation.user, {
     onDelete: 'CASCADE',
   })
   invitations: Invitation[];
+
+  @OneToMany(() => UserConsent, (consent) => consent.user)
+  consents: UserConsent[];
 }

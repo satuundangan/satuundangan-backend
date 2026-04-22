@@ -40,11 +40,12 @@ export class AuthService {
       email: dto.email,
       password: hashed,
       provider: 'local',
+      isApproved: dto.agreedToTerms || false,
     });
 
     await this.userRepo.save(user);
 
-    return this._createToken(user.id, user.email);
+    return this._createToken(user.id, user.email, user.isApproved);
   }
 
   async login(dto: LoginDto) {
@@ -67,20 +68,25 @@ export class AuthService {
       throw new UnauthorizedException('Password not matched');
     }
     Logger.log('User logged in successfully:', dto.email);
-    return this._createToken(user.id, user.email);
+    return this._createToken(user.id, user.email, user.isApproved);
   }
 
-  googleLogin(user: UserType): { access_token: string } {
-    return this._createToken(user.id, user?.email);
+  // untuk Google OAuth
+  async googleLogin(user: User): Promise<{ access_token: string; isApproved: boolean }> {
+    return this._createToken(user.id, user?.email, user.isApproved);
   }
 
   private _createToken(
     userId: number,
     email: string,
-  ): { access_token: string } {
+    isApproved: boolean = false,
+  ): { access_token: string; isApproved: boolean } {
     const payload = { sub: userId, email };
     Logger.log(`Creating JWT for userId: ${userId}, email: ${email}`);
-    return { access_token: this.jwtService.sign(payload) };
+    return {
+      access_token: this.jwtService.sign(payload),
+      isApproved,
+    };
   }
 
   async findByEmail(email: string) {

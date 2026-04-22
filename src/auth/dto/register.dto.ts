@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, MinLength, IsBoolean, Equals } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -19,4 +19,12 @@ export class RegisterDto {
     example: 'password123',
   })
   password: string;
+
+  @IsBoolean()
+  @Equals(true, { message: 'Anda harus menyetujui Syarat dan Ketentuan' })
+  @ApiProperty({
+    description: 'Agreement to terms and conditions',
+    example: true,
+  })
+  agreedToTerms: boolean;
 }

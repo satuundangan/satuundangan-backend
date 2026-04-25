@@ -12,6 +12,7 @@ import { customAlphabet } from 'nanoid';
 import { AffiliateProfile } from './entities/affiliate-profile.entity';
 import { CommissionTransaction } from './entities/commission-transaction.entity';
 import { TierConfig } from './entities/tier-config.entity';
+import { SystemConfig } from './entities/system-config.entity';
 import { Payment } from '../payment/payment.entity';
 import { AffiliateTier, AffiliateStatus, CommissionStatus } from './types/affiliate.type';
 import { RegisterAffiliateDto } from './dto/register-affiliate.dto';
@@ -37,6 +38,8 @@ export class AffiliateService {
     private readonly commissionRepo: Repository<CommissionTransaction>,
     @InjectRepository(TierConfig)
     private readonly tierConfigRepo: Repository<TierConfig>,
+    @InjectRepository(SystemConfig)
+    private readonly systemConfigRepo: Repository<SystemConfig>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -195,11 +198,107 @@ export class AffiliateService {
   }
 
   /**
-   * Placeholder — Plan 03 replaces this with full upgrade/downgrade logic.
-   * Kept in this plan so Plan 02's commit set is self-consistent.
+   * Real implementation (TIER-01, TIER-02): set the highest tier where
+   * profile.totalSales >= tierConfig.minSales. Tier upgrades + downgrades
+   * driven by sales count are both possible (downgrade only happens when
+   * minSales thresholds change in admin config).
+   *
+   * Inactivity-based downgrade is handled separately by downgradeInactiveResellers.
    */
-  async evaluateTierUpgrade(_profileId: number, _manager: EntityManager): Promise<void> {
-    // TODO(Plan 03): load TierConfigs sorted desc by minSales, set highest tier where totalSales >= minSales
-    return;
+  async evaluateTierUpgrade(profileId: number, manager: EntityManager): Promise<void> {
+    const profileRepo = manager.getRepository(AffiliateProfile);
+    const tierRepo = manager.getRepository(TierConfig);
+
+    const profile = await profileRepo.findOne({ where: { id: profileId } });
+    if (!profile) return;
+
+    const configs = await tierRepo.find();
+    if (configs.length === 0) return;
+
+    // Sort highest minSales first; choose first whose threshold is met.
+    const sorted = configs.slice().sort((a, b) => Number(b.minSales) - Number(a.minSales));
+    const newTier =
+      sorted.find((c) => Number(profile.totalSales) >= Number(c.minSales))?.tier ??
+      AffiliateTier.BRONZE;
+
+    if (newTier !== profile.tier) {
+      await profileRepo.update({ id: profileId }, { tier: newTier });
+      this.logger.log(
+        `Tier change profileId=${profileId} ${profile.tier} -> ${newTier} totalSales=${profile.totalSales}`,
+      );
+    }
+  }
+
+  /**
+   * COM-05: PENDING -> CLEARED after clearingPeriodDays since createdAt.
+   * Idempotent SQL bulk update; safe to run multiple times per day.
+   * Returns count of rows transitioned.
+   */
+  async clearPendingCommissions(): Promise<number> {
+    const config = await this.systemConfigRepo.findOne({
+      where: { configKey: 'clearingPeriodDays' },
+    });
+    const days = Number(config?.configValue ?? 7);
+    if (!Number.isFinite(days) || days < 0) {
+      this.logger.error(`Invalid clearingPeriodDays=${config?.configValue}; skipping job`);
+      return 0;
+    }
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const result = await this.commissionRepo
+      .createQueryBuilder()
+      .update(CommissionTransaction)
+      .set({ status: CommissionStatus.CLEARED, clearedAt: () => 'CURRENT_TIMESTAMP' })
+      .where('status = :pending AND createdAt <= :cutoff', {
+        pending: CommissionStatus.PENDING,
+        cutoff,
+      })
+      .execute();
+
+    const count = result.affected ?? 0;
+    this.logger.log(
+      `clearPendingCommissions days=${days} cutoff=${cutoff.toISOString()} cleared=${count}`,
+    );
+    return count;
+  }
+
+  /**
+   * TIER-03: downgrade tier to BRONZE for any reseller whose lastSaleAt is older
+   * than inactivityDowngradeMonths (or who is non-Bronze and has lastSaleAt = NULL
+   * AND createdAt older than the cutoff).
+   * Returns count of profiles downgraded.
+   */
+  async downgradeInactiveResellers(): Promise<number> {
+    const config = await this.systemConfigRepo.findOne({
+      where: { configKey: 'inactivityDowngradeMonths' },
+    });
+    const months = Number(config?.configValue ?? 3);
+    if (!Number.isFinite(months) || months <= 0) {
+      this.logger.error(
+        `Invalid inactivityDowngradeMonths=${config?.configValue}; skipping job`,
+      );
+      return 0;
+    }
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+
+    const result = await this.profileRepo
+      .createQueryBuilder()
+      .update(AffiliateProfile)
+      .set({ tier: AffiliateTier.BRONZE })
+      .where(
+        '(tier <> :bronze) AND (' +
+          '(lastSaleAt IS NOT NULL AND lastSaleAt < :cutoff) OR ' +
+          '(lastSaleAt IS NULL AND createdAt < :cutoff)' +
+          ')',
+        { bronze: AffiliateTier.BRONZE, cutoff },
+      )
+      .execute();
+
+    const count = result.affected ?? 0;
+    this.logger.log(
+      `downgradeInactiveResellers months=${months} cutoff=${cutoff.toISOString()} downgraded=${count}`,
+    );
+    return count;
   }
 }

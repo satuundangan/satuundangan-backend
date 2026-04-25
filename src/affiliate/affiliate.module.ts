@@ -12,6 +12,7 @@ import { AffiliateService } from './affiliate.service';
 import { AffiliateConfigService } from './affiliate-config.service';
 import { AffiliateController } from './affiliate.controller';
 import { AdminAffiliateController } from './admin-affiliate.controller';
+import { AffiliateScheduler } from './affiliate.scheduler';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Module({
@@ -26,7 +27,7 @@ import { AdminGuard } from '../auth/guards/admin.guard';
       User,
     ]),
   ],
-  providers: [AffiliateSeed, AffiliateService, AffiliateConfigService, AdminGuard],
+  providers: [AffiliateSeed, AffiliateService, AffiliateConfigService, AffiliateScheduler, AdminGuard],
   controllers: [AffiliateController, AdminAffiliateController],
   exports: [AffiliateService],
 })

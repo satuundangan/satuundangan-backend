@@ -36,6 +36,7 @@ export class PaymentController {
     body: {
       invitation_id: number;
       promo_code?: string;
+      affiliate_code?: string;
     },
     @CurrentUser() user: User,
   ) {
@@ -43,6 +44,7 @@ export class PaymentController {
       body.invitation_id,
       user,
       body.promo_code,
+      body.affiliate_code,
     );
   }
 

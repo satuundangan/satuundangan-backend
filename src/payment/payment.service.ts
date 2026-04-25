@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { Snap } from 'midtrans-client';
 import { ConfigService } from '@nestjs/config';
-import { DeepPartial, Repository } from 'typeorm';
+import { DeepPartial, Repository, DataSource } from 'typeorm';
 import { Payment } from './payment.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MidtransNotificationPayload, PaymentStatus } from './types/payment.type';
@@ -18,6 +18,8 @@ import { Invitation } from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
 import { PromoService } from '../promo/promo.service';
 import { PromoCode } from '../promo/promo-code.entity';
+import { AffiliateService } from '../affiliate/affiliate.service';
+import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
 
 @Injectable()
 export class PaymentService {
@@ -31,6 +33,8 @@ export class PaymentService {
     @InjectRepository(Invitation)
     private readonly invitationRepo: Repository<Invitation>,
     private readonly promoService: PromoService,
+    private readonly affiliateService: AffiliateService,
+    private readonly dataSource: DataSource,
   ) {
     this.snap = new Snap({
       isProduction: this.getMidtransIsProduction(),
@@ -43,9 +47,10 @@ export class PaymentService {
     invitationId: number,
     user: User,
     promoCode?: string,
+    affiliateCode?: string,
   ) {
     this.logger.log(
-      `Creating payment transaction invitationId=${invitationId} userId=${user.id} promo=${promoCode ? 'yes' : 'no'}`,
+      `Creating payment transaction invitationId=${invitationId} userId=${user.id} promo=${promoCode ? 'yes' : 'no'} affiliate=${affiliateCode ? 'yes' : 'no'}`,
     );
 
     const invitation = await this.invitationRepo.findOne({
@@ -63,6 +68,26 @@ export class PaymentService {
 
     if (Number(invitation.user.id) !== Number(user.id)) {
       throw new ForbiddenException('You are not the owner of this invitation');
+    }
+
+    // Affiliate code validation (D-08, D-09, COM-07)
+    let affiliateProfileId: number | null = null;
+    if (affiliateCode && affiliateCode.trim()) {
+      const result = await this.affiliateService.validateAffiliateCode(affiliateCode);
+      if (!result.valid) {
+        throw new BadRequestException(result.message || 'Kode afiliasi tidak valid');
+      }
+      // Self-referral Layer 1 — block if reseller's user is the buyer
+      const profile = await this.dataSource
+        .getRepository(AffiliateProfile)
+        .findOne({ where: { id: result.affiliateProfileId } });
+      if (profile && Number(profile.userId) === Number(user.id)) {
+        throw new BadRequestException('Tidak dapat menggunakan kode afiliasi sendiri');
+      }
+      affiliateProfileId = result.affiliateProfileId!;
+      this.logger.log(
+        `Affiliate code accepted invitationId=${invitationId} code=${affiliateCode} affiliateProfileId=${affiliateProfileId}`,
+      );
     }
 
     const existingPendingPayment = await this.paymentRepo.findOne({
@@ -137,6 +162,7 @@ export class PaymentService {
         settlementTime: new Date(),
         promoCodeId: appliedPromo?.id ?? null,
         discountAmount: discountAmount || null,
+        affiliateProfileId: affiliateProfileId,
       } as DeepPartial<Payment>);
 
       await this.paymentRepo.save(payment);
@@ -236,6 +262,7 @@ export class PaymentService {
       redirectUrl: transaction.redirect_url,
       promoCodeId: appliedPromo?.id ?? null,
       discountAmount: discountAmount || null,
+      affiliateProfileId: affiliateProfileId,
     } as DeepPartial<Payment>);
 
     await this.paymentRepo.save(payment);
@@ -303,13 +330,25 @@ export class PaymentService {
         payload.settlement_time || payload.transaction_time || null;
       payment.settlementTime = settlementAt ? new Date(settlementAt) : new Date();
 
-      if (payment.invitation) {
-        payment.invitation.isPublished = true;
-        await this.invitationRepo.save(payment.invitation);
-        this.logger.log(
-          `Invitation published from payment orderId=${payment.orderId} invitationId=${payment.invitation.id}`,
-        );
-      }
+      // D-12: wrap invitation publish + payment save + commission credit in ONE transaction
+      await this.dataSource.transaction(async (manager) => {
+        if (payment.invitation) {
+          payment.invitation.isPublished = true;
+          await manager.getRepository(Invitation).save(payment.invitation);
+          this.logger.log(
+            `Invitation published from payment orderId=${payment.orderId} invitationId=${payment.invitation.id}`,
+          );
+        }
+        await manager.getRepository(Payment).save(payment);
+        if (payment.affiliateProfileId) {
+          await this.affiliateService.creditCommission(payment.id, manager);
+        }
+      });
+
+      this.logger.log(
+        `Payment status updated orderId=${payment.orderId} previousStatus=${previousStatus} newStatus=${payment.status}`,
+      );
+      return { orderId: payment.orderId, updatedStatus: payment.status };
     }
 
     if (
@@ -376,10 +415,17 @@ export class PaymentService {
 
     if (status === PaymentStatus.SUCCESS) {
       payment.settlementTime = new Date();
-      if (payment.invitation) {
-        payment.invitation.isPublished = true;
-        await this.invitationRepo.save(payment.invitation);
-      }
+      await this.dataSource.transaction(async (manager) => {
+        if (payment.invitation) {
+          payment.invitation.isPublished = true;
+          await manager.getRepository(Invitation).save(payment.invitation);
+        }
+        await manager.getRepository(Payment).save(payment);
+        if (payment.affiliateProfileId) {
+          await this.affiliateService.creditCommission(payment.id, manager);
+        }
+      });
+      return payment;
     }
 
     return this.paymentRepo.save(payment);

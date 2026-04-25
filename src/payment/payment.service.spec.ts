@@ -7,8 +7,10 @@ import { Payment } from './payment.entity';
 import { Invitation } from '../invitation/invitation.entity';
 import { PromoCode } from '../promo/promo-code.entity';
 import { PromoService } from '../promo/promo.service';
+import { AffiliateService } from '../affiliate/affiliate.service';
 import { PaymentStatus } from './types/payment.type';
 import { BadGatewayException } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 
 const mockCreateTransaction = jest.fn();
 
@@ -40,6 +42,27 @@ describe('PaymentService', () => {
     release: jest.fn(),
   };
 
+  const mockAffiliateService = {
+    validateAffiliateCode: jest.fn(),
+    creditCommission: jest.fn(),
+  };
+
+  const mockDataSource = {
+    getRepository: jest.fn().mockReturnValue({
+      findOne: jest.fn(),
+    }),
+    transaction: jest.fn().mockImplementation(async (cb) => {
+      const manager = {
+        getRepository: jest.fn().mockReturnValue({
+          save: jest.fn().mockResolvedValue({}),
+          findOne: jest.fn(),
+          update: jest.fn(),
+        }),
+      };
+      return cb(manager);
+    }),
+  };
+
   const mockConfigService = {
     get: jest.fn((key: string) => {
       if (key === 'MIDTRANS_SERVER_KEY') return 'mock-midtrans-server-key';
@@ -59,6 +82,8 @@ describe('PaymentService', () => {
         { provide: getRepositoryToken(Invitation), useValue: mockInvitationRepo },
         { provide: getRepositoryToken(PromoCode), useValue: {} },
         { provide: PromoService, useValue: mockPromoService },
+        { provide: AffiliateService, useValue: mockAffiliateService },
+        { provide: DataSource, useValue: mockDataSource },
       ],
     }).compile();
 
@@ -195,6 +220,7 @@ describe('PaymentService', () => {
   describe('handleMidtransNotification', () => {
     it('should mark payment as SUCCESS on settlement', async () => {
       const mockPayment = {
+        id: 1,
         orderId: 'INV-1-123',
         status: PaymentStatus.PENDING,
         invitation: { isPublished: false },
@@ -203,6 +229,7 @@ describe('PaymentService', () => {
         fraudStatus: null,
         transactionId: null,
         settlementTime: null,
+        affiliateProfileId: null,
       };
 
       mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
@@ -239,6 +266,7 @@ describe('PaymentService', () => {
       ['QRIS', 'qris'],
     ])('should mark %s settlement as SUCCESS', async (_label, paymentType) => {
       const mockPayment = {
+        id: 10,
         orderId: `INV-${paymentType}-123`,
         status: PaymentStatus.PENDING,
         invitation: { isPublished: false },
@@ -247,6 +275,7 @@ describe('PaymentService', () => {
         fraudStatus: null,
         transactionId: null,
         settlementTime: null,
+        affiliateProfileId: null,
       };
 
       mockPaymentRepo.findOne.mockResolvedValue(mockPayment);

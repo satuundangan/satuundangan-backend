@@ -1,16 +1,69 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { AffiliateConfigService } from './affiliate-config.service';
+import { AffiliateService } from './affiliate.service';
 import { UpdateTierConfigDto } from './dto/update-tier-config.dto';
 import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
 
 @ApiTags('Admin Affiliate')
 @Controller('admin/affiliate')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, AdminGuard)
 export class AdminAffiliateController {
-  constructor(private readonly configService: AffiliateConfigService) {}
+  constructor(
+    private readonly configService: AffiliateConfigService,
+    private readonly affiliateService: AffiliateService,
+  ) {}
+
+  @Get('resellers')
+  @ApiOperation({ summary: 'List all resellers with stats (ADM-01)' })
+  async listResellers(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('search') search?: string,
+  ) {
+    return this.affiliateService.adminListResellers(Number(page), Number(limit), search);
+  }
+
+  @Post('resellers/:id/status')
+  @ApiOperation({ summary: 'Update reseller status (suspend/blacklist) (ADM-09, ADM-10)' })
+  async updateResellerStatus(
+    @Param('id') id: number,
+    @Body('status') status: string,
+  ) {
+    return this.affiliateService.adminUpdateResellerStatus(id, status);
+  }
+
+  @Get('withdrawals')
+  @ApiOperation({ summary: 'List pending withdrawal queue (ADM-02)' })
+  async listWithdrawals(
+    @Query('status') status?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.affiliateService.adminListWithdrawals(status, Number(page), Number(limit));
+  }
+
+  @Post('withdrawals/:id/approve')
+  @ApiOperation({ summary: 'Approve withdrawal and upload proof (ADM-03)' })
+  async approveWithdrawal(
+    @Param('id') id: number,
+    @Body('proofUrl') proofUrl?: string,
+    @Body('adminNote') adminNote?: string,
+  ) {
+    return this.affiliateService.adminApproveWithdrawal(id, proofUrl, adminNote);
+  }
+
+  @Post('withdrawals/:id/reject')
+  @ApiOperation({ summary: 'Reject withdrawal with reason (ADM-04)' })
+  async rejectWithdrawal(
+    @Param('id') id: number,
+    @Body('adminNote') adminNote: string,
+  ) {
+    return this.affiliateService.adminRejectWithdrawal(id, adminNote);
+  }
 
   @Get('tier-config')
   @ApiOperation({ summary: 'List all tier configs (ADM-05)' })

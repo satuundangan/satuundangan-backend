@@ -13,6 +13,7 @@ import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CategoryModule } from './category/category.module';
 import { PromoModule } from './promo/promo.module';
+import { AffiliateModule } from './affiliate/affiliate.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -43,6 +44,7 @@ import { AppService } from './app.service';
     DashboardModule,
     CategoryModule,
     PromoModule,
+    AffiliateModule,
   ],
   controllers: [AppController],
   providers: [AppService],

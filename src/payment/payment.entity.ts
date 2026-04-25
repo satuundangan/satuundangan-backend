@@ -72,6 +72,12 @@ export class Payment {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   discountAmount: number | null;
 
+  @Column({ type: 'int', nullable: true })
+  affiliateProfileId: number | null;
+
+  @Column({ type: 'boolean', default: false })
+  commissionCredited: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

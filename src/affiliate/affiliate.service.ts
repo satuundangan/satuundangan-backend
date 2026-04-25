@@ -184,7 +184,7 @@ export class AffiliateService {
       .where('id = :id', { id: profile.id })
       .execute();
 
-    // Step 7: tier upgrade evaluation (real logic added in Plan 03 — this is a placeholder hook)
+    // Step 7: tier upgrade evaluation (TIER-01, TIER-02) — reads TierConfig thresholds from DB
     await this.evaluateTierUpgrade(profile.id, manager);
 
     // Step 8: mark Payment as credited (closes idempotency window for retries)

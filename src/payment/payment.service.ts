@@ -21,6 +21,12 @@ import { PromoCode } from '../promo/promo-code.entity';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
 
+const AI_CREDIT_PACKAGES: Record<string, { credits: number; amount: number; label: string }> = {
+  '1': { credits: 1, amount: 2000, label: '1 Kredit Nova' },
+  '5': { credits: 5, amount: 8000, label: '5 Kredit Nova' },
+  '10': { credits: 10, amount: 14000, label: '10 Kredit Nova' },
+};
+
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -32,6 +38,8 @@ export class PaymentService {
     private paymentRepo: Repository<Payment>,
     @InjectRepository(Invitation)
     private readonly invitationRepo: Repository<Invitation>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private readonly promoService: PromoService,
     private readonly affiliateService: AffiliateService,
     private readonly dataSource: DataSource,
@@ -330,6 +338,15 @@ export class PaymentService {
         payload.settlement_time || payload.transaction_time || null;
       payment.settlementTime = settlementAt ? new Date(settlementAt) : new Date();
 
+      if (payment.purpose === 'ai_credits' && payment.userId && payment.aiCreditsAmount) {
+        await this.dataSource.transaction(async (manager) => {
+          await manager.getRepository(Payment).save(payment);
+          await manager.getRepository(User).increment({ id: payment.userId! }, 'aiCredits', payment.aiCreditsAmount!);
+        });
+        this.logger.log(`AI credits added from payment orderId=${payment.orderId} userId=${payment.userId} credits=${payment.aiCreditsAmount}`);
+        return { orderId: payment.orderId, updatedStatus: payment.status };
+      }
+
       // D-12: wrap invitation publish + payment save + commission credit in ONE transaction
       await this.dataSource.transaction(async (manager) => {
         if (payment.invitation) {
@@ -370,6 +387,67 @@ export class PaymentService {
     );
 
     return { orderId: payment.orderId, updatedStatus: payment.status };
+  }
+
+  async createAiCreditTransaction(packageId: string, user: User) {
+    const pkg = AI_CREDIT_PACKAGES[packageId];
+    if (!pkg) {
+      throw new BadRequestException('Paket kredit tidak valid');
+    }
+
+    const serverKey = this.getMidtransServerKey();
+    if (!serverKey) {
+      throw new UnauthorizedException('Midtrans server key is not configured');
+    }
+
+    const orderId = `AI-CREDIT-${user.id}-${packageId}-${Date.now()}`;
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
+
+    const parameter = {
+      transaction_details: { order_id: orderId, gross_amount: pkg.amount },
+      customer_details: {
+        first_name: this.sanitizeMidtransText(user.name, 'Customer', 255),
+        email: this.sanitizeEmail(user.email),
+      },
+      credit_card: { secure: true },
+      item_details: [{ id: `ai-credits-${packageId}`, price: pkg.amount, quantity: 1, name: pkg.label }],
+      callbacks: {
+        finish: `${frontendUrl}/payment/finish`,
+        error: `${frontendUrl}/payment/error`,
+        pending: `${frontendUrl}/payment/pending`,
+      },
+    };
+
+    let transaction: { token: string; redirect_url: string };
+    try {
+      transaction = await this.snap.createTransaction(parameter);
+    } catch (err) {
+      throw new BadGatewayException(this.getMidtransErrorMessage(err));
+    }
+
+    const payment = this.paymentRepo.create({
+      orderId,
+      amount: pkg.amount,
+      name: this.sanitizeMidtransText(user.name, 'Customer', 255),
+      email: this.sanitizeEmail(user.email),
+      paymentMethod: 'midtrans',
+      status: PaymentStatus.PENDING,
+      snapToken: transaction.token,
+      redirectUrl: transaction.redirect_url,
+      purpose: 'ai_credits',
+      aiCreditsAmount: pkg.credits,
+      userId: user.id,
+    } as DeepPartial<Payment>);
+
+    await this.paymentRepo.save(payment);
+    this.logger.log(`AI credit transaction created orderId=${orderId} userId=${user.id} package=${packageId}`);
+
+    return { token: transaction.token, redirect_url: transaction.redirect_url, order_id: orderId };
+  }
+
+  async addAiCredits(userId: number, credits: number): Promise<void> {
+    await this.userRepo.increment({ id: userId }, 'aiCredits', credits);
+    this.logger.log(`AI credits added userId=${userId} amount=${credits}`);
   }
 
   async getPaymentStatus(orderId: string) {

@@ -28,6 +28,9 @@ export class User {
   @Column({ default: false })
   isApproved: boolean;
 
+  @Column({ type: 'int', default: 1 })
+  aiCredits: number;
+
   @OneToMany(() => Invitation, (invitation) => invitation.user, {
     onDelete: 'CASCADE',
   })

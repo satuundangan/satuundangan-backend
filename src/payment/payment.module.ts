@@ -6,15 +6,19 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Payment } from './payment.entity';
 import { Invitation } from '../invitation/invitation.entity';
 import { PromoCode } from '../promo/promo-code.entity';
+import { User } from '../user/user.entity';
 import { PromoModule } from '../promo/promo.module';
+import { AffiliateModule } from '../affiliate/affiliate.module';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([Payment, Invitation, PromoCode]),
+    TypeOrmModule.forFeature([Payment, Invitation, PromoCode, User]),
     PromoModule,
+    AffiliateModule,
   ],
   providers: [PaymentService],
   controllers: [PaymentController],
+  exports: [PaymentService],
 })
 export class PaymentModule {}

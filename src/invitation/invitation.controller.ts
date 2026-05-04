@@ -8,6 +8,7 @@ import {
   Param,
   UseGuards,
   Query,
+  Header,
 } from '@nestjs/common';
 import { InvitationService } from './invitation.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
@@ -73,11 +74,13 @@ export class InvitationController {
   @Get('slug/:slug')
   @ApiTags('Invitation')
   @ApiOperation({ summary: 'Find an invitation by slug' })
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
   findBySlug(@Param('slug') slug: string) {
     return this.invitationService.findBySlug(slug);
   }
 
   @Get('slug/:invitationSlug/guest/:guestSlug')
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
   async getInvitationWithGuest(
     @Param('invitationSlug') invitationSlug: string,
     @Param('guestSlug') guestSlug: string,

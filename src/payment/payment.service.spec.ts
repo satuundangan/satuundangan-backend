@@ -5,6 +5,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Payment } from './payment.entity';
 import { Invitation } from '../invitation/invitation.entity';
+import { User } from '../user/user.entity';
 import { PromoCode } from '../promo/promo-code.entity';
 import { PromoService } from '../promo/promo.service';
 import { AffiliateService } from '../affiliate/affiliate.service';
@@ -80,6 +81,7 @@ describe('PaymentService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: getRepositoryToken(Payment), useValue: mockPaymentRepo },
         { provide: getRepositoryToken(Invitation), useValue: mockInvitationRepo },
+        { provide: getRepositoryToken(User), useValue: {} },
         { provide: getRepositoryToken(PromoCode), useValue: {} },
         { provide: PromoService, useValue: mockPromoService },
         { provide: AffiliateService, useValue: mockAffiliateService },

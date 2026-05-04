@@ -6,7 +6,6 @@ import {
   UpdateDateColumn,
   OneToOne,
   JoinColumn,
-  Index,
 } from 'typeorm';
 import { User } from '../../user/user.entity';
 import { AffiliateTier, AffiliateStatus } from '../types/affiliate.type';
@@ -20,10 +19,9 @@ export class AffiliateProfile {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column({ unique: true })
+  @Column()
   userId: number;
 
-  @Index()
   @Column({ type: 'varchar', length: 20, unique: true })
   affiliateCode: string;
 

@@ -252,6 +252,11 @@ export class AdminService {
     try {
       const { category: categoryName, paletteId, sections, ...rest } = payload;
 
+      if (rest.slug) {
+        const existingSlug = await this.templateDesignRepo.findOne({ where: { slug: rest.slug } });
+        if (existingSlug) throw new BadRequestException('Slug template sudah digunakan');
+      }
+
       const category = await this.categoryRepo.findOne({
         where: { name: categoryName },
       });
@@ -310,6 +315,11 @@ export class AdminService {
       if (!template) throw new NotFoundException('Template design not found');
 
       const { category: categoryName, paletteId, sections, ...rest } = payload;
+
+      if (rest.slug && rest.slug !== template.slug) {
+        const existingSlug = await this.templateDesignRepo.findOne({ where: { slug: rest.slug } });
+        if (existingSlug) throw new BadRequestException('Slug template sudah digunakan');
+      }
 
       if (categoryName) {
         const found = await this.categoryRepo.findOne({

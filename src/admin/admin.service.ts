@@ -118,11 +118,18 @@ export class AdminService {
     const [data, total] = await this.invitationRepo.findAndCount({
       where,
       order: { id: 'DESC' },
-      relations: ['user'],
+      relations: ['user', 'templateDesign', 'templateDesign.category'],
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data, total, page, limit };
+    
+    const mappedData = data.map(inv => {
+      const mapped = { ...inv } as any;
+      mapped.category = inv.templateDesign?.category?.name || null;
+      return mapped;
+    });
+
+    return { data: mappedData, total, page, limit };
   }
 
   async getInvitation(id: number) {

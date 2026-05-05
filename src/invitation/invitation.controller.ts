@@ -42,8 +42,8 @@ export class InvitationController {
   @ApiTags('Invitation')
   @ApiOperation({ summary: 'Get an invitation by ID' })
   @UseGuards(JwtAuthGuard)
-  findOne(@Param('id') id: string) {
-    return this.invitationService.findOneById(+id);
+  findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.invitationService.findOneById(+id, user);
   }
 
   @Patch(':id')
@@ -51,16 +51,20 @@ export class InvitationController {
   @ApiOperation({ summary: 'Update an invitation' })
   @ApiBody({ type: UpdateInvitationDto })
   @UseGuards(JwtAuthGuard)
-  update(@Param('id') id: string, @Body() dto: UpdateInvitationDto) {
-    return this.invitationService.update(+id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateInvitationDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.invitationService.update(+id, dto, user);
   }
 
   @Delete(':id')
   @ApiTags('Invitation')
   @ApiOperation({ summary: 'Delete an invitation' })
   @UseGuards(JwtAuthGuard)
-  remove(@Param('id') id: string) {
-    return this.invitationService.remove(+id);
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.invitationService.remove(+id, user);
   }
 
   @Get('my/slug/:slug')

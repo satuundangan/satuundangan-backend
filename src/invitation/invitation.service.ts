@@ -176,18 +176,27 @@ export class InvitationService {
     };
   }
 
-  async findOneById(id: number): Promise<Invitation> {
+  async findOneById(id: number, user: User): Promise<Invitation> {
     const invitation = await this.invitationRepo.findOne({
       where: { id },
       relations: ['user', 'templateDesign'],
     });
 
     if (!invitation) throw new NotFoundException('Invitation not found');
+
+    if (Number(invitation.user?.id) !== Number(user.id)) {
+      throw new ForbiddenException('You are not the owner of this invitation');
+    }
+
     return invitation;
   }
 
-  async update(id: number, dto: UpdateInvitationDto): Promise<Invitation> {
-    const invitation = await this.findOneById(id);
+  async update(
+    id: number,
+    dto: UpdateInvitationDto,
+    user: User,
+  ): Promise<Invitation> {
+    const invitation = await this.findOneById(id, user);
     this.logger.log(`Updating invitation invitationId=${id}`);
 
     // 2. Premium Validation for Update
@@ -235,8 +244,8 @@ export class InvitationService {
     return saved;
   }
 
-  async remove(id: number): Promise<void> {
-    const invitation = await this.findOneById(id);
+  async remove(id: number, user: User): Promise<void> {
+    const invitation = await this.findOneById(id, user);
     await this.invitationRepo.remove(invitation);
   }
 

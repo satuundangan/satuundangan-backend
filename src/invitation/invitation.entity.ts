@@ -53,6 +53,12 @@ export class Invitation {
   @Column({ default: false })
   isCustomMusic: boolean;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  audioStart: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  audioEnd: number;
+
   @Column({ nullable: true })
   templateName: string;
 

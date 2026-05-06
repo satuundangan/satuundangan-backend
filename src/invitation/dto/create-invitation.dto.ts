@@ -180,6 +180,16 @@ export class CreateInvitationDto {
   @IsBoolean()
   isCustomMusic: boolean;
 
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsNumber()
+  audioStart?: number;
+
+  @ApiPropertyOptional({ example: 30 })
+  @IsOptional()
+  @IsNumber()
+  audioEnd?: number;
+
   @ApiProperty({ example: 'https://cdn.com/photo.jpg' })
   @IsString()
   bridePhotoUrl: string;

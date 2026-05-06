@@ -118,11 +118,18 @@ export class AdminService {
     const [data, total] = await this.invitationRepo.findAndCount({
       where,
       order: { id: 'DESC' },
-      relations: ['user'],
+      relations: ['user', 'templateDesign', 'templateDesign.category'],
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data, total, page, limit };
+    
+    const mappedData = data.map(inv => {
+      const mapped = { ...inv } as any;
+      mapped.category = inv.templateDesign?.category?.name || null;
+      return mapped;
+    });
+
+    return { data: mappedData, total, page, limit };
   }
 
   async getInvitation(id: number) {
@@ -245,6 +252,11 @@ export class AdminService {
     try {
       const { category: categoryName, paletteId, sections, ...rest } = payload;
 
+      if (rest.slug) {
+        const existingSlug = await this.templateDesignRepo.findOne({ where: { slug: rest.slug } });
+        if (existingSlug) throw new BadRequestException('Slug template sudah digunakan');
+      }
+
       const category = await this.categoryRepo.findOne({
         where: { name: categoryName },
       });
@@ -303,6 +315,11 @@ export class AdminService {
       if (!template) throw new NotFoundException('Template design not found');
 
       const { category: categoryName, paletteId, sections, ...rest } = payload;
+
+      if (rest.slug && rest.slug !== template.slug) {
+        const existingSlug = await this.templateDesignRepo.findOne({ where: { slug: rest.slug } });
+        if (existingSlug) throw new BadRequestException('Slug template sudah digunakan');
+      }
 
       if (categoryName) {
         const found = await this.categoryRepo.findOne({

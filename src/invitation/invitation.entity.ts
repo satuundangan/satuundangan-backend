@@ -15,6 +15,22 @@ import { Guest } from '../dashboard-user/guest/guest.entity';
 import { InvitationActivity } from '../dashboard/invitation-activity.entity';
 import { Payment } from '../payment/payment.entity';
 
+const jsonTextArrayTransformer = {
+  to: (value: unknown) =>
+    JSON.stringify(Array.isArray(value) ? value : value ? [value] : []),
+  from: (value: unknown) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') return [];
+
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    } catch {
+      return value ? [value] : [];
+    }
+  },
+};
+
 @Entity()
 export class Invitation {
   @PrimaryGeneratedColumn()
@@ -115,11 +131,15 @@ export class Invitation {
   @Column({ type: 'json' })
   galleryImages: string[];
 
-  @Column()
-  giftDeliveryAddress: string;
+  @Column({ type: 'text', transformer: jsonTextArrayTransformer })
+  giftDeliveryAddress: string[];
 
-  @Column({ nullable: true })
-  eWalletLink: string;
+  @Column({ type: 'text', nullable: true, transformer: jsonTextArrayTransformer })
+  eWalletLink: {
+    wallet_provider: string;
+    wallet_number: string;
+    wallet_image?: string;
+  }[];
 
   @Column({ type: 'json', nullable: true })
   bankAccounts: {

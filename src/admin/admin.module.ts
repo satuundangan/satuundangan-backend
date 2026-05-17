@@ -17,6 +17,7 @@ import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
 import { PromoModule } from '../promo/promo.module';
+import { UploadModule } from '../modules/upload/upload.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PromoModule } from '../promo/promo.module';
       PaletteColor,
     ]),
     PromoModule,
+    UploadModule,
   ],
   providers: [AdminService, AdminGuard],
   controllers: [AdminController, PublicSectionController, PublicAudioController],

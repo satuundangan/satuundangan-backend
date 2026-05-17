@@ -165,6 +165,7 @@ Header Wajib: `Authorization: Bearer <ADMIN_TOKEN>`
 
 ### 🎵 Audio & 🏦 Banks
 *   `GET /admin/audio` / `POST /admin/audio`
+*   `POST /admin/audio/upload` - Multipart Form Data: `file` (MP3), `title`, `category`. Uploads audio to Cloudflare R2 and saves it to `master_audio`.
 *   `GET /admin/banks` / `POST /admin/banks`
 
 ### 🎟️ Promo Codes

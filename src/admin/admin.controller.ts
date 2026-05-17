@@ -9,7 +9,13 @@ import {
   Patch,
   Delete,
   ParseIntPipe,
+  UploadedFile,
+  UseInterceptors,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -27,6 +33,13 @@ import { ApiTags } from '@nestjs/swagger';
 import { PromoService } from '../promo/promo.service';
 import { CreatePromoCodeDto } from '../promo/dto/create-promo-code.dto';
 import { UpdatePromoCodeDto } from '../promo/dto/update-promo-code.dto';
+
+const AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES =
+  (Number(process.env.AUDIO_UPLOAD_MAX_FILE_SIZE_MB) ||
+    Number(process.env.UPLOAD_MAX_FILE_SIZE_MB) ||
+    25) *
+  1024 *
+  1024;
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -180,6 +193,31 @@ export class AdminController {
   @Post('audio')
   createAudio(@Body() body: any) {
     return this.service.createAudio(body);
+  }
+
+  @Post('audio/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES,
+      },
+    }),
+  )
+  uploadAudio(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES,
+          }),
+          new FileTypeValidator({ fileType: /^audio\/(mpeg|mp3)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @Body() body: { title?: string; category?: string },
+  ) {
+    return this.service.uploadAudio(file, body);
   }
 
   @Delete('audio/:id')

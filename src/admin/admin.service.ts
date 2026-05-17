@@ -24,6 +24,7 @@ import {
   CreatePaletteColorDto,
   UpdatePaletteColorDto,
 } from './dto/palette-color.dto';
+import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -47,6 +48,7 @@ export class AdminService {
     @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
     @InjectRepository(PaletteColor)
     private readonly paletteColorRepo: Repository<PaletteColor>,
+    private readonly uploadService: UploadService,
   ) {}
 
   // Users
@@ -488,6 +490,25 @@ export class AdminService {
 
   async createAudio(payload: Partial<Audio>) {
     const audio = this.audioRepo.create(payload);
+    return this.audioRepo.save(audio);
+  }
+
+  async uploadAudio(
+    file: Express.Multer.File,
+    payload: { title?: string; category?: string },
+  ) {
+    const upload = await this.uploadService.uploadFile(file);
+    const fallbackTitle = file.originalname
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[_-]/g, ' ')
+      .trim();
+
+    const audio = this.audioRepo.create({
+      title: payload.title?.trim() || fallbackTitle,
+      category: payload.category?.trim() || 'romantic',
+      url: upload.fileUrl,
+    });
+
     return this.audioRepo.save(audio);
   }
 

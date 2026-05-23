@@ -108,7 +108,11 @@ export class GuestService {
     await this.guestRepo.remove(guest);
   }
 
-  async importFromExcel(filepath: string, userId: number): Promise<Guest[]> {
+  async importFromExcel(
+    filepath: string,
+    userId: number,
+    fallbackInvitationId?: number,
+  ): Promise<Guest[]> {
     let buffer: Buffer;
     try {
       buffer = fs.readFileSync(filepath);
@@ -141,13 +145,34 @@ export class GuestService {
         continue;
       }
 
-      const name = ((row['Name'] as string) || '').toString();
-      const degree = ((row['Degree'] as string) || '').toString();
-      const phoneNumber = ((row['Phone Number'] as string) || '').toString();
-      const rawSlug = ((row['Slug'] as string) || '').toString().trim();
-      const invitationId = Number(row['Invitation ID']);
+      // Normalized field helper
+      const getVal = (possibleKeys: string[]) => {
+        for (const key of possibleKeys) {
+          if (row[key] !== undefined) return row[key];
+        }
+        return '';
+      };
 
-      // Validate invitation ownership for each row
+      const name = (getVal(['Name', 'Nama', 'nama']) || '').toString();
+      const degree = (getVal(['Degree', 'Gelar', 'gelar']) || '').toString();
+      const phoneNumber = (
+        getVal(['Phone Number', 'Phone', 'Telepon', 'Nomor HP', 'wa']) || ''
+      ).toString();
+      const rawSlug = (getVal(['Slug', 'slug']) || '').toString().trim();
+
+      const rowInvId = Number(getVal(['Invitation ID', 'ID Undangan']));
+      const invitationId =
+        !isNaN(rowInvId) && rowInvId > 0 ? rowInvId : fallbackInvitationId;
+
+      if (!name || !invitationId) {
+        console.warn(
+          `Skipping row due to missing required data: Name="${name}", InvitationID="${invitationId}"`,
+          row,
+        );
+        continue;
+      }
+
+      // Validate invitation ownership
       const invitation = await this.invitationRepo.findOne({
         where: { id: invitationId, user: { id: userId } },
       });
@@ -160,18 +185,9 @@ export class GuestService {
 
       const slug =
         rawSlug || (await this.generateUniqueSlug(name, invitationId));
-      const group = ((row['Group'] as string) || '').toString();
-      const statusSend = ((row['Status Send'] as string) || '').toString();
-      const rsvpStatus = ((row['RSVP Status'] as string) || 'belum').toString();
-
-      if (!name || isNaN(invitationId) || !slug) {
-        console.warn(
-          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-          `Skipping row due to missing or invalid required data: Name="${name}", Invitation ID="${row['Invitation ID']}", Slug="${slug}"`,
-          row,
-        );
-        continue;
-      }
+      const group = (getVal(['Group', 'Kategori', 'grup']) || '').toString();
+      const statusSend = (getVal(['Status Send']) || '').toString();
+      const rsvpStatus = (getVal(['RSVP Status']) || 'belum').toString();
 
       const guest = this.guestRepo.create({
         name,
@@ -181,7 +197,7 @@ export class GuestService {
         group,
         statusSend,
         rsvpStatus,
-        invitation: { id: invitationId } as Invitation,
+        invitation,
       });
 
       guestsToSave.push(guest);
@@ -258,14 +274,19 @@ export class GuestService {
 
     let message = '';
     const template = guest.invitation.whatsappMessageTemplate;
+    const groomName = guest.invitation.groomName || '';
+    const brideName = guest.invitation.brideName || '';
+    const coupleName = guest.invitation.coupleName || `${groomName} & ${brideName}`;
 
     if (template) {
       message = template
         .replace(/\[GuestName\]/g, guest.name)
+        .replace(/\[GroomName\]/g, groomName)
+        .replace(/\[BrideName\]/g, brideName)
+        .replace(/\[CoupleName\]/g, coupleName)
         .replace(/\[Link\]/g, url);
     } else {
-      const name = guest.name?.split(' ')[0] || 'Teman';
-      message = `Hai ${name}! Ini undangan pernikahan kami.\nKlik untuk lihat: ${url}`;
+      message = `Assalamu'alaikum Wr. Wb.\n\nYth. *${guest.name}*\n\nTanpa mengurangi rasa hormat, perkenankan kami mengundang Bapak/Ibu/Saudara/i untuk menghadiri acara pernikahan kami:\n\n*${coupleName}*\n\nMerupakan suatu kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan untuk hadir dan memberikan doa restu kepada kami.\n\nDetail Undangan:\n${url}\n\nAtas perhatian dan doa restunya, kami ucapkan terima kasih.\n\nWassalamu'alaikum Wr. Wb.\n\nKami yang berbahagia,\n*${coupleName}*`;
     }
 
     const phone = (guest.phoneNumber || '').replace(/[^0-9]/g, '');

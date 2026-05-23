@@ -94,10 +94,15 @@ export class GuestController {
   )
   async importExcel(
     @UploadedFile() file: Express.Multer.File,
+    @Body('invitationId') invitationId: string,
     @CurrentUser() user: any,
   ) {
     const filepath = path.resolve(file.path);
-    const guests = await this.guestService.importFromExcel(filepath, user.id);
+    const guests = await this.guestService.importFromExcel(
+      filepath,
+      user.id,
+      invitationId ? parseInt(invitationId) : undefined,
+    );
 
     // optional: delete file after processing
     fs.unlinkSync(filepath);

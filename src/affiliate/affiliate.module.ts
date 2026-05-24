@@ -7,13 +7,8 @@ import { TierConfig } from './entities/tier-config.entity';
 import { SystemConfig } from './entities/system-config.entity';
 import { Payment } from '../payment/payment.entity';
 import { User } from '../user/user.entity';
-import { AffiliateSeed } from './affiliate.seed';
 import { AffiliateService } from './affiliate.service';
 import { AffiliateConfigService } from './affiliate-config.service';
-import { AffiliateController } from './affiliate.controller';
-import { AdminAffiliateController } from './admin-affiliate.controller';
-import { AffiliateScheduler } from './affiliate.scheduler';
-import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Module({
   imports: [
@@ -27,8 +22,8 @@ import { AdminGuard } from '../auth/guards/admin.guard';
       User,
     ]),
   ],
-  providers: [AffiliateSeed, AffiliateService, AffiliateConfigService, AffiliateScheduler, AdminGuard],
-  controllers: [AffiliateController, AdminAffiliateController],
+  providers: [AffiliateService, AffiliateConfigService],
+  controllers: [],
   exports: [AffiliateService],
 })
 export class AffiliateModule {}

@@ -91,7 +91,9 @@ export class PaymentController {
     @Query() query: Record<string, string | string[]>,
     @Res() res: Response,
   ) {
-    return res.redirect(this.buildPaymentRedirectUrl('/payment/pending', query));
+    return res.redirect(
+      this.buildPaymentRedirectUrl('/payment/pending', query),
+    );
   }
 
   @Get('/error')

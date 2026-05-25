@@ -5,7 +5,26 @@ on:
     branches: [ master ]
 
 jobs:
+  qodana:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Qodana scan
+        uses: JetBrains/qodana-action@v2025.2
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+        with:
+          args: --config,qodana.yaml
+
   build-and-push:
+    needs: qodana
     runs-on: ubuntu-latest
     permissions:
       contents: read

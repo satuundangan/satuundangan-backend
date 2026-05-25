@@ -14,4 +14,3 @@ import { ConsentController } from './consent.controller';
   exports: [UserService, ConsentService],
 })
 export class UserModule {}
-

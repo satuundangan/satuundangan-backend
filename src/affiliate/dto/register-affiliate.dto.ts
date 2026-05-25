@@ -22,6 +22,8 @@ export class RegisterAffiliateDto {
 
   @ApiProperty({ example: '+628123456789' })
   @IsString()
-  @Matches(/^\+?\d{8,20}$/, { message: 'whatsappNumber must be 8–20 digits, optional leading +' })
+  @Matches(/^\+?\d{8,20}$/, {
+    message: 'whatsappNumber must be 8–20 digits, optional leading +',
+  })
   whatsappNumber: string;
 }

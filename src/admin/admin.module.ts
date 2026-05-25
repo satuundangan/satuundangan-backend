@@ -38,6 +38,10 @@ import { UploadModule } from '../modules/upload/upload.module';
     UploadModule,
   ],
   providers: [AdminService, AdminGuard],
-  controllers: [AdminController, PublicSectionController, PublicAudioController],
+  controllers: [
+    AdminController,
+    PublicSectionController,
+    PublicAudioController,
+  ],
 })
 export class AdminModule {}

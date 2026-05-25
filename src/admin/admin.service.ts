@@ -124,8 +124,8 @@ export class AdminService {
       skip: (page - 1) * limit,
       take: limit,
     });
-    
-    const mappedData = data.map(inv => {
+
+    const mappedData = data.map((inv) => {
       const mapped = { ...inv } as any;
       mapped.category = inv.templateDesign?.category?.name || null;
       return mapped;
@@ -255,8 +255,11 @@ export class AdminService {
       const { category: categoryName, paletteId, sections, ...rest } = payload;
 
       if (rest.slug) {
-        const existingSlug = await this.templateDesignRepo.findOne({ where: { slug: rest.slug } });
-        if (existingSlug) throw new BadRequestException('Slug template sudah digunakan');
+        const existingSlug = await this.templateDesignRepo.findOne({
+          where: { slug: rest.slug },
+        });
+        if (existingSlug)
+          throw new BadRequestException('Slug template sudah digunakan');
       }
 
       const category = await this.categoryRepo.findOne({
@@ -319,8 +322,11 @@ export class AdminService {
       const { category: categoryName, paletteId, sections, ...rest } = payload;
 
       if (rest.slug && rest.slug !== template.slug) {
-        const existingSlug = await this.templateDesignRepo.findOne({ where: { slug: rest.slug } });
-        if (existingSlug) throw new BadRequestException('Slug template sudah digunakan');
+        const existingSlug = await this.templateDesignRepo.findOne({
+          where: { slug: rest.slug },
+        });
+        if (existingSlug)
+          throw new BadRequestException('Slug template sudah digunakan');
       }
 
       if (categoryName) {

@@ -16,8 +16,10 @@ export class LegalConsentGuard implements CanActivate {
 
     if (!user) return true; // Let JwtAuthGuard handle authentication
 
-    const isApproved = await this.consentService.checkConsent(user.id || user.sub);
-    
+    const isApproved = await this.consentService.checkConsent(
+      user.id || user.sub,
+    );
+
     if (!isApproved) {
       throw new ForbiddenException({
         message: 'LEGAL_CONSENT_REQUIRED',

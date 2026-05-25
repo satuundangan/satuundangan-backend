@@ -43,7 +43,11 @@ export class CommissionTransaction {
   @Column({ type: 'enum', enum: AffiliateTier })
   tierAtTime: AffiliateTier;
 
-  @Column({ type: 'enum', enum: CommissionStatus, default: CommissionStatus.PENDING })
+  @Column({
+    type: 'enum',
+    enum: CommissionStatus,
+    default: CommissionStatus.PENDING,
+  })
   status: CommissionStatus;
 
   @Column({ type: 'timestamp', nullable: true })

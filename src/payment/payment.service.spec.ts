@@ -15,11 +15,15 @@ import { DataSource } from 'typeorm';
 
 const mockCreateTransaction = jest.fn();
 
-jest.mock('midtrans-client', () => ({
-  Snap: jest.fn().mockImplementation(() => ({
-    createTransaction: mockCreateTransaction,
-  })),
-}), { virtual: true });
+jest.mock(
+  'midtrans-client',
+  () => ({
+    Snap: jest.fn().mockImplementation(() => ({
+      createTransaction: mockCreateTransaction,
+    })),
+  }),
+  { virtual: true },
+);
 
 describe('PaymentService', () => {
   let service: PaymentService;
@@ -80,7 +84,10 @@ describe('PaymentService', () => {
         PaymentService,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: getRepositoryToken(Payment), useValue: mockPaymentRepo },
-        { provide: getRepositoryToken(Invitation), useValue: mockInvitationRepo },
+        {
+          provide: getRepositoryToken(Invitation),
+          useValue: mockInvitationRepo,
+        },
         { provide: getRepositoryToken(User), useValue: {} },
         { provide: getRepositoryToken(PromoCode), useValue: {} },
         { provide: PromoService, useValue: mockPromoService },
@@ -114,18 +121,23 @@ describe('PaymentService', () => {
       mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
       mockCreateTransaction.mockResolvedValue({
         token: 'snap-token-123',
-        redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-123',
+        redirect_url:
+          'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-123',
       });
       mockPaymentRepo.create.mockReturnValue({ id: 1 });
       mockPaymentRepo.save.mockResolvedValue({ id: 1 });
 
-      const result = await service.createTransaction(invitationId, mockUser as any);
+      const result = await service.createTransaction(
+        invitationId,
+        mockUser as any,
+      );
 
       expect(mockCreateTransaction).toHaveBeenCalled();
       expect(paymentRepo.create).toHaveBeenCalled();
       expect(result).toMatchObject({
         token: 'snap-token-123',
-        redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-123',
+        redirect_url:
+          'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-123',
         is_free: false,
         order_id: expect.stringContaining(`INV-${invitationId}-`),
       });
@@ -149,7 +161,8 @@ describe('PaymentService', () => {
       mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
       mockCreateTransaction.mockResolvedValue({
         token: 'snap-token-456',
-        redirect_url: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-456',
+        redirect_url:
+          'https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-token-456',
       });
       mockPaymentRepo.create.mockReturnValue({ id: 9 });
       mockPaymentRepo.save.mockResolvedValue({ id: 9 });
@@ -212,7 +225,10 @@ describe('PaymentService', () => {
       mockPaymentRepo.create.mockReturnValue({ id: 2 });
       mockPaymentRepo.save.mockResolvedValue({ id: 2 });
 
-      const result = await service.createTransaction(invitationId, mockUser as any);
+      const result = await service.createTransaction(
+        invitationId,
+        mockUser as any,
+      );
 
       expect(mockCreateTransaction).not.toHaveBeenCalled();
       expect(result).toMatchObject({ is_free: true, amount: 0 });
@@ -286,7 +302,9 @@ describe('PaymentService', () => {
 
       const grossAmount = '79000.00';
       const signature = createHash('sha512')
-        .update(`${mockPayment.orderId}200${grossAmount}mock-midtrans-server-key`)
+        .update(
+          `${mockPayment.orderId}200${grossAmount}mock-midtrans-server-key`,
+        )
         .digest('hex');
 
       const result = await service.handleMidtransNotification({

@@ -1,4 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  UpdateDateColumn,
+} from 'typeorm';
 import { AffiliateTier } from '../types/affiliate.type';
 
 @Entity('tier_configs')

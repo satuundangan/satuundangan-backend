@@ -131,22 +131,6 @@ export class LocationDetail {
   dateTime: string;
 }
 
-// Main DTO
-export class EWalletLinkItem {
-  @ApiProperty({ example: 'DANA' })
-  @IsString()
-  wallet_provider: string;
-
-  @ApiProperty({ example: '08123456789' })
-  @IsString()
-  wallet_number: string;
-
-  @ApiPropertyOptional({ example: 'https://example.com/qris.jpg' })
-  @IsOptional()
-  @IsString()
-  wallet_image?: string;
-}
-
 export class CreateInvitationDto {
   @ApiProperty({ example: 'Undangan Tes Postman' })
   @IsString()

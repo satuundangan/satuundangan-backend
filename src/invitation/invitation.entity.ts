@@ -134,7 +134,7 @@ export class Invitation {
   @Column({ type: 'text', transformer: jsonTextArrayTransformer })
   giftDeliveryAddress: string[];
 
-  @Column({ type: 'text', nullable: true, transformer: jsonTextArrayTransformer })
+  @Column({ type: 'json', nullable: true })
   eWalletLink: {
     wallet_provider: string;
     wallet_number: string;

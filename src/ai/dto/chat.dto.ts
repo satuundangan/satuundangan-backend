@@ -1,13 +1,13 @@
-import { IsArray, IsObject, IsOptional, ValidateNested } from 'class-validator'
-import { Type } from 'class-transformer'
-import { ApiProperty } from '@nestjs/swagger'
+import { IsArray, IsObject, IsOptional, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class MessageDto {
   @ApiProperty()
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant';
 
   @ApiProperty()
-  content: string
+  content: string;
 }
 
 export class ChatDto {
@@ -15,15 +15,15 @@ export class ChatDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MessageDto)
-  messages: MessageDto[]
+  messages: MessageDto[];
 
   @ApiProperty({ required: false })
   @IsObject()
   @IsOptional()
-  currentData?: Record<string, any>
+  currentData?: Record<string, any>;
 }
 
 export class PurchaseCreditsDto {
   @ApiProperty({ enum: ['1', '5', '10'] })
-  packageId: '1' | '5' | '10'
+  packageId: '1' | '5' | '10';
 }

@@ -28,15 +28,19 @@ export class AffiliateSeed implements OnModuleInit {
       return;
     }
     await this.tierRepo.save([
-      { tier: AffiliateTier.BRONZE, minSales: 0, commissionRate: 0.10 },
+      { tier: AffiliateTier.BRONZE, minSales: 0, commissionRate: 0.1 },
       { tier: AffiliateTier.SILVER, minSales: 5, commissionRate: 0.15 },
-      { tier: AffiliateTier.GOLD, minSales: 15, commissionRate: 0.20 },
+      { tier: AffiliateTier.GOLD, minSales: 15, commissionRate: 0.2 },
     ]);
     this.logger.log('TierConfig seeded with default Bronze/Silver/Gold rows');
   }
 
   private async seedSystemConfigs() {
-    const defaults: Array<{ configKey: string; configValue: string; description: string }> = [
+    const defaults: Array<{
+      configKey: string;
+      configValue: string;
+      description: string;
+    }> = [
       {
         configKey: 'minWithdrawalAmount',
         configValue: '100000',
@@ -50,14 +54,19 @@ export class AffiliateSeed implements OnModuleInit {
       {
         configKey: 'inactivityDowngradeMonths',
         configValue: '3',
-        description: 'Months of zero sales before tier downgrade (ADM-08, TIER-03)',
+        description:
+          'Months of zero sales before tier downgrade (ADM-08, TIER-03)',
       },
     ];
     for (const def of defaults) {
-      const found = await this.systemRepo.findOne({ where: { configKey: def.configKey } });
+      const found = await this.systemRepo.findOne({
+        where: { configKey: def.configKey },
+      });
       if (!found) {
         await this.systemRepo.save(def);
-        this.logger.log(`SystemConfig seeded ${def.configKey}=${def.configValue}`);
+        this.logger.log(
+          `SystemConfig seeded ${def.configKey}=${def.configValue}`,
+        );
       }
     }
   }

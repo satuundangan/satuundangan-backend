@@ -16,11 +16,10 @@ export class AffiliateController {
   @Post('register')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Register the current authenticated user as a reseller (AFF-01)' })
-  async register(
-    @Body() dto: RegisterAffiliateDto,
-    @CurrentUser() user: User,
-  ) {
+  @ApiOperation({
+    summary: 'Register the current authenticated user as a reseller (AFF-01)',
+  })
+  async register(@Body() dto: RegisterAffiliateDto, @CurrentUser() user: User) {
     const profile = await this.affiliateService.register(user.id, dto);
     return {
       success: true,
@@ -34,7 +33,9 @@ export class AffiliateController {
   }
 
   @Post('validate')
-  @ApiOperation({ summary: 'Validate an affiliate code (used at checkout; public endpoint)' })
+  @ApiOperation({
+    summary: 'Validate an affiliate code (used at checkout; public endpoint)',
+  })
   async validate(@Body() dto: ValidateAffiliateCodeDto) {
     const result = await this.affiliateService.validateAffiliateCode(dto.code);
     if (!result.valid) {
@@ -71,7 +72,11 @@ export class AffiliateController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
   ) {
-    return this.affiliateService.getCommissions(user.id, Number(page), Number(limit));
+    return this.affiliateService.getCommissions(
+      user.id,
+      Number(page),
+      Number(limit),
+    );
   }
 
   @Post('withdraw')

@@ -15,7 +15,12 @@ import { WithdrawRequest } from './entities/withdraw-request.entity';
 import { TierConfig } from './entities/tier-config.entity';
 import { SystemConfig } from './entities/system-config.entity';
 import { Payment } from '../payment/payment.entity';
-import { AffiliateTier, AffiliateStatus, CommissionStatus, WithdrawStatus } from './types/affiliate.type';
+import {
+  AffiliateTier,
+  AffiliateStatus,
+  CommissionStatus,
+  WithdrawStatus,
+} from './types/affiliate.type';
 import { RegisterAffiliateDto } from './dto/register-affiliate.dto';
 import { CreateWithdrawDto } from './dto/create-withdraw.dto';
 
@@ -47,7 +52,10 @@ export class AffiliateService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async register(userId: number, dto: RegisterAffiliateDto): Promise<AffiliateProfile> {
+  async register(
+    userId: number,
+    dto: RegisterAffiliateDto,
+  ): Promise<AffiliateProfile> {
     const existing = await this.profileRepo.findOne({ where: { userId } });
     if (existing) {
       throw new ConflictException('User is already registered as a reseller');
@@ -55,7 +63,9 @@ export class AffiliateService {
     // Generate code, retry on extremely rare collision
     let affiliateCode = generateCode();
     for (let attempts = 0; attempts < 5; attempts++) {
-      const clash = await this.profileRepo.findOne({ where: { affiliateCode } });
+      const clash = await this.profileRepo.findOne({
+        where: { affiliateCode },
+      });
       if (!clash) break;
       affiliateCode = generateCode();
     }
@@ -74,13 +84,19 @@ export class AffiliateService {
       whatsappNumber: dto.whatsappNumber.trim(),
     });
     const saved = await this.profileRepo.save(profile);
-    this.logger.log(`Affiliate registered userId=${userId} code=${saved.affiliateCode}`);
+    this.logger.log(
+      `Affiliate registered userId=${userId} code=${saved.affiliateCode}`,
+    );
     return saved;
   }
 
-  async validateAffiliateCode(code: string): Promise<ValidateAffiliateCodeResult> {
+  async validateAffiliateCode(
+    code: string,
+  ): Promise<ValidateAffiliateCodeResult> {
     const normalized = code.trim().toUpperCase();
-    const profile = await this.profileRepo.findOne({ where: { affiliateCode: normalized } });
+    const profile = await this.profileRepo.findOne({
+      where: { affiliateCode: normalized },
+    });
     if (!profile) {
       return { valid: false, message: 'Kode afiliasi tidak ditemukan' };
     }
@@ -117,11 +133,15 @@ export class AffiliateService {
       throw new NotFoundException(`Payment ${paymentId} not found`);
     }
     if (!payment.affiliateProfileId) {
-      this.logger.log(`Skip commission paymentId=${paymentId}: no affiliateProfileId`);
+      this.logger.log(
+        `Skip commission paymentId=${paymentId}: no affiliateProfileId`,
+      );
       return null;
     }
     if (payment.commissionCredited) {
-      this.logger.log(`Skip commission paymentId=${paymentId}: already credited (idempotency)`);
+      this.logger.log(
+        `Skip commission paymentId=${paymentId}: already credited (idempotency)`,
+      );
       return null;
     }
 
@@ -130,10 +150,14 @@ export class AffiliateService {
       where: { id: payment.affiliateProfileId },
     });
     if (!profile) {
-      throw new NotFoundException(`AffiliateProfile ${payment.affiliateProfileId} not found`);
+      throw new NotFoundException(
+        `AffiliateProfile ${payment.affiliateProfileId} not found`,
+      );
     }
     if (profile.status !== AffiliateStatus.ACTIVE) {
-      this.logger.warn(`Skip commission paymentId=${paymentId}: reseller status=${profile.status}`);
+      this.logger.warn(
+        `Skip commission paymentId=${paymentId}: reseller status=${profile.status}`,
+      );
       // Still mark credited=true so we don't keep trying on retries
       await paymentRepo.update({ id: paymentId }, { commissionCredited: true });
       return null;
@@ -147,13 +171,17 @@ export class AffiliateService {
     });
     const buyerUserId = paymentFull?.invitation?.user?.id;
     if (buyerUserId && Number(profile.userId) === Number(buyerUserId)) {
-      this.logger.warn(`Self-referral blocked paymentId=${paymentId} userId=${buyerUserId}`);
+      this.logger.warn(
+        `Self-referral blocked paymentId=${paymentId} userId=${buyerUserId}`,
+      );
       await paymentRepo.update({ id: paymentId }, { commissionCredited: true });
       throw new ForbiddenException('Self-referral is not allowed');
     }
 
     // Step 4: compute commission from payment.amount * snapshot rate (COM-02, TIER-04)
-    const tierConfig = await tierRepo.findOne({ where: { tier: profile.tier } });
+    const tierConfig = await tierRepo.findOne({
+      where: { tier: profile.tier },
+    });
     if (!tierConfig) {
       throw new NotFoundException(`TierConfig for ${profile.tier} not found`);
     }
@@ -209,7 +237,10 @@ export class AffiliateService {
    *
    * Inactivity-based downgrade is handled separately by downgradeInactiveResellers.
    */
-  async evaluateTierUpgrade(profileId: number, manager: EntityManager): Promise<void> {
+  async evaluateTierUpgrade(
+    profileId: number,
+    manager: EntityManager,
+  ): Promise<void> {
     const profileRepo = manager.getRepository(AffiliateProfile);
     const tierRepo = manager.getRepository(TierConfig);
 
@@ -220,10 +251,12 @@ export class AffiliateService {
     if (configs.length === 0) return;
 
     // Sort highest minSales first; choose first whose threshold is met.
-    const sorted = configs.slice().sort((a, b) => Number(b.minSales) - Number(a.minSales));
+    const sorted = configs
+      .slice()
+      .sort((a, b) => Number(b.minSales) - Number(a.minSales));
     const newTier =
-      sorted.find((c) => Number(profile.totalSales) >= Number(c.minSales))?.tier ??
-      AffiliateTier.BRONZE;
+      sorted.find((c) => Number(profile.totalSales) >= Number(c.minSales))
+        ?.tier ?? AffiliateTier.BRONZE;
 
     if (newTier !== profile.tier) {
       await profileRepo.update({ id: profileId }, { tier: newTier });
@@ -244,7 +277,9 @@ export class AffiliateService {
     });
     const days = Number(config?.configValue ?? 7);
     if (!Number.isFinite(days) || days < 0) {
-      this.logger.error(`Invalid clearingPeriodDays=${config?.configValue}; skipping job`);
+      this.logger.error(
+        `Invalid clearingPeriodDays=${config?.configValue}; skipping job`,
+      );
       return 0;
     }
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -252,7 +287,10 @@ export class AffiliateService {
     const result = await this.commissionRepo
       .createQueryBuilder()
       .update(CommissionTransaction)
-      .set({ status: CommissionStatus.CLEARED, clearedAt: () => 'CURRENT_TIMESTAMP' })
+      .set({
+        status: CommissionStatus.CLEARED,
+        clearedAt: () => 'CURRENT_TIMESTAMP',
+      })
       .where('status = :pending AND createdAt <= :cutoff', {
         pending: CommissionStatus.PENDING,
         cutoff,
@@ -333,12 +371,20 @@ export class AffiliateService {
       .select('ct.status', 'status')
       .addSelect('SUM(ct.commissionAmount)', 'total')
       .where('ct.affiliateProfileId = :id', { id: profileId })
-      .andWhere('ct.status IN (:...statuses)', { statuses: [CommissionStatus.PENDING, CommissionStatus.CLEARED] })
+      .andWhere('ct.status IN (:...statuses)', {
+        statuses: [CommissionStatus.PENDING, CommissionStatus.CLEARED],
+      })
       .groupBy('ct.status')
       .getRawMany();
 
-    const pending = Number(rawCommissions.find((r) => r.status === CommissionStatus.PENDING)?.total ?? 0);
-    const cleared = Number(rawCommissions.find((r) => r.status === CommissionStatus.CLEARED)?.total ?? 0);
+    const pending = Number(
+      rawCommissions.find((r) => r.status === CommissionStatus.PENDING)
+        ?.total ?? 0,
+    );
+    const cleared = Number(
+      rawCommissions.find((r) => r.status === CommissionStatus.CLEARED)
+        ?.total ?? 0,
+    );
 
     const withdrawnRaw = await this.withdrawRepo
       .createQueryBuilder('wr')
@@ -358,8 +404,12 @@ export class AffiliateService {
   }
 
   private async getTierProgress(profile: AffiliateProfile) {
-    const configs = await this.tierConfigRepo.find({ order: { minSales: 'ASC' } });
-    const nextTierConfig = configs.find((c) => Number(c.minSales) > Number(profile.totalSales));
+    const configs = await this.tierConfigRepo.find({
+      order: { minSales: 'ASC' },
+    });
+    const nextTierConfig = configs.find(
+      (c) => Number(c.minSales) > Number(profile.totalSales),
+    );
 
     return {
       current: profile.tier,
@@ -367,7 +417,10 @@ export class AffiliateService {
       nextTier: nextTierConfig?.tier ?? null,
       nextTierMinSales: nextTierConfig ? Number(nextTierConfig.minSales) : null,
       salesNeededForNextTier: nextTierConfig
-        ? Math.max(0, Number(nextTierConfig.minSales) - Number(profile.totalSales))
+        ? Math.max(
+            0,
+            Number(nextTierConfig.minSales) - Number(profile.totalSales),
+          )
         : 0,
     };
   }
@@ -410,7 +463,9 @@ export class AffiliateService {
       where: { affiliateProfileId: profile.id, status: WithdrawStatus.PENDING },
     });
     if (pendingCount > 0) {
-      throw new ConflictException('Anda masih memiliki permintaan penarikan yang sedang diproses');
+      throw new ConflictException(
+        'Anda masih memiliki permintaan penarikan yang sedang diproses',
+      );
     }
 
     // DASH-04: Minimum amount
@@ -419,13 +474,17 @@ export class AffiliateService {
     });
     const minAmount = Number(minConfig?.configValue ?? 100000);
     if (dto.amount < minAmount) {
-      throw new BadRequestException(`Minimal penarikan dana adalah Rp ${minAmount.toLocaleString('id-ID')}`);
+      throw new BadRequestException(
+        `Minimal penarikan dana adalah Rp ${minAmount.toLocaleString('id-ID')}`,
+      );
     }
 
     // COM-06: Sufficient cleared balance
     const balances = await this.getDashboardBalances(profile.id);
     if (dto.amount > balances.availableToWithdraw) {
-      throw new BadRequestException('Saldo yang tersedia untuk ditarik tidak mencukupi');
+      throw new BadRequestException(
+        'Saldo yang tersedia untuk ditarik tidak mencukupi',
+      );
     }
 
     const withdraw = this.withdrawRepo.create({
@@ -435,7 +494,9 @@ export class AffiliateService {
     });
 
     const saved = await this.withdrawRepo.save(withdraw);
-    this.logger.log(`Withdraw request submitted profileId=${profile.id} amount=${dto.amount} id=${saved.id}`);
+    this.logger.log(
+      `Withdraw request submitted profileId=${profile.id} amount=${dto.amount} id=${saved.id}`,
+    );
 
     return {
       success: true,
@@ -465,9 +526,12 @@ export class AffiliateService {
       .take(limit);
 
     if (search) {
-      query.andWhere('user.name LIKE :search OR profile.affiliateCode LIKE :search', {
-        search: `%${search}%`,
-      });
+      query.andWhere(
+        'user.name LIKE :search OR profile.affiliateCode LIKE :search',
+        {
+          search: `%${search}%`,
+        },
+      );
     }
 
     const [data, total] = await query.getManyAndCount();
@@ -496,7 +560,11 @@ export class AffiliateService {
     return { success: true };
   }
 
-  async adminListWithdrawals(status?: string, page: number = 1, limit: number = 20) {
+  async adminListWithdrawals(
+    status?: string,
+    page: number = 1,
+    limit: number = 20,
+  ) {
     const query = this.withdrawRepo
       .createQueryBuilder('wr')
       .leftJoinAndSelect('wr.affiliateProfile', 'profile')
@@ -520,14 +588,18 @@ export class AffiliateService {
     };
   }
 
-  async adminApproveWithdrawal(id: number, proofUrl?: string, adminNote?: string) {
+  async adminApproveWithdrawal(
+    id: number,
+    proofUrl?: string,
+    adminNote?: string,
+  ) {
     return this.dataSource.transaction(async (manager) => {
       const withdrawRepo = manager.getRepository(WithdrawRequest);
       const profileRepo = manager.getRepository(AffiliateProfile);
 
-      const request = await withdrawRepo.findOne({ 
+      const request = await withdrawRepo.findOne({
         where: { id },
-        lock: { mode: 'pessimistic_write' }
+        lock: { mode: 'pessimistic_write' },
       });
       if (!request) throw new NotFoundException('Withdraw request not found');
       if (request.status !== WithdrawStatus.PENDING) {
@@ -547,12 +619,15 @@ export class AffiliateService {
         .createQueryBuilder()
         .update(AffiliateProfile)
         .set({
-          commissionBalance: () => `commissionBalance - ${request.requestedAmount}`,
+          commissionBalance: () =>
+            `commissionBalance - ${request.requestedAmount}`,
         })
         .where('id = :id', { id: request.affiliateProfileId })
         .execute();
 
-      this.logger.log(`Admin approved withdrawal id=${id} amount=${request.requestedAmount}`);
+      this.logger.log(
+        `Admin approved withdrawal id=${id} amount=${request.requestedAmount}`,
+      );
 
       return { success: true };
     });

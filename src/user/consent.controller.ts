@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  UseGuards,
-  Req,
-  Get,
-} from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ConsentService } from './consent.service';
@@ -43,7 +36,9 @@ export class ConsentController {
   @Get('status')
   @ApiOperation({ summary: 'Check user consent status' })
   async getStatus(@CurrentUser() user: any) {
-    const isApproved = await this.consentService.checkConsent(user.id || user.sub);
+    const isApproved = await this.consentService.checkConsent(
+      user.id || user.sub,
+    );
     return { isApproved };
   }
 }

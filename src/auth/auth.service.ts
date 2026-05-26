@@ -72,7 +72,9 @@ export class AuthService {
   }
 
   // untuk Google OAuth
-  async googleLogin(user: User): Promise<{ access_token: string; isApproved: boolean }> {
+  async googleLogin(
+    user: User,
+  ): Promise<{ access_token: string; isApproved: boolean }> {
     return this._createToken(user.id, user?.email, user.isApproved);
   }
 

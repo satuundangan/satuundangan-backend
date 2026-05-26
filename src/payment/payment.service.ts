@@ -13,15 +13,20 @@ import { ConfigService } from '@nestjs/config';
 import { DeepPartial, Repository, DataSource } from 'typeorm';
 import { Payment } from './payment.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MidtransNotificationPayload, PaymentStatus } from './types/payment.type';
+import {
+  MidtransNotificationPayload,
+  PaymentStatus,
+} from './types/payment.type';
 import { Invitation } from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
 import { PromoService } from '../promo/promo.service';
 import { PromoCode } from '../promo/promo-code.entity';
 import { AffiliateService } from '../affiliate/affiliate.service';
-import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
 
-const AI_CREDIT_PACKAGES: Record<string, { credits: number; amount: number; label: string }> = {
+const AI_CREDIT_PACKAGES: Record<
+  string,
+  { credits: number; amount: number; label: string }
+> = {
   '1': { credits: 1, amount: 2000, label: '1 Kredit Nova' },
   '5': { credits: 5, amount: 8000, label: '5 Kredit Nova' },
   '10': { credits: 10, amount: 14000, label: '10 Kredit Nova' },
@@ -78,24 +83,9 @@ export class PaymentService {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
 
-    // Affiliate code validation (D-08, D-09, COM-07)
     let affiliateProfileId: number | null = null;
     if (affiliateCode && affiliateCode.trim()) {
-      const result = await this.affiliateService.validateAffiliateCode(affiliateCode);
-      if (!result.valid) {
-        throw new BadRequestException(result.message || 'Kode afiliasi tidak valid');
-      }
-      // Self-referral Layer 1 — block if reseller's user is the buyer
-      const profile = await this.dataSource
-        .getRepository(AffiliateProfile)
-        .findOne({ where: { id: result.affiliateProfileId } });
-      if (profile && Number(profile.userId) === Number(user.id)) {
-        throw new BadRequestException('Tidak dapat menggunakan kode afiliasi sendiri');
-      }
-      affiliateProfileId = result.affiliateProfileId!;
-      this.logger.log(
-        `Affiliate code accepted invitationId=${invitationId} code=${affiliateCode} affiliateProfileId=${affiliateProfileId}`,
-      );
+      throw new BadRequestException('Kode afiliasi sedang tidak tersedia');
     }
 
     const existingPendingPayment = await this.paymentRepo.findOne({
@@ -128,12 +118,17 @@ export class PaymentService {
     let discountAmount = 0;
 
     if (promoCode) {
-      const promoResult = await this.promoService.validate(promoCode, invitationId);
+      const promoResult = await this.promoService.validate(
+        promoCode,
+        invitationId,
+      );
       if (!promoResult.valid) {
         this.logger.warn(
           `Promo rejected invitationId=${invitationId} reason="${promoResult.message || 'invalid'}"`,
         );
-        throw new BadRequestException(promoResult.message || 'Kode promo tidak valid');
+        throw new BadRequestException(
+          promoResult.message || 'Kode promo tidak valid',
+        );
       }
       appliedPromo = promoResult.promoCode!;
       discountAmount = promoResult.discountAmount!;
@@ -149,7 +144,9 @@ export class PaymentService {
         this.logger.warn(
           `Promo reserve failed invitationId=${invitationId} promoId=${appliedPromo.id}`,
         );
-        throw new BadRequestException('Kode promo sudah habis atau tidak berlaku');
+        throw new BadRequestException(
+          'Kode promo sudah habis atau tidak berlaku',
+        );
       }
     }
 
@@ -324,7 +321,8 @@ export class PaymentService {
       );
     }
 
-    payment.transactionId = payload.transaction_id ?? payment.transactionId ?? null;
+    payment.transactionId =
+      payload.transaction_id ?? payment.transactionId ?? null;
     payment.paymentMethod = 'midtrans';
     payment.paymentType = payload.payment_type ?? payment.paymentType ?? null;
     payment.fraudStatus = payload.fraud_status ?? null;
@@ -336,14 +334,28 @@ export class PaymentService {
     if (mappedStatus === PaymentStatus.SUCCESS) {
       const settlementAt =
         payload.settlement_time || payload.transaction_time || null;
-      payment.settlementTime = settlementAt ? new Date(settlementAt) : new Date();
+      payment.settlementTime = settlementAt
+        ? new Date(settlementAt)
+        : new Date();
 
-      if (payment.purpose === 'ai_credits' && payment.userId && payment.aiCreditsAmount) {
+      if (
+        payment.purpose === 'ai_credits' &&
+        payment.userId &&
+        payment.aiCreditsAmount
+      ) {
         await this.dataSource.transaction(async (manager) => {
           await manager.getRepository(Payment).save(payment);
-          await manager.getRepository(User).increment({ id: payment.userId! }, 'aiCredits', payment.aiCreditsAmount!);
+          await manager
+            .getRepository(User)
+            .increment(
+              { id: payment.userId! },
+              'aiCredits',
+              payment.aiCreditsAmount!,
+            );
         });
-        this.logger.log(`AI credits added from payment orderId=${payment.orderId} userId=${payment.userId} credits=${payment.aiCreditsAmount}`);
+        this.logger.log(
+          `AI credits added from payment orderId=${payment.orderId} userId=${payment.userId} credits=${payment.aiCreditsAmount}`,
+        );
         return { orderId: payment.orderId, updatedStatus: payment.status };
       }
 
@@ -370,9 +382,11 @@ export class PaymentService {
 
     if (
       previousStatus === PaymentStatus.PENDING &&
-      [PaymentStatus.EXPIRED, PaymentStatus.FAILURE, PaymentStatus.FAILED].includes(
-        mappedStatus,
-      ) &&
+      [
+        PaymentStatus.EXPIRED,
+        PaymentStatus.FAILURE,
+        PaymentStatus.FAILED,
+      ].includes(mappedStatus) &&
       payment.promoCodeId
     ) {
       await this.promoService.release(payment.promoCodeId);
@@ -410,7 +424,14 @@ export class PaymentService {
         email: this.sanitizeEmail(user.email),
       },
       credit_card: { secure: true },
-      item_details: [{ id: `ai-credits-${packageId}`, price: pkg.amount, quantity: 1, name: pkg.label }],
+      item_details: [
+        {
+          id: `ai-credits-${packageId}`,
+          price: pkg.amount,
+          quantity: 1,
+          name: pkg.label,
+        },
+      ],
       callbacks: {
         finish: `${frontendUrl}/payment/finish`,
         error: `${frontendUrl}/payment/error`,
@@ -440,9 +461,15 @@ export class PaymentService {
     } as DeepPartial<Payment>);
 
     await this.paymentRepo.save(payment);
-    this.logger.log(`AI credit transaction created orderId=${orderId} userId=${user.id} package=${packageId}`);
+    this.logger.log(
+      `AI credit transaction created orderId=${orderId} userId=${user.id} package=${packageId}`,
+    );
 
-    return { token: transaction.token, redirect_url: transaction.redirect_url, order_id: orderId };
+    return {
+      token: transaction.token,
+      redirect_url: transaction.redirect_url,
+      order_id: orderId,
+    };
   }
 
   async addAiCredits(userId: number, credits: number): Promise<void> {

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
@@ -24,11 +33,17 @@ export class AdminAffiliateController {
     @Query('limit') limit: number = 20,
     @Query('search') search?: string,
   ) {
-    return this.affiliateService.adminListResellers(Number(page), Number(limit), search);
+    return this.affiliateService.adminListResellers(
+      Number(page),
+      Number(limit),
+      search,
+    );
   }
 
   @Post('resellers/:id/status')
-  @ApiOperation({ summary: 'Update reseller status (suspend/blacklist) (ADM-09, ADM-10)' })
+  @ApiOperation({
+    summary: 'Update reseller status (suspend/blacklist) (ADM-09, ADM-10)',
+  })
   async updateResellerStatus(
     @Param('id') id: number,
     @Body('status') status: string,
@@ -43,7 +58,11 @@ export class AdminAffiliateController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
   ) {
-    return this.affiliateService.adminListWithdrawals(status, Number(page), Number(limit));
+    return this.affiliateService.adminListWithdrawals(
+      status,
+      Number(page),
+      Number(limit),
+    );
   }
 
   @Post('withdrawals/:id/approve')
@@ -53,7 +72,11 @@ export class AdminAffiliateController {
     @Body('proofUrl') proofUrl?: string,
     @Body('adminNote') adminNote?: string,
   ) {
-    return this.affiliateService.adminApproveWithdrawal(id, proofUrl, adminNote);
+    return this.affiliateService.adminApproveWithdrawal(
+      id,
+      proofUrl,
+      adminNote,
+    );
   }
 
   @Post('withdrawals/:id/reject')
@@ -82,7 +105,9 @@ export class AdminAffiliateController {
   }
 
   @Patch('tier-config/:tier')
-  @ApiOperation({ summary: 'Update tier threshold + commission rate (ADM-05, TIER-02)' })
+  @ApiOperation({
+    summary: 'Update tier threshold + commission rate (ADM-05, TIER-02)',
+  })
   async updateTierConfig(
     @Param('tier') tier: string,
     @Body() dto: UpdateTierConfigDto,
@@ -100,7 +125,10 @@ export class AdminAffiliateController {
   }
 
   @Get('system-config')
-  @ApiOperation({ summary: 'Get system config (min withdraw, clearing period, inactivity period)' })
+  @ApiOperation({
+    summary:
+      'Get system config (min withdraw, clearing period, inactivity period)',
+  })
   async getSystemConfig() {
     const data = await this.configService.getSystemConfig();
     return { success: true, data };

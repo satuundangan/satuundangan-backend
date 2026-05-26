@@ -4,16 +4,16 @@ import {
   HttpStatus,
   Logger,
   BadRequestException,
-} from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
-import { InjectRepository } from '@nestjs/typeorm'
-import { Repository } from 'typeorm'
-import { User } from '../user/user.entity'
-import { MessageDto } from './dto/chat.dto'
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../user/user.entity';
+import { MessageDto } from './dto/chat.dto';
 
 @Injectable()
 export class AiService {
-  private readonly logger = new Logger(AiService.name)
+  private readonly logger = new Logger(AiService.name);
 
   constructor(
     private configService: ConfigService,
@@ -22,30 +22,40 @@ export class AiService {
   ) {}
 
   async getCredits(userId: number): Promise<{ credits: number }> {
-    const user = await this.userRepo.findOneOrFail({ where: { id: userId } })
-    return { credits: user.aiCredits }
+    const user = await this.userRepo.findOneOrFail({ where: { id: userId } });
+    return { credits: user.aiCredits };
   }
 
-  async chat(userId: number, messages: MessageDto[], currentData: Record<string, any> = {}) {
-    const user = await this.userRepo.findOneOrFail({ where: { id: userId } })
+  async chat(
+    userId: number,
+    messages: MessageDto[],
+    currentData: Record<string, any> = {},
+  ) {
+    const user = await this.userRepo.findOneOrFail({ where: { id: userId } });
 
-    const isFirstMessage = messages.filter((m) => m.role === 'user').length === 1
+    const isFirstMessage =
+      messages.filter((m) => m.role === 'user').length === 1;
 
     if (isFirstMessage) {
       if (user.aiCredits < 1) {
-        throw new HttpException('Kredit Nova habis. Silakan beli paket kredit untuk melanjutkan.', HttpStatus.PAYMENT_REQUIRED)
+        throw new HttpException(
+          'Kredit Nova habis. Silakan beli paket kredit untuk melanjutkan.',
+          HttpStatus.PAYMENT_REQUIRED,
+        );
       }
-      user.aiCredits -= 1
-      await this.userRepo.save(user)
-      this.logger.log(`AI credit deducted userId=${userId} remaining=${user.aiCredits}`)
+      user.aiCredits -= 1;
+      await this.userRepo.save(user);
+      this.logger.log(
+        `AI credit deducted userId=${userId} remaining=${user.aiCredits}`,
+      );
     }
 
-    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY')
+    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
     if (!apiKey) {
-      throw new BadRequestException('DeepSeek API key not configured')
+      throw new BadRequestException('DeepSeek API key not configured');
     }
 
-    const systemPrompt = this.buildSystemPrompt(currentData)
+    const systemPrompt = this.buildSystemPrompt(currentData);
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -63,25 +73,25 @@ export class AiService {
         max_tokens: 600,
         stream: false,
       }),
-    })
+    });
 
     if (!response.ok) {
-      const err = await response.text()
-      this.logger.error(`DeepSeek API error: ${err}`)
+      const err = await response.text();
+      this.logger.error(`DeepSeek API error: ${err}`);
       return {
         updatedData: currentData,
         message: 'Nova sedang sibuk sebentar. Coba lagi ya! 🙏',
         creditsRemaining: user.aiCredits,
-      }
+      };
     }
 
-    const data = await response.json() as any
-    const result = JSON.parse(data.choices[0].message.content)
+    const data = await response.json();
+    const result = JSON.parse(data.choices[0].message.content);
 
     return {
       ...result,
       creditsRemaining: user.aiCredits,
-    }
+    };
   }
 
   private buildSystemPrompt(currentData: Record<string, any>): string {
@@ -109,6 +119,6 @@ ATURAN:
 3. Setelah groomName, brideName, akadDateTime, dan akadLocation sudah terisi → set isComplete: true.
 4. Balas dengan hangat dan semangat, gunakan emoji secukupnya.
 5. HANYA kembalikan raw JSON tanpa markdown:
-   {"updatedData": {...data yang sudah diupdate}, "message": "balasan Nova", "isComplete": false}`
+   {"updatedData": {...data yang sudah diupdate}, "message": "balasan Nova", "isComplete": false}`;
   }
 }

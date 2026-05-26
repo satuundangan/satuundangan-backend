@@ -28,7 +28,11 @@ export class AffiliateProfile {
   @Column({ type: 'enum', enum: AffiliateTier, default: AffiliateTier.BRONZE })
   tier: AffiliateTier;
 
-  @Column({ type: 'enum', enum: AffiliateStatus, default: AffiliateStatus.ACTIVE })
+  @Column({
+    type: 'enum',
+    enum: AffiliateStatus,
+    default: AffiliateStatus.ACTIVE,
+  })
   status: AffiliateStatus;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })

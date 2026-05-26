@@ -26,7 +26,11 @@ export class WithdrawRequest {
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   requestedAmount: number;
 
-  @Column({ type: 'enum', enum: WithdrawStatus, default: WithdrawStatus.PENDING })
+  @Column({
+    type: 'enum',
+    enum: WithdrawStatus,
+    default: WithdrawStatus.PENDING,
+  })
   status: WithdrawStatus;
 
   @Column({ type: 'varchar', length: 500, nullable: true })

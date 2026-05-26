@@ -174,9 +174,8 @@ export class PromoService {
   }
 
   private getEscapedColumnName(propertyName: keyof PromoCode): string {
-    const column = this.promoRepo.metadata.findColumnWithPropertyName(
-      propertyName,
-    );
+    const column =
+      this.promoRepo.metadata.findColumnWithPropertyName(propertyName);
 
     if (!column) {
       throw new Error(`PromoCode column ${String(propertyName)} not found`);

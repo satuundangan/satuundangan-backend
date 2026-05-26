@@ -117,6 +117,21 @@ export class LocationDetail {
 }
 
 // Main DTO
+export class EWalletLinkItem {
+  @ApiProperty({ example: 'DANA' })
+  @IsString()
+  wallet_provider: string;
+
+  @ApiProperty({ example: '08123456789' })
+  @IsString()
+  wallet_number: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/qris.jpg' })
+  @IsOptional()
+  @IsString()
+  wallet_image?: string;
+}
+
 export class CreateInvitationDto {
   @ApiProperty({ example: 'Undangan Tes Postman' })
   @IsString()
@@ -246,10 +261,12 @@ export class CreateInvitationDto {
   @IsString()
   giftDeliveryAddress: string;
 
-  @ApiPropertyOptional({ example: 'https://saweria.co/bridegroom' })
+  @ApiPropertyOptional({ type: [EWalletLinkItem] })
   @IsOptional()
-  @IsString()
-  eWalletLink?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EWalletLinkItem)
+  eWalletLink?: EWalletLinkItem[];
 
   @ApiPropertyOptional({ type: [BankAccount] })
   @IsOptional()

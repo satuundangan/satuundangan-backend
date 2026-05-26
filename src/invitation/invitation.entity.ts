@@ -112,8 +112,12 @@ export class Invitation {
   @Column()
   giftDeliveryAddress: string;
 
-  @Column({ nullable: true })
-  eWalletLink: string;
+  @Column({ type: 'json', nullable: true })
+  eWalletLink: {
+    wallet_provider: string;
+    wallet_number: string;
+    wallet_image?: string;
+  }[];
 
   @Column({ type: 'json', nullable: true })
   bankAccounts: {

@@ -102,6 +102,21 @@ export class BankAccount {
   bankLogoUrl?: string;
 }
 
+export class EWalletLinkItem {
+  @ApiProperty({ example: 'DANA' })
+  @IsString()
+  wallet_provider: string;
+
+  @ApiProperty({ example: '08123456789' })
+  @IsString()
+  wallet_number: string;
+
+  @ApiPropertyOptional({ example: 'https://cdn.com/qris.png' })
+  @IsOptional()
+  @IsString()
+  wallet_image?: string;
+}
+
 export class LocationDetail {
   @ApiProperty({ example: 'https://maps.google.com/akad' })
   @IsString()
@@ -116,7 +131,6 @@ export class LocationDetail {
   dateTime: string;
 }
 
-// Main DTO
 export class CreateInvitationDto {
   @ApiProperty({ example: 'Undangan Tes Postman' })
   @IsString()
@@ -180,6 +194,16 @@ export class CreateInvitationDto {
   @IsBoolean()
   isCustomMusic: boolean;
 
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @IsNumber()
+  audioStart?: number;
+
+  @ApiPropertyOptional({ example: 30 })
+  @IsOptional()
+  @IsNumber()
+  audioEnd?: number;
+
   @ApiProperty({ example: 'https://cdn.com/photo.jpg' })
   @IsString()
   bridePhotoUrl: string;
@@ -242,14 +266,17 @@ export class CreateInvitationDto {
   @IsString({ each: true })
   galleryImages: string[];
 
-  @ApiProperty({ example: 'Jl. Kenangan No. 123, Jakarta' })
-  @IsString()
-  giftDeliveryAddress: string;
+  @ApiProperty({ example: ['Jl. Kenangan No. 123, Jakarta'] })
+  @IsArray()
+  @IsString({ each: true })
+  giftDeliveryAddress: string[];
 
-  @ApiPropertyOptional({ example: 'https://saweria.co/bridegroom' })
+  @ApiPropertyOptional({ type: [EWalletLinkItem] })
   @IsOptional()
-  @IsString()
-  eWalletLink?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EWalletLinkItem)
+  eWalletLink?: EWalletLinkItem[];
 
   @ApiPropertyOptional({ type: [BankAccount] })
   @IsOptional()

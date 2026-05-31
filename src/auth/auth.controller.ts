@@ -11,6 +11,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { Response } from 'express';
 import { Logger } from '@nestjs/common';
@@ -52,6 +54,20 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request reset password token' })
+  @ApiBody({ type: ForgotPasswordDto })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using token' })
+  @ApiBody({ type: ResetPasswordDto })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
   @Get('test-log')

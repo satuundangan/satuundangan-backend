@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GuestMessage } from './guest-message.entity';
@@ -17,6 +17,25 @@ export class GuestMessagesService {
     @InjectRepository(Guest)
     private readonly guestRepo: Repository<Guest>,
   ) {}
+
+  async verifyOwnerOrAdmin(
+    invitationId: number,
+    user: { id: number; isAdmin: boolean },
+  ): Promise<void> {
+    if (user.isAdmin) return;
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: invitationId },
+      relations: ['user'],
+    });
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+    if (invitation.user.id !== user.id) {
+      throw new ForbiddenException(
+        'You are not allowed to view messages for this invitation',
+      );
+    }
+  }
 
   async create(dto: CreateGuestMessageDto): Promise<GuestMessage> {
     const invitation = await this.invitationRepo.findOne({

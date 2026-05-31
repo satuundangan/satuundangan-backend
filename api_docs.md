@@ -33,11 +33,33 @@ Base Path: `/auth` & `/user`
     ```
 *   **Response:** `{ "access_token": "JWT_TOKEN_HERE" }`
 
-### 3. Get My Profile
+### 3. Request Forgot Password
+*   **Endpoint:** `POST /auth/forgot-password`
+*   **Body:**
+    ```json
+    {
+      "email": "john@example.com"
+    }
+    ```
+*   **Response:** `{ "message": "Jika email terdaftar, instruksi reset password akan dikirim." }`
+*   **Note:** Di environment non-production, response juga menyertakan `resetToken` dan `resetUrl` untuk testing.
+
+### 4. Reset Password
+*   **Endpoint:** `POST /auth/reset-password`
+*   **Body:**
+    ```json
+    {
+      "token": "RESET_TOKEN",
+      "password": "passwordBaru123"
+    }
+    ```
+*   **Response:** `{ "message": "Password berhasil direset. Silakan login kembali." }`
+
+### 5. Get My Profile
 *   **Endpoint:** `GET /auth/me` atau `GET /user/me`
 *   **Header:** `Authorization: Bearer <token>`
 
-### 4. Update Profile
+### 6. Update Profile
 *   **Endpoint:** `PATCH /user`
 *   **Header:** `Authorization: Bearer <token>`
 *   **Body:** `{ "name": "New Name", "avatar": "URL_IMAGE" }`

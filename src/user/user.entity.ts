@@ -16,6 +16,12 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true })
   password: string | null;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  resetPasswordTokenHash: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  resetPasswordTokenExpiresAt: Date | null;
+
   @Column()
   provider: string;
 

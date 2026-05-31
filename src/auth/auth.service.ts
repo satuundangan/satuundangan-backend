@@ -6,20 +6,27 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
 
 import { User } from '../user/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Logger } from '@nestjs/common';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 type UserType = {
   id: number;
   email: string;
 };
 
+const RESET_PASSWORD_TOKEN_TTL_MS = 60 * 60 * 1000;
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
@@ -71,6 +78,74 @@ export class AuthService {
     return this._createToken(user.id, user.email, user.isApproved);
   }
 
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.userRepo.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    const response: {
+      message: string;
+      resetToken?: string;
+      resetUrl?: string;
+    } = {
+      message:
+        'Jika email terdaftar, instruksi reset password akan dikirim.',
+    };
+
+    if (!user) {
+      this.logger.warn(
+        `Password reset requested for unregistered email: ${normalizedEmail}`,
+      );
+      return response;
+    }
+
+    const resetToken = randomBytes(32).toString('hex');
+    user.resetPasswordTokenHash = this.hashResetToken(resetToken);
+    user.resetPasswordTokenExpiresAt = new Date(
+      Date.now() + RESET_PASSWORD_TOKEN_TTL_MS,
+    );
+    await this.userRepo.save(user);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.log(
+        `Password reset token created for userId=${user.id} resetUrl=${resetUrl}`,
+      );
+      response.resetToken = resetToken;
+      response.resetUrl = resetUrl;
+    } else {
+      this.logger.log(`Password reset token created for userId=${user.id}`);
+    }
+
+    return response;
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = this.hashResetToken(dto.token);
+    const user = await this.userRepo.findOne({
+      where: { resetPasswordTokenHash: tokenHash },
+    });
+
+    if (
+      !user ||
+      !user.resetPasswordTokenExpiresAt ||
+      new Date(user.resetPasswordTokenExpiresAt).getTime() < Date.now()
+    ) {
+      throw new BadRequestException('Token reset password tidak valid');
+    }
+
+    user.password = await bcrypt.hash(dto.password, 10);
+    user.provider = user.provider || 'local';
+    user.resetPasswordTokenHash = null;
+    user.resetPasswordTokenExpiresAt = null;
+    await this.userRepo.save(user);
+
+    return { message: 'Password berhasil direset. Silakan login kembali.' };
+  }
+
   // untuk Google OAuth
   async googleLogin(
     user: User,
@@ -103,5 +178,9 @@ export class AuthService {
       avatar: googleUser.avatar,
     });
     return await this.userRepo.save(newUser);
+  }
+
+  private hashResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 }

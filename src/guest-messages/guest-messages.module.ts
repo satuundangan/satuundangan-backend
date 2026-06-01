@@ -5,11 +5,13 @@ import { GuestMessagesService } from './guest-messages.service';
 import { GuestMessagesController } from './guest-messages.controller';
 import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
+import { User } from '../user/user.entity';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GuestMessage, Invitation, Guest])],
+  imports: [TypeOrmModule.forFeature([GuestMessage, Invitation, Guest, User])],
   controllers: [GuestMessagesController],
-  providers: [GuestMessagesService],
+  providers: [GuestMessagesService, AdminGuard],
   exports: [GuestMessagesService],
 })
 export class GuestMessagesModule {}

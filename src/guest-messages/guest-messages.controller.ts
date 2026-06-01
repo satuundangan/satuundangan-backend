@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { GuestMessagesService } from './guest-messages.service';
 import { CreateGuestMessageDto } from './dto/create-guest-message.dto';
@@ -15,6 +16,9 @@ import {
   ApiParam,
   ApiResponse,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('guest-messages')
 @ApiTags('Guest Messages')
@@ -38,6 +42,7 @@ export class GuestMessagesController {
   }
 
   @Get('invitation/:invitationId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get guest messages by invitation ID' })
   @ApiParam({ name: 'invitationId', type: Number, example: 1 })
   @ApiResponse({
@@ -45,8 +50,10 @@ export class GuestMessagesController {
     description: 'List of guest messages for the invitation',
   })
   async getMessagesByInvitation(
+    @CurrentUser() user: { id: number; email: string; isAdmin: boolean },
     @Param('invitationId', ParseIntPipe) invitationId: number,
   ) {
+    await this.guestMessagesService.verifyOwnerOrAdmin(invitationId, user);
     const messages =
       await this.guestMessagesService.findByInvitationId(invitationId);
     return {
@@ -56,6 +63,7 @@ export class GuestMessagesController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiOperation({ summary: 'Get all guest messages' })
   @ApiResponse({
     status: 200,

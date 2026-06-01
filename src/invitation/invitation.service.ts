@@ -33,6 +33,8 @@ export class InvitationService {
     private readonly activityRepo: Repository<InvitationActivity>,
     @InjectRepository(TemplateDesign)
     private readonly templateRepo: Repository<TemplateDesign>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
@@ -215,6 +217,21 @@ export class InvitationService {
       }
     }
 
+    if (dto.isPublished === true && !invitation.isPublished) {
+      await this.assertEmailVerified(user.id);
+    }
+
+    if (dto.slug && dto.slug !== invitation.slug) {
+      const existing = await this.invitationRepo.findOne({
+        where: { slug: dto.slug },
+      });
+      if (existing) {
+        throw new BadRequestException(
+          'Slug sudah digunakan oleh undangan lain',
+        );
+      }
+    }
+
     Object.assign(invitation, dto);
 
     // Ensure Unified Logic for Events on Update
@@ -242,6 +259,21 @@ export class InvitationService {
       `Invitation updated invitationId=${saved.id} slug=${saved.slug} isPublished=${saved.isPublished}`,
     );
     return saved;
+  }
+
+  private async assertEmailVerified(userId: number) {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      select: ['id', 'emailVerifiedAt', 'provider'],
+    });
+
+    if (user?.provider === 'google' || user?.emailVerifiedAt) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'Verifikasi email diperlukan sebelum publish undangan.',
+    );
   }
 
   async remove(id: number, user: User): Promise<void> {

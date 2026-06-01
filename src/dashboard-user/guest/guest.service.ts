@@ -138,6 +138,7 @@ export class GuestService {
     const rows: Record<string, unknown>[] = xlsx.utils.sheet_to_json(sheet);
 
     const guestsToSave: Guest[] = [];
+    const usedSlugsInBatch: string[] = [];
 
     for (const row of rows) {
       if (typeof row !== 'object' || row === null) {
@@ -184,7 +185,10 @@ export class GuestService {
       }
 
       const slug =
-        rawSlug || (await this.generateUniqueSlug(name, invitationId));
+        rawSlug ||
+        (await this.generateUniqueSlug(name, invitationId, usedSlugsInBatch));
+      usedSlugsInBatch.push(slug);
+
       const group = (getVal(['Group', 'Kategori', 'grup']) || '').toString();
       const statusSend = (getVal(['Status Send']) || '').toString();
       const rsvpStatus = (getVal(['RSVP Status']) || 'belum').toString();
@@ -209,20 +213,24 @@ export class GuestService {
   async generateUniqueSlug(
     name: string,
     invitationId: number,
+    existingInBatch: string[] = [],
   ): Promise<string> {
     const baseSlug = slugify(name.toLowerCase());
 
     let slug = baseSlug;
     let counter = 1;
 
-    while (
-      await this.guestRepo.findOne({
+    const isUsed = async (s: string) => {
+      if (existingInBatch.includes(s)) return true;
+      return !!(await this.guestRepo.findOne({
         where: {
-          slug,
+          slug: s,
           invitation: { id: invitationId },
         },
-      })
-    ) {
+      }));
+    };
+
+    while (await isUsed(slug)) {
       slug = `${baseSlug}-${counter++}`;
     }
 

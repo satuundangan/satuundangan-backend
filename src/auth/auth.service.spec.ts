@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from '../user/user.entity';
 import { JwtService } from '@nestjs/jwt';
+import { EmailService } from './email.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -14,6 +15,9 @@ describe('AuthService', () => {
   const mockJwtService = {
     sign: jest.fn(),
   };
+  const mockEmailService = {
+    sendPasswordResetEmail: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -23,6 +27,7 @@ describe('AuthService', () => {
         AuthService,
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: JwtService, useValue: mockJwtService },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
 

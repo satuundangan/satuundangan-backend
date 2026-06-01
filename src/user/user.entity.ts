@@ -13,6 +13,15 @@ export class User {
   @Column({ unique: true })
   email: string;
 
+  @Column({ type: 'datetime', nullable: true })
+  emailVerifiedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  emailVerificationTokenHash: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  emailVerificationTokenExpiresAt: Date | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   password: string | null;
 

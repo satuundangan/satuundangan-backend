@@ -9,6 +9,10 @@ import { Payment } from '../payment/payment.entity';
 import { User } from '../user/user.entity';
 import { AffiliateService } from './affiliate.service';
 import { AffiliateConfigService } from './affiliate-config.service';
+import { AffiliateController } from './affiliate.controller';
+import { AdminAffiliateController } from './admin-affiliate.controller';
+import { EmailVerifiedGuard } from '../auth/guards/email-verified.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Module({
   imports: [
@@ -22,8 +26,13 @@ import { AffiliateConfigService } from './affiliate-config.service';
       User,
     ]),
   ],
-  providers: [AffiliateService, AffiliateConfigService],
-  controllers: [],
+  providers: [
+    AffiliateService,
+    AffiliateConfigService,
+    EmailVerifiedGuard,
+    AdminGuard,
+  ],
+  controllers: [AffiliateController, AdminAffiliateController],
   exports: [AffiliateService],
 })
 export class AffiliateModule {}

@@ -6,6 +6,7 @@ import {
   Req,
   UseGuards,
   Res,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -68,6 +69,31 @@ export class AuthController {
   @ApiBody({ type: ResetPasswordDto })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Get('verify-email')
+  @ApiOperation({ summary: 'Verify email using token' })
+  async verifyEmail(@Query('token') token: string, @Res() res: Response) {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+
+    try {
+      await this.authService.verifyEmail(token);
+      return res.redirect(
+        `${frontendUrl}/dashboard/settings?email_verified=success`,
+      );
+    } catch {
+      return res.redirect(
+        `${frontendUrl}/dashboard/settings?email_verified=failed`,
+      );
+    }
+  }
+
+  @Post('resend-verification')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Resend email verification link' })
+  resendVerification(@CurrentUser() user: User) {
+    return this.authService.resendEmailVerification(user.id);
   }
 
   @Get('test-log')

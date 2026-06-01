@@ -2,6 +2,7 @@ import { Controller, Post, Body, UseGuards, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AffiliateService } from './affiliate.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { EmailVerifiedGuard } from '../auth/guards/email-verified.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
 import { RegisterAffiliateDto } from './dto/register-affiliate.dto';
@@ -81,7 +82,7 @@ export class AffiliateController {
 
   @Post('withdraw')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, EmailVerifiedGuard)
   @ApiOperation({ summary: 'Submit a withdrawal request' })
   async submitWithdraw(
     @CurrentUser() user: User,

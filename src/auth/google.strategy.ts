@@ -44,10 +44,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         provider: 'google',
         password: null,
         avatar,
+        emailVerifiedAt: new Date(),
       });
       user = await this.userRepo.save(user);
     } else if (!user.avatar && avatar) {
       user.avatar = avatar;
+      if (!user.emailVerifiedAt) user.emailVerifiedAt = new Date();
+      await this.userRepo.save(user);
+    } else if (!user.emailVerifiedAt) {
+      user.emailVerifiedAt = new Date();
       await this.userRepo.save(user);
     }
 

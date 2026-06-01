@@ -9,6 +9,7 @@ import { PromoCode } from '../promo/promo-code.entity';
 import { User } from '../user/user.entity';
 import { PromoModule } from '../promo/promo.module';
 import { AffiliateModule } from '../affiliate/affiliate.module';
+import { EmailVerifiedGuard } from '../auth/guards/email-verified.guard';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { AffiliateModule } from '../affiliate/affiliate.module';
     PromoModule,
     AffiliateModule,
   ],
-  providers: [PaymentService],
+  providers: [PaymentService, EmailVerifiedGuard],
   controllers: [PaymentController],
   exports: [PaymentService],
 })

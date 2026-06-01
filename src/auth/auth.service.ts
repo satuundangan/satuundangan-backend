@@ -15,6 +15,7 @@ import { LoginDto } from './dto/login.dto';
 import { Logger } from '@nestjs/common';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { EmailService } from './email.service';
 
 type UserType = {
   id: number;
@@ -22,6 +23,7 @@ type UserType = {
 };
 
 const RESET_PASSWORD_TOKEN_TTL_MS = 60 * 60 * 1000;
+const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -31,37 +33,60 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
     const existing = await this.userRepo.findOne({
-      where: { email: dto.email },
+      where: { email: normalizedEmail },
     });
 
     if (existing) throw new BadRequestException('Email already registered');
 
     const hashed = await bcrypt.hash(dto.password, 10);
+    const verificationToken = randomBytes(32).toString('hex');
 
     const user = this.userRepo.create({
       name: dto.name,
-      email: dto.email,
+      email: normalizedEmail,
       password: hashed,
       provider: 'local',
       isApproved: dto.agreedToTerms || false,
+      emailVerificationTokenHash: this.hashToken(verificationToken),
+      emailVerificationTokenExpiresAt: new Date(
+        Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS,
+      ),
     });
 
     await this.userRepo.save(user);
 
-    return this._createToken(user.id, user.email, user.isApproved);
+    const verificationUrl = this.buildEmailVerificationUrl(verificationToken);
+    await this.emailService.sendVerificationEmail(
+      user.email,
+      user.name,
+      verificationUrl,
+    );
+
+    const response: ReturnType<AuthService['_createToken']> & {
+      verificationUrl?: string;
+    } = this._createToken(user.id, user.email, user.isApproved);
+
+    if (process.env.NODE_ENV !== 'production') {
+      response.verificationUrl = verificationUrl;
+    }
+
+    return response;
   }
 
   async login(dto: LoginDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
     const user = await this.userRepo.findOne({
-      where: { email: dto.email },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {
-      Logger.log('Failed login attempt for email:', dto.email);
+      Logger.log('Failed login attempt for email:', normalizedEmail);
       throw new UnauthorizedException('User not found');
     }
 
@@ -71,10 +96,10 @@ export class AuthService {
     }
 
     if (!passwordMatch) {
-      Logger.log('User password not matched for email:', dto.email);
+      Logger.log('User password not matched for email:', normalizedEmail);
       throw new UnauthorizedException('Password not matched');
     }
-    Logger.log('User logged in successfully:', dto.email);
+    Logger.log('User logged in successfully:', normalizedEmail);
     return this._createToken(user.id, user.email, user.isApproved);
   }
 
@@ -89,8 +114,7 @@ export class AuthService {
       resetToken?: string;
       resetUrl?: string;
     } = {
-      message:
-        'Jika email terdaftar, instruksi reset password akan dikirim.',
+      message: 'Jika email terdaftar, instruksi reset password akan dikirim.',
     };
 
     if (!user) {
@@ -101,7 +125,7 @@ export class AuthService {
     }
 
     const resetToken = randomBytes(32).toString('hex');
-    user.resetPasswordTokenHash = this.hashResetToken(resetToken);
+    user.resetPasswordTokenHash = this.hashToken(resetToken);
     user.resetPasswordTokenExpiresAt = new Date(
       Date.now() + RESET_PASSWORD_TOKEN_TTL_MS,
     );
@@ -109,6 +133,11 @@ export class AuthService {
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+    await this.emailService.sendPasswordResetEmail(
+      user.email,
+      user.name,
+      resetUrl,
+    );
 
     if (process.env.NODE_ENV !== 'production') {
       this.logger.log(
@@ -124,7 +153,7 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
-    const tokenHash = this.hashResetToken(dto.token);
+    const tokenHash = this.hashToken(dto.token);
     const user = await this.userRepo.findOne({
       where: { resetPasswordTokenHash: tokenHash },
     });
@@ -144,6 +173,68 @@ export class AuthService {
     await this.userRepo.save(user);
 
     return { message: 'Password berhasil direset. Silakan login kembali.' };
+  }
+
+  async verifyEmail(token: string) {
+    const tokenHash = this.hashToken(token);
+    const user = await this.userRepo.findOne({
+      where: { emailVerificationTokenHash: tokenHash },
+    });
+
+    if (
+      !user ||
+      !user.emailVerificationTokenExpiresAt ||
+      new Date(user.emailVerificationTokenExpiresAt).getTime() < Date.now()
+    ) {
+      throw new BadRequestException('Token verifikasi email tidak valid');
+    }
+
+    user.emailVerifiedAt = new Date();
+    user.emailVerificationTokenHash = null;
+    user.emailVerificationTokenExpiresAt = null;
+    await this.userRepo.save(user);
+
+    return { message: 'Email berhasil diverifikasi.' };
+  }
+
+  async resendEmailVerification(userId: number) {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const response: {
+      message: string;
+      verificationUrl?: string;
+    } = {
+      message: 'Jika email belum terverifikasi, link verifikasi akan dikirim.',
+    };
+
+    if (user.provider === 'google' || user.emailVerifiedAt) {
+      response.message = 'Email akun sudah terverifikasi.';
+      return response;
+    }
+
+    const verificationToken = randomBytes(32).toString('hex');
+    user.emailVerificationTokenHash = this.hashToken(verificationToken);
+    user.emailVerificationTokenExpiresAt = new Date(
+      Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS,
+    );
+    await this.userRepo.save(user);
+
+    const verificationUrl = this.buildEmailVerificationUrl(verificationToken);
+    await this.emailService.sendVerificationEmail(
+      user.email,
+      user.name,
+      verificationUrl,
+    );
+
+    if (process.env.NODE_ENV !== 'production') {
+      response.verificationUrl = verificationUrl;
+    }
+
+    return response;
   }
 
   // untuk Google OAuth
@@ -176,11 +267,25 @@ export class AuthService {
       email: googleUser.email,
       provider: 'google',
       avatar: googleUser.avatar,
+      emailVerifiedAt: new Date(),
     });
     return await this.userRepo.save(newUser);
   }
 
-  private hashResetToken(token: string): string {
+  private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private buildEmailVerificationUrl(token: string): string {
+    const callbackUrl = process.env.GOOGLE_CALLBACK_URL;
+    const inferredApiUrl = callbackUrl
+      ? callbackUrl.replace(/\/auth\/google\/redirect\/?$/, '')
+      : null;
+    const apiUrl =
+      process.env.API_URL ||
+      process.env.BACKEND_URL ||
+      inferredApiUrl ||
+      'http://localhost:3000';
+    return `${apiUrl}/auth/verify-email?token=${token}`;
   }
 }

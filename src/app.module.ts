@@ -18,6 +18,7 @@ import { AffiliateModule } from './affiliate/affiliate.module';
 import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { AppService } from './app.service';
     PromoModule,
     AffiliateModule,
     AiModule,
+    WhatsappModule,
   ],
   controllers: [AppController],
   providers: [AppService],

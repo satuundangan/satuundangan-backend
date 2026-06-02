@@ -327,7 +327,10 @@ export class InvitationService {
       id: invitation.id,
       title: invitation.title,
       slug: invitation.slug,
-      template_slug: invitation.templateDesign?.slug || null,
+      template_slug:
+        invitation.templateDesign?.slug ||
+        invitation.templateName ||
+        'dark-elegant',
       price: Number(invitation.templateDesign?.price || 0),
       content: {
         templateDesignId: invitation.templateDesignId,

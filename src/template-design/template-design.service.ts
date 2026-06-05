@@ -41,6 +41,15 @@ export class TemplateDesignService {
     return this.transformPalette(template);
   }
 
+  async findBySlug(slug: string): Promise<TemplateDesign> {
+    const template = await this.templateRepo.findOne({
+      where: { slug },
+      relations: ['category', 'sections', 'sections.section'],
+    });
+    if (!template) throw new NotFoundException('Template not found');
+    return this.transformPalette(template);
+  }
+
   async update(
     id: number,
     data: Partial<TemplateDesign>,

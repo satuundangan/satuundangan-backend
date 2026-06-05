@@ -40,6 +40,12 @@ export class TemplateDesignController {
     return this.templateService.findAll();
   }
 
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Get template design by slug' })
+  findBySlug(@Param('slug') slug: string) {
+    return this.templateService.findBySlug(slug);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get template design by ID' })
   findById(@Param('id') id: string) {

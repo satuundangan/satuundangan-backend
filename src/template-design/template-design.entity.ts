@@ -57,6 +57,15 @@ export class TemplateDesign {
   @Column({ type: 'text', nullable: true })
   sectionOptions?: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  defaultMusic?: string | null;
+
+  @Column({ type: 'int', nullable: true, default: 0 })
+  defaultAudioStart?: number | null;
+
+  @Column({ type: 'int', nullable: true, default: 0 })
+  defaultAudioEnd?: number | null;
+
   @OneToMany(() => TemplateDesignSection, (tds) => tds.templateDesign, {
     cascade: true,
   })

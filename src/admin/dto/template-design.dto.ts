@@ -59,6 +59,18 @@ export class CreateTemplateDesignDto {
   tags?: any;
 
   @IsOptional()
+  @IsString()
+  defaultMusic?: string | null;
+
+  @IsOptional()
+  @IsNumber()
+  defaultAudioStart?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  defaultAudioEnd?: number | null;
+
+  @IsOptional()
   sections?: {
     sectionId: string;
     order: number;

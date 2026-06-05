@@ -1,6 +1,6 @@
 services:
   backend-dev:
-    image: ghcr.io/satuundangan/satuundangan-backend:latest
+    image: ghcr.io/satuundangan/satuundangan-backend:dev
     container_name: satu-undangan-api-dev
     restart: always
     ports:

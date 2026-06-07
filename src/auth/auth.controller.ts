@@ -80,11 +80,11 @@ export class AuthController {
     try {
       await this.authService.verifyEmail(token);
       return res.redirect(
-        `${frontendUrl}/dashboard/settings?email_verified=success`,
+        `${frontendUrl}/settings?email_verified=success`,
       );
     } catch {
       return res.redirect(
-        `${frontendUrl}/dashboard/settings?email_verified=failed`,
+        `${frontendUrl}/settings?email_verified=failed`,
       );
     }
   }

@@ -275,7 +275,7 @@ export class AuthService {
       throw new UnauthorizedException('Password salah');
     }
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.ADMIN_TOTP_ENABLED !== 'true') {
       return this._createToken(user.id, user.email, user.isApproved);
     }
 

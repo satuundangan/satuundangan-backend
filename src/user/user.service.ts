@@ -25,6 +25,7 @@ export class UserService {
         'avatar',
         'isApproved',
         'aiCredits',
+        'totpEnabled',
       ],
     });
     if (!user) {

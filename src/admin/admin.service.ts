@@ -52,13 +52,13 @@ export class AdminService {
   ) {}
 
   // Users
-  async listUsers(page = 1, limit = 20, q?: string) {
+  async listUsers(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
     const where = q
       ? [{ name: ILike(`%${q}%`) }, { email: ILike(`%${q}%`) }]
       : undefined;
     const [data, total] = await this.userRepo.findAndCount({
       where,
-      order: { id: 'DESC' },
+      order: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -109,7 +109,7 @@ export class AdminService {
   }
 
   // Invitations
-  async listInvitations(page = 1, limit = 20, q?: string) {
+  async listInvitations(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
     const where = q
       ? [
           { title: ILike(`%${q}%`) },
@@ -119,7 +119,7 @@ export class AdminService {
       : undefined;
     const [data, total] = await this.invitationRepo.findAndCount({
       where,
-      order: { id: 'DESC' },
+      order: { [sortBy]: sortOrder },
       relations: ['user', 'templateDesign', 'templateDesign.category'],
       skip: (page - 1) * limit,
       take: limit,
@@ -156,7 +156,7 @@ export class AdminService {
   }
 
   // Guests
-  async listGuests(page = 1, limit = 20, q?: string) {
+  async listGuests(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
     const where = q
       ? [
           { name: ILike(`%${q}%`) },
@@ -167,7 +167,7 @@ export class AdminService {
     const [data, total] = await this.guestRepo.findAndCount({
       where,
       relations: ['invitation'],
-      order: { id: 'DESC' },
+      order: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -196,14 +196,14 @@ export class AdminService {
   }
 
   // Guest Messages
-  async listGuestMessages(page = 1, limit = 20, q?: string) {
+  async listGuestMessages(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
     const where = q
       ? [{ guestName: ILike(`%${q}%`) }, { message: ILike(`%${q}%`) }]
       : undefined;
     const [data, total] = await this.guestMessageRepo.findAndCount({
       where,
       relations: ['invitation', 'guest'],
-      order: { id: 'DESC' },
+      order: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -217,18 +217,59 @@ export class AdminService {
     return { success: true };
   }
 
+  private applyFilters(where: any, filtersStr?: string) {
+    if (!filtersStr) return where;
+    try {
+      const filters = JSON.parse(filtersStr);
+      const filterEntries = Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null && value !== '');
+      if (filterEntries.length === 0) return where;
+
+      const applyToObj = (obj: any) => {
+        const newObj = { ...obj };
+        filterEntries.forEach(([key, value]) => {
+          if (key === 'category') {
+            newObj.category = { ...newObj.category, name: ILike(`%${value}%`) };
+          } else if (key === 'isActive') {
+            newObj.isPublished = value === 'true';
+          } else if (typeof value === 'string') {
+            newObj[key] = ILike(`%${value}%`);
+          } else {
+            newObj[key] = value;
+          }
+        });
+        return newObj;
+      };
+
+      if (Array.isArray(where)) {
+        return where.length === 0 ? [applyToObj({})] : where.map(obj => applyToObj(obj));
+      } else {
+        return applyToObj(where || {});
+      }
+    } catch (e) {
+      return where;
+    }
+  }
+
   // Template Designs
-  async listTemplateDesigns(page = 1, limit = 20, q?: string) {
-    const where: any = q
+  async listTemplateDesigns(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC', filters?: string) {
+    let where: any = q
       ? [
           { name: ILike(`%${q}%`) },
           { slug: ILike(`%${q}%`) },
           { category: { name: ILike(`%${q}%`) } },
         ]
-      : undefined;
+      : {};
+
+    where = this.applyFilters(where, filters);
+
+    let order: any = { [sortBy]: sortOrder };
+    if (sortBy === 'category') {
+      order = { category: { name: sortOrder } };
+    }
+
     const [data, total] = await this.templateDesignRepo.findAndCount({
       where,
-      order: { id: 'DESC' },
+      order,
       relations: ['category', 'palette', 'sections', 'sections.section'],
       skip: (page - 1) * limit,
       take: limit,

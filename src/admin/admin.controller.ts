@@ -53,8 +53,8 @@ export class AdminController {
   // Users
   @Get('users')
   listUsers(@Query() q: PaginationQueryDto) {
-    const { page = 1, limit = 20, q: search } = q;
-    return this.service.listUsers(page, limit, search);
+    const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
+    return this.service.listUsers(page, limit, search, sortBy, sortOrder);
   }
 
   @Get('users/:id')
@@ -80,8 +80,8 @@ export class AdminController {
   // Invitations
   @Get('invitations')
   listInvitations(@Query() q: PaginationQueryDto) {
-    const { page = 1, limit = 20, q: search } = q;
-    return this.service.listInvitations(page, limit, search);
+    const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
+    return this.service.listInvitations(page, limit, search, sortBy, sortOrder);
   }
 
   @Get('invitations/:id')
@@ -102,8 +102,8 @@ export class AdminController {
   // Guests
   @Get('guests')
   listGuests(@Query() q: PaginationQueryDto) {
-    const { page = 1, limit = 20, q: search } = q;
-    return this.service.listGuests(page, limit, search);
+    const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
+    return this.service.listGuests(page, limit, search, sortBy, sortOrder);
   }
 
   @Get('guests/:id')
@@ -124,8 +124,8 @@ export class AdminController {
   // Guest Messages
   @Get('guest-messages')
   listGuestMessages(@Query() q: PaginationQueryDto) {
-    const { page = 1, limit = 20, q: search } = q;
-    return this.service.listGuestMessages(page, limit, search);
+    const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
+    return this.service.listGuestMessages(page, limit, search, sortBy, sortOrder);
   }
 
   @Delete('guest-messages/:id')
@@ -136,8 +136,8 @@ export class AdminController {
   // Template Designs
   @Get('template-designs')
   listTemplateDesigns(@Query() q: PaginationQueryDto) {
-    const { page = 1, limit = 20, q: search } = q;
-    return this.service.listTemplateDesigns(page, limit, search);
+    const { page = 1, limit = 20, q: search, sortBy, sortOrder, filters } = q;
+    return this.service.listTemplateDesigns(page, limit, search, sortBy, sortOrder, filters);
   }
 
   @Get('template-designs/:id')

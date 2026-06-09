@@ -46,6 +46,12 @@ export class User {
   @Column({ type: 'int', default: 1 })
   aiCredits: number;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  totpSecret: string | null;
+
+  @Column({ type: 'bool', default: false })
+  totpEnabled: boolean;
+
   @OneToMany(() => Invitation, (invitation) => invitation.user, {
     onDelete: 'CASCADE',
   })

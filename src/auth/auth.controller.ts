@@ -22,6 +22,7 @@ import { ConfigService } from '@nestjs/config';
 import { User } from '../user/user.entity';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AdminGuard } from './guards/admin.guard';
 import { UserService } from '../user/user.service';
 
 @ApiTags('Auth')
@@ -94,6 +95,26 @@ export class AuthController {
   @ApiOperation({ summary: 'Resend email verification link' })
   resendVerification(@CurrentUser() user: User) {
     return this.authService.resendEmailVerification(user.id);
+  }
+
+  @Post('admin/login')
+  @ApiOperation({ summary: 'Admin login dengan TOTP' })
+  adminLogin(@Body() body: { email: string; password: string; totpCode?: string }) {
+    return this.authService.adminLogin(body.email, body.password, body.totpCode);
+  }
+
+  @Get('admin/totp/setup')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Generate TOTP secret + QR code untuk admin' })
+  setupTotp(@CurrentUser() user: User) {
+    return this.authService.setupTotp(user.id);
+  }
+
+  @Post('admin/totp/activate')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Aktivasi TOTP setelah scan QR' })
+  activateTotp(@CurrentUser() user: User, @Body() body: { code: string }) {
+    return this.authService.activateTotp(user.id, body.code);
   }
 
   @Get('test-log')

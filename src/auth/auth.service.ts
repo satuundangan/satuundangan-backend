@@ -8,6 +8,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+import * as QRCode from 'qrcode';
 
 import { User } from '../user/user.entity';
 import { RegisterDto } from './dto/register.dto';
@@ -255,6 +257,70 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
       isApproved,
     };
+  }
+
+  async adminLogin(email: string, password: string, totpCode?: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.userRepo.findOne({ where: { email: normalizedEmail } });
+
+    if (!user || !user.isAdmin) {
+      throw new UnauthorizedException('Akun tidak ditemukan atau bukan admin');
+    }
+
+    let passwordMatch = false;
+    if (typeof user.password === 'string') {
+      passwordMatch = await bcrypt.compare(password, user.password);
+    }
+    if (!passwordMatch) {
+      throw new UnauthorizedException('Password salah');
+    }
+
+    if (!user.totpEnabled) {
+      const token = this._createToken(user.id, user.email, user.isApproved);
+      return { ...token, totpSetupRequired: true };
+    }
+
+    if (!totpCode) {
+      return { requiresTotp: true };
+    }
+
+    const result = verifySync({ token: totpCode, secret: user.totpSecret! });
+    if (!result.valid) {
+      throw new UnauthorizedException('Kode OTP tidak valid atau sudah kadaluarsa');
+    }
+
+    return this._createToken(user.id, user.email, user.isApproved);
+  }
+
+  async setupTotp(userId: number): Promise<{ otpauthUrl: string; secret: string; qrCode: string }> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const secret = generateSecret();
+    user.totpSecret = secret;
+    user.totpEnabled = false;
+    await this.userRepo.save(user);
+
+    const otpauthUrl = generateURI({ issuer: 'Satu Undangan Admin', label: user.email, secret });
+    const qrCode = await QRCode.toDataURL(otpauthUrl);
+
+    return { otpauthUrl, secret, qrCode };
+  }
+
+  async activateTotp(userId: number, code: string): Promise<{ message: string }> {
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user || !user.totpSecret) {
+      throw new BadRequestException('Setup TOTP dulu sebelum aktivasi');
+    }
+
+    const result = verifySync({ token: code, secret: user.totpSecret });
+    if (!result.valid) {
+      throw new BadRequestException('Kode OTP tidak valid, coba lagi');
+    }
+
+    user.totpEnabled = true;
+    await this.userRepo.save(user);
+    return { message: 'TOTP berhasil diaktifkan' };
   }
 
   async findByEmail(email: string) {

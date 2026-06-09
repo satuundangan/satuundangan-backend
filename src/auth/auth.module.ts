@@ -9,6 +9,7 @@ import { AuthController } from './auth.controller';
 import { EmailService } from './email.service';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
+import { AdminGuard } from './guards/admin.guard';
 
 import { User } from '../user/user.entity';
 import { UserModule } from '../user/user.module';
@@ -30,7 +31,7 @@ import { UserModule } from '../user/user.module';
     UserModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, EmailService, JwtStrategy, GoogleStrategy],
+  providers: [AuthService, EmailService, JwtStrategy, GoogleStrategy, AdminGuard],
   exports: [EmailService],
 })
 export class AuthModule {}

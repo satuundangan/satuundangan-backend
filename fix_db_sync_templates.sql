@@ -42,29 +42,42 @@ SET @live = 's0000000-0000-4000-8000-000000000013';
 SET @dress = 's0000000-0000-4000-8000-000000000014';
 
 INSERT INTO `template_design_sections` (`templateDesignId`, `sectionId`, `order`, `is_enabled`) VALUES
--- 1. Dark Elegant
-(1, @hero, 1, 1), (1, @couple, 2, 1), (1, @story, 3, 1), (1, @event, 4, 1), (1, @gallery, 5, 1), (1, @rsvp, 6, 1), (1, @music, 7, 1),
--- 2. Light Modern
-(2, @hero, 1, 1), (2, @couple, 2, 1), (2, @story, 3, 1), (2, @event, 4, 1), (2, @gallery, 5, 1), (2, @rsvp, 6, 1), (2, @music, 7, 1),
--- 3. Botanical Watercolor
-(3, @hero, 1, 1), (3, @couple, 2, 1), (3, @story, 3, 1), (3, @event, 4, 1), (3, @gallery, 5, 1), (3, @rsvp, 6, 1), (3, @music, 7, 1),
--- 4. Royal Gold
+-- 1. Dark Elegant (Basic)
+(1, @hero, 1, 1), (1, @couple, 2, 1), (1, @event, 3, 1), (1, @rsvp, 4, 1), (1, @music, 5, 1),
+-- 2. Light Modern (Basic)
+(2, @hero, 1, 1), (2, @couple, 2, 1), (2, @event, 3, 1), (2, @rsvp, 4, 1), (2, @music, 5, 1),
+-- 3. Botanical Watercolor (Premium)
+(3, @hero, 1, 1), (3, @couple, 2, 1), (3, @story, 3, 1), (3, @event, 4, 1), (3, @gallery, 5, 1), (3, @rsvp, 6, 1), (3, @gift, 7, 1), (3, @music, 8, 1),
+-- 4. Royal Gold (Premium)
 (4, @hero, 1, 1), (4, @couple, 2, 1), (4, @story, 3, 1), (4, @event, 4, 1), (4, @gallery, 5, 1), (4, @rsvp, 6, 1), (4, @gift, 7, 1), (4, @music, 8, 1),
--- 5. Minimalist Terra
-(5, @hero, 1, 1), (5, @couple, 2, 1), (5, @story, 3, 1), (5, @event, 4, 1), (5, @gallery, 5, 1), (5, @rsvp, 6, 1), (5, @prokes, 7, 1), (5, @music, 8, 1),
--- 6. Celestial Sparkle
-(6, @hero, 1, 1), (6, @couple, 2, 1), (6, @story, 3, 1), (6, @event, 4, 1), (6, @gallery, 5, 1), (6, @rsvp, 6, 1), (6, @video, 7, 1), (6, @music, 8, 1),
--- 7. Editorial Magazine
-(7, @hero, 1, 1), (7, @couple, 2, 1), (7, @story, 3, 1), (7, @event, 4, 1), (7, @gallery, 5, 1), (7, @rsvp, 6, 1), (7, @menu, 7, 1), (7, @music, 8, 1),
--- 8. Zen Tranquility
-(8, @hero, 1, 1), (8, @couple, 2, 1), (8, @story, 3, 1), (8, @event, 4, 1), (8, @gallery, 5, 1), (8, @rsvp, 6, 1), (8, @music, 7, 1),
--- 9. Retro Nostalgia
-(9, @hero, 1, 1), (9, @couple, 2, 1), (9, @story, 3, 1), (9, @event, 4, 1), (9, @gallery, 5, 1), (9, @rsvp, 6, 1), (9, @music, 7, 1),
--- 10. Modern Noir
-(10, @hero, 1, 1), (10, @couple, 2, 1), (10, @story, 3, 1), (10, @event, 4, 1), (10, @gallery, 5, 1), (10, @rsvp, 6, 1), (10, @live, 7, 1), (10, @music, 8, 1),
--- 11. Azure Shores
-(11, @hero, 1, 1), (11, @couple, 2, 1), (11, @story, 3, 1), (11, @event, 4, 1), (11, @gallery, 5, 1), (11, @rsvp, 6, 1), (11, @dress, 7, 1), (11, @music, 8, 1),
--- 12. Cyberpunk Neon
-(12, @hero, 1, 1), (12, @couple, 2, 1), (12, @story, 3, 1), (12, @event, 4, 1), (12, @gallery, 5, 1), (12, @rsvp, 6, 1), (12, @extfam, 7, 1), (12, @music, 8, 1);
+-- 5. Minimalist Terra (Premium)
+(5, @hero, 1, 1), (5, @couple, 2, 1), (5, @story, 3, 1), (5, @event, 4, 1), (5, @gallery, 5, 1), (5, @rsvp, 6, 1), (5, @gift, 7, 1), (5, @music, 8, 1),
+-- 8. Zen Tranquility (Premium)
+(8, @hero, 1, 1), (8, @couple, 2, 1), (8, @story, 3, 1), (8, @event, 4, 1), (8, @gallery, 5, 1), (8, @rsvp, 6, 1), (8, @gift, 7, 1), (8, @music, 8, 1),
+-- 9. Retro Nostalgia (Premium)
+(9, @hero, 1, 1), (9, @couple, 2, 1), (9, @story, 3, 1), (9, @event, 4, 1), (9, @gallery, 5, 1), (9, @rsvp, 6, 1), (9, @gift, 7, 1), (9, @music, 8, 1),
+-- 6. Celestial Sparkle (Exclusive)
+(6, @hero, 1, 1), (6, @couple, 2, 1), (6, @story, 3, 1), (6, @event, 4, 1), (6, @gallery, 5, 1), (6, @rsvp, 6, 1), (6, @gift, 7, 1), (6, @video, 8, 1), (6, @extfam, 9, 1), (6, @live, 10, 1), (6, @dress, 11, 1), (6, @music, 12, 1),
+-- 7. Editorial Magazine (Exclusive)
+(7, @hero, 1, 1), (7, @couple, 2, 1), (7, @story, 3, 1), (7, @event, 4, 1), (7, @gallery, 5, 1), (7, @rsvp, 6, 1), (7, @gift, 7, 1), (7, @menu, 8, 1), (7, @extfam, 9, 1), (7, @live, 10, 1), (7, @dress, 11, 1), (7, @music, 12, 1),
+-- 10. Modern Noir (Exclusive)
+(10, @hero, 1, 1), (10, @couple, 2, 1), (10, @story, 3, 1), (10, @event, 4, 1), (10, @gallery, 5, 1), (10, @rsvp, 6, 1), (10, @gift, 7, 1), (10, @video, 8, 1), (10, @extfam, 9, 1), (10, @live, 10, 1), (10, @dress, 11, 1), (10, @music, 12, 1),
+-- 11. Azure Shores (Exclusive)
+(11, @hero, 1, 1), (11, @couple, 2, 1), (11, @story, 3, 1), (11, @event, 4, 1), (11, @gallery, 5, 1), (11, @rsvp, 6, 1), (11, @gift, 7, 1), (11, @video, 8, 1), (11, @extfam, 9, 1), (11, @live, 10, 1), (11, @dress, 11, 1), (11, @music, 12, 1),
+-- 12. Cyberpunk Neon (Exclusive)
+(12, @hero, 1, 1), (12, @couple, 2, 1), (12, @story, 3, 1), (12, @event, 4, 1), (12, @gallery, 5, 1), (12, @rsvp, 6, 1), (12, @gift, 7, 1), (12, @video, 8, 1), (12, @extfam, 9, 1), (12, @live, 10, 1), (12, @dress, 11, 1), (12, @music, 12, 1);
+
+-- 5. UPDATE DEFAULT MUSIC FOR EACH TEMPLATE
+UPDATE `template_designs` SET `defaultMusic` = 'romantic_music1.mp3' WHERE `id` IN (1, 2);
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-instrumental-garden.mp3' WHERE `id` = 3;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-sacred-ceremony.mp3' WHERE `id` = 4;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-acoustic-morning.mp3' WHERE `id` = 5;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-warm-reception.mp3' WHERE `id` = 8;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-elegant-firstdance.mp3' WHERE `id` = 9;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-romantic-aisle.mp3' WHERE `id` = 6;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-elegant-firstdance.mp3' WHERE `id` = 7;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-sacred-ceremony.mp3' WHERE `id` = 10;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-acoustic-morning.mp3' WHERE `id` = 11;
+UPDATE `template_designs` SET `defaultMusic` = 'wedding-romantic-aisle.mp3' WHERE `id` = 12;
 
 SET FOREIGN_KEY_CHECKS = 1;

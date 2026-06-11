@@ -13,6 +13,17 @@ import { DiscountType } from '../promo-code.entity';
 import { Expose } from 'class-transformer';
 
 export class CreatePromoCodeDto {
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  @Expose({ name: 'is_exit_intent_active' })
+  isExitIntentActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Expose({ name: 'exit_intent_text' })
+  exitIntentText?: string;
   @ApiProperty({ example: 'NIKAH50' })
   @IsString()
   @MaxLength(50)

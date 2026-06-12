@@ -9,6 +9,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
+import sharp from 'sharp';
 
 @Injectable()
 export class UploadService {
@@ -47,21 +48,57 @@ export class UploadService {
       throw new InternalServerErrorException('No file provided for upload.');
     }
 
-    const fileKey = `${Date.now()}-${file.originalname}`;
+    let processedFile = file;
+
+    // Check if the uploaded file is a convertable image (exclude SVG and GIF to be safe)
+    if (
+      file.mimetype.startsWith('image/') &&
+      file.mimetype !== 'image/svg+xml' &&
+      file.mimetype !== 'image/gif'
+    ) {
+      try {
+        const originalName = file.originalname;
+        const lastDotIndex = originalName.lastIndexOf('.');
+        const baseName = lastDotIndex !== -1 ? originalName.substring(0, lastDotIndex) : originalName;
+
+        const webpBuffer = await sharp(file.buffer)
+          .webp({ quality: 85 })
+          .toBuffer();
+
+        // Create a shallow copy of the file object with WebP buffer and properties
+        processedFile = {
+          ...file,
+          buffer: webpBuffer,
+          size: webpBuffer.length,
+          mimetype: 'image/webp',
+          originalname: `${baseName}.webp`,
+        };
+
+        this.logger.log(
+          `Converted image to WebP: originalName=${originalName} originalSize=${file.size} -> newSize=${processedFile.size} (${Math.round((1 - processedFile.size / file.size) * 100)}% reduction)`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to convert image to WebP, uploading original file: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    const fileKey = `${Date.now()}-${processedFile.originalname}`;
     this.logger.log(
-      `Uploading file to R2 key=${fileKey} size=${file.size} mimetype=${file.mimetype}`,
+      `Uploading file to R2 key=${fileKey} size=${processedFile.size} mimetype=${processedFile.mimetype}`,
     );
 
     try {
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,
-        Body: file.buffer,
-        ContentType: file.mimetype,
+        Body: processedFile.buffer,
+        ContentType: processedFile.mimetype,
       });
 
       await this.s3Client.send(command);
-      this.logger.log(`Upload successful key=${fileKey} size=${file.size}`);
+      this.logger.log(`Upload successful key=${fileKey} size=${processedFile.size}`);
 
       // ✅ Correctly construct the final URL using your public domain
       return {
@@ -70,7 +107,7 @@ export class UploadService {
       };
     } catch (error) {
       this.logger.error(
-        `Error uploading to R2 key=${fileKey} size=${file.size}`,
+        `Error uploading to R2 key=${fileKey} size=${processedFile.size}`,
         error instanceof Error ? error.stack : String(error),
       );
       throw new InternalServerErrorException('Failed to upload file.');

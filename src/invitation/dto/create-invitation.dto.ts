@@ -326,10 +326,6 @@ export class CreateInvitationDto {
   @IsBoolean()
   enableCover: boolean;
 
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  healthProtocol: boolean;
-
   @ApiPropertyOptional({ example: ['akad', 'resepsi', 'galeri'] })
   selectedSections?: string[];
 

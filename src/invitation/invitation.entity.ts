@@ -192,9 +192,6 @@ export class Invitation {
   enableCover: boolean;
 
   @Column({ default: true })
-  healthProtocol: boolean;
-
-  @Column({ default: true })
   enableGuestMessage: boolean;
 
   // New Fields

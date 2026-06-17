@@ -165,7 +165,6 @@ export class InvitationService {
       videoPrewedding: invitation.videoPrewedding || '',
       turutMengundang: invitation.turutMengundang || '',
       footerText: invitation.footerText || '',
-      healthProtocol: invitation.healthProtocol ?? true,
       enableCover: invitation.enableCover ?? true,
     }));
 
@@ -365,7 +364,6 @@ export class InvitationService {
         liveStreamingLink: invitation.liveStreamingLink,
         footerText: invitation.footerText,
         enableCover: invitation.enableCover,
-        healthProtocol: invitation.healthProtocol,
         enableGuestMessage: invitation.enableGuestMessage,
         selectedSections: invitation.selectedSections,
         whatsappMessageTemplate: invitation.whatsappMessageTemplate,

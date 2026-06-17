@@ -34,7 +34,6 @@ SET @sec_gift = 's0000000-0000-4000-8000-000000000007';
 SET @sec_music = 's0000000-0000-4000-8000-000000000008';
 SET @sec_video = 's0000000-0000-4000-8000-000000000009';
 SET @sec_menu = 's0000000-0000-4000-8000-000000000010';
-SET @sec_prokes = 's0000000-0000-4000-8000-000000000011';
 
 INSERT INTO master_sections (id, label, `key`, is_active) VALUES 
 (@sec_hero, 'Header / Hero', 'hero', 1),
@@ -46,8 +45,7 @@ INSERT INTO master_sections (id, label, `key`, is_active) VALUES
 (@sec_gift, 'Amplop Digital (Gift)', 'gift', 1),
 (@sec_music, 'Musik Latar (Background Music)', 'music', 1),
 (@sec_video, 'Video Prewedding', 'video', 1),
-(@sec_menu, 'Menu Hidangan', 'menu', 1),
-(@sec_prokes, 'Protokol Kesehatan', 'prokes', 1);
+(@sec_menu, 'Menu Hidangan', 'menu', 1);
 
 -- 4. Insert Template Designs
 -- id | name | slug | previewUrl | thumbnailUrl | isPublished | isPremium | categoryId | price | description | tags
@@ -58,7 +56,8 @@ INSERT INTO template_designs (id, name, slug, previewUrl, thumbnailUrl, isPublis
 (4, 'Royal Gold Heritage', 'royal-gold', NULL, NULL, 1, 1, @cat_premium, 75000, 'Desain megah dengan ukiran emas tradisional', 'royal,gold,heritage'),
 (5, 'Minimalist Sand & Terra', 'minimalist-terra', NULL, NULL, 1, 1, @cat_premium, 50000, 'Estetika boho dengan warna bumi yang hangat', 'boho,minimalist,earthy'),
 (6, 'Celestial Sparkle', 'celestial-sparkle', NULL, NULL, 1, 1, @cat_exclusive, 100000, 'Nuansa magis langit malam bertabur bintang', 'celestial,dreamy,night'),
-(7, 'The Editorial Story', 'editorial-magazine', NULL, NULL, 1, 1, @cat_exclusive, 150000, 'Gaya majalah fashion kelas atas yang ikonik', 'editorial,magazine,fashion');
+(7, 'The Editorial Story', 'editorial-magazine', NULL, NULL, 1, 1, @cat_exclusive, 150000, 'Gaya majalah fashion kelas atas yang ikonik', 'editorial,magazine,fashion'),
+(13, 'Pixel Quest 8-Bit', 'pixel-quest', '/demo/pixel-quest', NULL, 1, 1, @cat_premium, 129000, 'Desain retro 8-bit yang unik dan penuh nostalgia', '["retro","8bit","pixel","gaming"]');
 
 -- 5. Link Templates to Sections (Default Features)
 -- dark-elegant
@@ -75,12 +74,15 @@ INSERT INTO template_design_sections (templateDesignId, sectionId, `order`, is_e
 (4, @sec_hero, 1, 1), (4, @sec_couple, 2, 1), (4, @sec_event, 3, 1), (4, @sec_gallery, 4, 1), (4, @sec_rsvp, 5, 1), (4, @sec_gift, 6, 1);
 -- minimalist-terra
 INSERT INTO template_design_sections (templateDesignId, sectionId, `order`, is_enabled) VALUES 
-(5, @sec_hero, 1, 1), (5, @sec_couple, 2, 1), (5, @sec_event, 3, 1), (5, @sec_gallery, 4, 1), (5, @sec_rsvp, 5, 1), (5, @sec_prokes, 6, 1);
+(5, @sec_hero, 1, 1), (5, @sec_couple, 2, 1), (5, @sec_event, 3, 1), (5, @sec_gallery, 4, 1), (5, @sec_rsvp, 5, 1);
 -- celestial-sparkle
 INSERT INTO template_design_sections (templateDesignId, sectionId, `order`, is_enabled) VALUES 
 (6, @sec_hero, 1, 1), (6, @sec_couple, 2, 1), (6, @sec_event, 3, 1), (6, @sec_gallery, 4, 1), (6, @sec_rsvp, 5, 1), (6, @sec_video, 6, 1);
 -- editorial-magazine
 INSERT INTO template_design_sections (templateDesignId, sectionId, `order`, is_enabled) VALUES 
 (7, @sec_hero, 1, 1), (7, @sec_couple, 2, 1), (7, @sec_event, 3, 1), (7, @sec_gallery, 4, 1), (7, @sec_rsvp, 5, 1), (7, @sec_menu, 6, 1);
+-- pixel-quest
+INSERT INTO template_design_sections (templateDesignId, sectionId, `order`, is_enabled) VALUES 
+(13, @sec_hero, 1, 1), (13, @sec_couple, 2, 1), (13, @sec_story, 3, 1), (13, @sec_event, 4, 1), (13, @sec_gallery, 5, 1), (13, @sec_rsvp, 6, 1), (13, @sec_gift, 7, 1), (13, @sec_music, 8, 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

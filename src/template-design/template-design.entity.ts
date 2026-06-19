@@ -33,6 +33,9 @@ export class TemplateDesign {
   @Column({ default: false })
   isPremium: boolean;
 
+  @Column({ default: false })
+  showBranding: boolean;
+
   @ManyToOne(() => Category, (category) => category.templates, {
     nullable: true,
     onDelete: 'SET NULL',

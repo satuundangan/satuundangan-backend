@@ -369,6 +369,7 @@ export class InvitationService {
         whatsappMessageTemplate: invitation.whatsappMessageTemplate,
       },
       is_premium: invitation.templateDesign?.isPremium || false,
+      show_branding: invitation.templateDesign?.showBranding || false,
       is_published: invitation.isPublished,
     };
   }

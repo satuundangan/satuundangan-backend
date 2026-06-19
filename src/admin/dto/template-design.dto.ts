@@ -40,6 +40,10 @@ export class CreateTemplateDesignDto {
   @IsBoolean()
   isPremium?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  showBranding?: boolean;
+
   @IsNumber()
   @IsOptional()
   price?: number;

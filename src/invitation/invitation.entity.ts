@@ -31,6 +31,13 @@ const jsonTextArrayTransformer = {
   },
 };
 
+// Pricing tier (feature-gating). All templates free to all; features gated by tier.
+export enum InvitationPackage {
+  BASIC = 'basic',
+  PREMIUM = 'premium',
+  EKSKLUSIF = 'eksklusif',
+}
+
 @Entity()
 export class Invitation {
   @PrimaryGeneratedColumn()
@@ -41,6 +48,19 @@ export class Invitation {
 
   @Column({ nullable: true, unique: true })
   slug: string;
+
+  // Pricing tier. Set at checkout when user picks a package. Gates premium features.
+  @Column({
+    type: 'enum',
+    enum: InvitationPackage,
+    default: InvitationPackage.BASIC,
+  })
+  package: InvitationPackage;
+
+  // Custom subdomain (tier Eksklusif), e.g. "namapasangan" → namapasangan.satuundangan.id
+  // Explicit type: TS union string|null reflects as Object, which TypeORM can't map.
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  subdomain: string | null;
 
   @Column({ nullable: true })
   coupleName: string;

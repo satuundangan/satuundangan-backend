@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Invitation } from './invitation.entity';
+import { Invitation, InvitationPackage } from './invitation.entity';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { UpdateInvitationDto } from './dto/update-invitation.dto';
 import { User } from '../user/user.entity';
@@ -19,6 +19,12 @@ import {
   InvitationActivity,
 } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import {
+  normalizeSubdomain,
+  validateSubdomainFormat,
+  type SubdomainCheckResult,
+} from './subdomain.util';
+import { Not } from 'typeorm';
 
 @Injectable()
 export class InvitationService {
@@ -129,9 +135,17 @@ export class InvitationService {
 
     invitation.slug = slug;
 
+    // Custom subdomain (optional). Tier-gated + validated + unique, else reject.
+    if (dto.subdomain) {
+      this.assertSubdomainAllowed(dto.package);
+      invitation.subdomain = await this.resolveSubdomain(dto.subdomain);
+    } else {
+      invitation.subdomain = null;
+    }
+
     const saved = await this.invitationRepo.save(invitation);
     this.logger.log(
-      `Invitation created invitationId=${saved.id} slug=${saved.slug} userId=${user.id}`,
+      `Invitation created invitationId=${saved.id} slug=${saved.slug} subdomain=${saved.subdomain ?? '-'} userId=${user.id}`,
     );
     return saved;
   }
@@ -231,7 +245,24 @@ export class InvitationService {
       }
     }
 
+    // Custom subdomain change. '' / null clears it; any value is validated.
+    let nextSubdomain: string | null | undefined;
+    if (dto.subdomain !== undefined) {
+      if (dto.subdomain) {
+        // Effective tier = incoming package, else the invitation's current tier.
+        this.assertSubdomainAllowed(dto.package ?? invitation.package);
+        nextSubdomain = await this.resolveSubdomain(dto.subdomain, invitation.id);
+      } else {
+        nextSubdomain = null;
+      }
+      delete dto.subdomain; // prevent raw value leaking via Object.assign
+    }
+
     Object.assign(invitation, dto);
+
+    if (nextSubdomain !== undefined) {
+      invitation.subdomain = nextSubdomain;
+    }
 
     // Ensure Unified Logic for Events on Update
     if (invitation.mergeEvents) {
@@ -321,11 +352,104 @@ export class InvitationService {
     return this.buildInvitationResponse(invitation);
   }
 
+  // Custom subdomain is a tier-Eksklusif feature. Reject other tiers.
+  private assertSubdomainAllowed(pkg?: InvitationPackage): void {
+    if (pkg !== InvitationPackage.EKSKLUSIF) {
+      throw new ForbiddenException(
+        'Subdomain custom hanya tersedia untuk paket Eksklusif',
+      );
+    }
+  }
+
+  // Normalize + validate format + enforce uniqueness. Throws on invalid/taken.
+  // excludeId skips the invitation's own row (so re-saving same value is ok).
+  private async resolveSubdomain(
+    input: string,
+    excludeId?: number,
+  ): Promise<string> {
+    const normalized = normalizeSubdomain(input);
+    const format = validateSubdomainFormat(normalized);
+    if (!format.valid) {
+      throw new BadRequestException(format.reason || 'Subdomain tidak valid');
+    }
+
+    const existing = await this.invitationRepo.findOne({
+      where: excludeId
+        ? { subdomain: normalized, id: Not(excludeId) }
+        : { subdomain: normalized },
+      select: ['id'],
+    });
+    if (existing) {
+      throw new BadRequestException(
+        'Subdomain sudah digunakan oleh undangan lain',
+      );
+    }
+
+    return normalized;
+  }
+
+  // Non-throwing availability check for live UI feedback at /create.
+  async checkSubdomainAvailability(
+    input: string,
+    excludeId?: number,
+  ): Promise<SubdomainCheckResult> {
+    const normalized = normalizeSubdomain(input);
+    const format = validateSubdomainFormat(normalized);
+    if (!format.valid) {
+      return { available: false, normalized, reason: format.reason };
+    }
+
+    const existing = await this.invitationRepo.findOne({
+      where: excludeId
+        ? { subdomain: normalized, id: Not(excludeId) }
+        : { subdomain: normalized },
+      select: ['id'],
+    });
+    if (existing) {
+      return {
+        available: false,
+        normalized,
+        reason: 'Subdomain sudah digunakan',
+      };
+    }
+
+    return { available: true, normalized };
+  }
+
+  // Public resolve by subdomain (parsed from Host header by frontend/edge).
+  // Mirrors findBySlug: published-only, logs a view.
+  async findBySubdomain(input: string): Promise<any> {
+    const normalized = normalizeSubdomain(input);
+    this.logger.log(`Public invitation requested subdomain=${normalized}`);
+
+    const invitation = await this.invitationRepo.findOne({
+      where: { subdomain: normalized },
+      relations: ['user', 'templateDesign'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    if (!invitation.isPublished) {
+      this.logger.warn(
+        `Public invitation blocked unpublished subdomain=${normalized} invitationId=${invitation.id}`,
+      );
+      throw new ForbiddenException('Undangan belum dipublikasikan');
+    }
+
+    void this.logActivity(invitation, null, ActivityAction.VIEW);
+
+    return this.buildInvitationResponse(invitation);
+  }
+
   private buildInvitationResponse(invitation: Invitation): any {
     return {
       id: invitation.id,
       title: invitation.title,
       slug: invitation.slug,
+      subdomain: invitation.subdomain || null,
+      package: invitation.package,
       template_slug: invitation.templateDesign?.slug || null,
       price: Number(invitation.templateDesign?.price || 0),
       content: {

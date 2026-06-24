@@ -17,7 +17,12 @@ import {
   MidtransNotificationPayload,
   PaymentStatus,
 } from './types/payment.type';
-import { Invitation } from '../invitation/invitation.entity';
+import {
+  Invitation,
+  InvitationPackage,
+  PACKAGE_PRICES,
+  PACKAGE_LABELS,
+} from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
 import { PromoService } from '../promo/promo.service';
 import { PromoCode } from '../promo/promo-code.entity';
@@ -59,11 +64,15 @@ export class PaymentService {
   async createTransaction(
     invitationId: number,
     user: User,
+    pkg: InvitationPackage,
     promoCode?: string,
     affiliateCode?: string,
   ) {
+    if (!pkg || !(pkg in PACKAGE_PRICES)) {
+      throw new BadRequestException('Paket tidak valid');
+    }
     this.logger.log(
-      `Creating payment transaction invitationId=${invitationId} userId=${user.id} promo=${promoCode ? 'yes' : 'no'} affiliate=${affiliateCode ? 'yes' : 'no'}`,
+      `Creating payment transaction invitationId=${invitationId} userId=${user.id} package=${pkg} promo=${promoCode ? 'yes' : 'no'} affiliate=${affiliateCode ? 'yes' : 'no'}`,
     );
 
     const invitation = await this.invitationRepo.findOne({
@@ -112,8 +121,8 @@ export class PaymentService {
       };
     }
 
-    const rawPrice = invitation.templateDesign?.price || 0;
-    let grossAmount = Number(rawPrice);
+    // Price comes from the chosen package tier, not the template.
+    let grossAmount = PACKAGE_PRICES[pkg];
     let appliedPromo: PromoCode | undefined;
     let discountAmount = 0;
 
@@ -121,6 +130,7 @@ export class PaymentService {
       const promoResult = await this.promoService.validate(
         promoCode,
         invitationId,
+        grossAmount,
       );
       if (!promoResult.valid) {
         this.logger.warn(
@@ -152,6 +162,7 @@ export class PaymentService {
 
     if (grossAmount === 0) {
       invitation.isPublished = true;
+      invitation.package = pkg;
       await this.invitationRepo.save(invitation);
 
       const payment = this.paymentRepo.create({
@@ -168,6 +179,7 @@ export class PaymentService {
         promoCodeId: appliedPromo?.id ?? null,
         discountAmount: discountAmount || null,
         affiliateProfileId: affiliateProfileId,
+        package: pkg,
       } as DeepPartial<Payment>);
 
       await this.paymentRepo.save(payment);
@@ -207,8 +219,8 @@ export class PaymentService {
       invitation.user?.email || user.email,
     );
     const itemName = this.sanitizeMidtransText(
-      `Undangan Digital: ${invitation.title || invitation.slug || invitation.id}`,
-      `Undangan Digital ${invitation.id}`,
+      `Undangan ${PACKAGE_LABELS[pkg]}: ${invitation.title || invitation.slug || invitation.id}`,
+      `Undangan ${PACKAGE_LABELS[pkg]} ${invitation.id}`,
       50,
     );
 
@@ -268,6 +280,7 @@ export class PaymentService {
       promoCodeId: appliedPromo?.id ?? null,
       discountAmount: discountAmount || null,
       affiliateProfileId: affiliateProfileId,
+      package: pkg,
     } as DeepPartial<Payment>);
 
     await this.paymentRepo.save(payment);
@@ -363,9 +376,12 @@ export class PaymentService {
       await this.dataSource.transaction(async (manager) => {
         if (payment.invitation) {
           payment.invitation.isPublished = true;
+          if (payment.package) {
+            payment.invitation.package = payment.package;
+          }
           await manager.getRepository(Invitation).save(payment.invitation);
           this.logger.log(
-            `Invitation published from payment orderId=${payment.orderId} invitationId=${payment.invitation.id}`,
+            `Invitation published from payment orderId=${payment.orderId} invitationId=${payment.invitation.id} package=${payment.package ?? 'n/a'}`,
           );
         }
         await manager.getRepository(Payment).save(payment);
@@ -523,6 +539,9 @@ export class PaymentService {
       await this.dataSource.transaction(async (manager) => {
         if (payment.invitation) {
           payment.invitation.isPublished = true;
+          if (payment.package) {
+            payment.invitation.package = payment.package;
+          }
           await manager.getRepository(Invitation).save(payment.invitation);
         }
         await manager.getRepository(Payment).save(payment);

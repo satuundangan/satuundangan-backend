@@ -46,6 +46,7 @@ export class PromoController {
     const result = await this.promoService.validate(
       dto.code,
       dto.invitation_id,
+      dto.base_amount,
     );
 
     if (!result.valid) {

@@ -38,6 +38,19 @@ export enum InvitationPackage {
   EKSKLUSIF = 'eksklusif',
 }
 
+// Tier prices (IDR). Source of truth for checkout — not template price.
+export const PACKAGE_PRICES: Record<InvitationPackage, number> = {
+  [InvitationPackage.BASIC]: 89000,
+  [InvitationPackage.PREMIUM]: 179000,
+  [InvitationPackage.EKSKLUSIF]: 239000,
+};
+
+export const PACKAGE_LABELS: Record<InvitationPackage, string> = {
+  [InvitationPackage.BASIC]: 'Basic',
+  [InvitationPackage.PREMIUM]: 'Premium',
+  [InvitationPackage.EKSKLUSIF]: 'Eksklusif',
+};
+
 @Entity()
 export class Invitation {
   @PrimaryGeneratedColumn()

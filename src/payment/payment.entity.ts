@@ -8,7 +8,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { PaymentStatus } from './types/payment.type';
-import { Invitation } from '../invitation/invitation.entity';
+import { Invitation, type InvitationPackage } from '../invitation/invitation.entity';
 import { PromoCode } from '../promo/promo-code.entity';
 
 @Entity()
@@ -80,6 +80,12 @@ export class Payment {
 
   @Column({ type: 'varchar', length: 20, default: 'invitation' })
   purpose: string;
+
+  // Pricing tier purchased. Applied to invitation.package on settlement.
+  // Stored as varchar (not enum) to avoid the Invitation<->Payment circular import
+  // leaving the enum undefined at decorator evaluation time.
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  package: InvitationPackage | null;
 
   @Column({ type: 'int', nullable: true })
   aiCreditsAmount: number | null;

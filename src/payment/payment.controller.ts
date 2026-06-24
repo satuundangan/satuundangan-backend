@@ -20,6 +20,11 @@ import {
   PaymentStatus,
   MidtransNotificationPayload,
 } from './types/payment.type';
+import {
+  InvitationPackage,
+  PACKAGE_PRICES,
+  PACKAGE_LABELS,
+} from '../invitation/invitation.entity';
 
 @Controller('payment')
 export class PaymentController {
@@ -27,6 +32,17 @@ export class PaymentController {
     private paymentService: PaymentService,
     private configService: ConfigService,
   ) {}
+
+  @Get('packages')
+  @ApiTags('Payment')
+  @ApiOperation({ summary: 'List pricing tiers (id, label, price)' })
+  getPackages() {
+    return Object.values(InvitationPackage).map((id) => ({
+      id,
+      label: PACKAGE_LABELS[id],
+      price: PACKAGE_PRICES[id],
+    }));
+  }
 
   @Post('create')
   @ApiTags('Payment')
@@ -36,6 +52,7 @@ export class PaymentController {
     @Body()
     body: {
       invitation_id: number;
+      package: InvitationPackage;
       promo_code?: string;
       affiliate_code?: string;
     },
@@ -44,6 +61,7 @@ export class PaymentController {
     return this.paymentService.createTransaction(
       body.invitation_id,
       user,
+      body.package,
       body.promo_code,
       body.affiliate_code,
     );

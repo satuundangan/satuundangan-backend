@@ -35,6 +35,7 @@ export class PromoService {
   async validate(
     code: string,
     invitationId: number,
+    baseAmount?: number,
   ): Promise<PromoValidationResult> {
     const promo = await this.promoRepo.findOne({
       where: { code: code.toUpperCase() },
@@ -102,7 +103,12 @@ export class PromoService {
       return { valid: false, message: 'Undangan tidak ditemukan' };
     }
 
-    const originalPrice = Number(invitation.templateDesign?.price || 0);
+    // Discount applies to the package price when provided (checkout tier),
+    // falling back to the template price for legacy callers.
+    const originalPrice =
+      baseAmount !== undefined
+        ? baseAmount
+        : Number(invitation.templateDesign?.price || 0);
     const { discountAmount, finalPrice } = this.calculateDiscount(
       originalPrice,
       promo,

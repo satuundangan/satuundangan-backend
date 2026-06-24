@@ -27,7 +27,7 @@ export class TemplateDesignService {
   async findAll(): Promise<TemplateDesign[]> {
     const templates = await this.templateRepo.find({
       order: { name: 'ASC' },
-      relations: ['category', 'sections', 'sections.section'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
     });
     return templates.map((t) => this.transformPalette(t));
   }
@@ -35,7 +35,7 @@ export class TemplateDesignService {
   async findById(id: number): Promise<TemplateDesign> {
     const template = await this.templateRepo.findOne({
       where: { id },
-      relations: ['category', 'sections', 'sections.section'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
     });
     if (!template) throw new NotFoundException('Template not found');
     return this.transformPalette(template);
@@ -44,7 +44,7 @@ export class TemplateDesignService {
   async findBySlug(slug: string): Promise<TemplateDesign> {
     const template = await this.templateRepo.findOne({
       where: { slug },
-      relations: ['category', 'sections', 'sections.section'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
     });
     if (!template) throw new NotFoundException('Template not found');
     return this.transformPalette(template);
@@ -77,7 +77,7 @@ export class TemplateDesignService {
     }
     const templates = await this.templateRepo.find({
       where,
-      relations: ['category', 'sections', 'sections.section'],
+      relations: ['category', 'palette', 'sections', 'sections.section'],
     });
 
     return templates.map((t) => this.transformPalette(t));
@@ -96,6 +96,18 @@ export class TemplateDesignService {
 
     if (template.category && typeof template.category === 'object') {
       result.category = template.category.name;
+    }
+
+    if (template.palette && typeof template.palette === 'object') {
+      result.paletteColors = [
+        template.palette.primary,
+        template.palette.secondary,
+        template.palette.accent,
+      ];
+    } else if (template.paletteColors) {
+      result.paletteColors = template.paletteColors;
+    } else {
+      result.paletteColors = [];
     }
 
     if (template.sections) {

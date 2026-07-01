@@ -4,8 +4,10 @@ import {
   MinLength,
   IsBoolean,
   Equals,
+  IsOptional,
+  IsString,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
   @IsNotEmpty()
@@ -33,4 +35,9 @@ export class RegisterDto {
     example: true,
   })
   agreedToTerms: boolean;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({ description: 'Cloudflare Turnstile token' })
+  turnstileToken?: string;
 }

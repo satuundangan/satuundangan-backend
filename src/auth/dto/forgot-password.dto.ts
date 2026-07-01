@@ -1,5 +1,5 @@
-import { IsEmail } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ForgotPasswordDto {
   @IsEmail()
@@ -8,4 +8,9 @@ export class ForgotPasswordDto {
     example: 'john@mail.com',
   })
   email: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({ description: 'Cloudflare Turnstile token' })
+  turnstileToken?: string;
 }

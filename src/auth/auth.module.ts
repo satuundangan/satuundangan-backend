@@ -13,10 +13,12 @@ import { AdminGuard } from './guards/admin.guard';
 
 import { User } from '../user/user.entity';
 import { UserModule } from '../user/user.module';
+import { TurnstileModule } from '../common/turnstile/turnstile.module';
 
 @Module({
   imports: [
     ConfigModule, // tambahkan ini
+    TurnstileModule,
     TypeOrmModule.forFeature([User]),
     PassportModule,
     JwtModule.registerAsync({

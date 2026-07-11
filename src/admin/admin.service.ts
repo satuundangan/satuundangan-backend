@@ -643,12 +643,20 @@ export class AdminService {
       }
     }
 
+    if (data.sampleContent !== undefined) {
+      data.sampleContent =
+        data.sampleContent && typeof data.sampleContent === 'object'
+          ? JSON.stringify(data.sampleContent)
+          : data.sampleContent;
+    }
+
     return data as Partial<TemplateDesign>;
   }
 
   private transformTemplateDesign(template: TemplateDesign) {
     const result = { ...template } as any;
     result.tags = this.safeParse(template.tags);
+    result.sampleContent = this.safeParse(template.sampleContent);
     result.isActive = template.isPublished;
 
     // Use linked palette colors if available, otherwise use custom paletteColors

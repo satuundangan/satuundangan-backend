@@ -80,6 +80,9 @@ export class CreateTemplateDesignDto {
     order: number;
     is_enabled: boolean;
   }[];
+
+  @IsOptional()
+  sampleContent?: any;
 }
 
 export class UpdateTemplateDesignDto extends PartialType(

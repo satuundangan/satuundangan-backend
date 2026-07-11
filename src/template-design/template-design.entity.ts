@@ -60,6 +60,9 @@ export class TemplateDesign {
   @Column({ type: 'text', nullable: true })
   sectionOptions?: string;
 
+  @Column({ type: 'text', nullable: true })
+  sampleContent?: string;
+
   @Column({ type: 'varchar', nullable: true })
   defaultMusic?: string | null;
 

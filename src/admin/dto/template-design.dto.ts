@@ -60,6 +60,14 @@ export class CreateTemplateDesignDto {
   description?: string | null;
 
   @IsOptional()
+  @IsString()
+  seoTitle?: string | null;
+
+  @IsOptional()
+  @IsString()
+  seoDescription?: string | null;
+
+  @IsOptional()
   tags?: any;
 
   @IsOptional()

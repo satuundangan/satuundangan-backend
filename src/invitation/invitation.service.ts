@@ -452,6 +452,11 @@ export class InvitationService {
   }
 
   private buildInvitationResponse(invitation: Invitation): any {
+    // Read-path gating is the authoritative backstop: features are served
+    // per the invitation's paid tier, regardless of what got stored while
+    // editing (package is only locked at payment settlement).
+    const features = this.featuresFor(invitation.package);
+    const serveCustomMusic = features.customMusic && invitation.isCustomMusic;
     return {
       id: invitation.id,
       title: invitation.title,
@@ -471,8 +476,12 @@ export class InvitationService {
         quoteType: invitation.quoteType,
         quoteText: invitation.quoteText,
         loveStory: invitation.loveStory as unknown,
-        musicChoice: invitation.musicChoice,
-        isCustomMusic: invitation.isCustomMusic,
+        // Custom (uploaded) music only plays on tiers that allow it.
+        musicChoice:
+          invitation.isCustomMusic && !features.customMusic
+            ? null
+            : invitation.musicChoice,
+        isCustomMusic: serveCustomMusic,
         bridePhotoUrl: invitation.bridePhotoUrl,
         groomPhotoUrl: invitation.groomPhotoUrl,
         photoCoupleUrl: invitation.photoCoupleUrl,
@@ -484,7 +493,10 @@ export class InvitationService {
         mergeEvents: invitation.mergeEvents,
         floorPlanImageUrl: invitation.floorPlanImageUrl,
         menu: invitation.menu,
-        galleryImages: invitation.galleryImages,
+        galleryImages: this.applyGalleryPolicy(
+          invitation.package,
+          invitation.galleryImages,
+        ),
         giftDeliveryAddress: invitation.giftDeliveryAddress,
         eWalletLink: invitation.eWalletLink,
         bankAccounts: invitation.bankAccounts || [],
@@ -501,7 +513,7 @@ export class InvitationService {
         whatsappMessageTemplate: invitation.whatsappMessageTemplate,
       },
       // Watermark is a tier feature now: Basic shows branding, Premium/Eksklusif hide it.
-      show_branding: this.featuresFor(invitation.package).watermark,
+      show_branding: features.watermark,
       is_published: invitation.isPublished,
     };
   }

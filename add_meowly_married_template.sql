@@ -6,8 +6,8 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- 1. Insert Template Design
 -- Category: Exclusive (c0000000-0000-4000-8000-000000000003)
 -- Price: 149000.00 (Exclusive tier)
-INSERT INTO `template_designs` (`id`, `name`, `slug`, `previewUrl`, `description`, `tags`, `isPremium`, `price`, `categoryId`, `isPublished`, `defaultMusic`) 
-VALUES (13, 'Meowly Married', 'meowly-married', 'https://satuundangan.id/demo/meowly-married', 'Cute 3D cat-themed folding invitation for cat lovers', '["3d","cute","cat","pastel"]', 1, 149000.00, 'c0000000-0000-4000-8000-000000000003', 1, 'wedding-acoustic-morning.mp3')
+INSERT INTO `template_designs` (`id`, `name`, `slug`, `previewUrl`, `description`, `tags`, `price`, `categoryId`, `isPublished`, `defaultMusic`)
+VALUES (13, 'Meowly Married', 'meowly-married', 'https://satuundangan.id/demo/meowly-married', 'Cute 3D cat-themed folding invitation for cat lovers', '["3d","cute","cat","pastel"]', 149000.00, 'c0000000-0000-4000-8000-000000000003', 1, 'wedding-acoustic-morning.mp3')
 ON DUPLICATE KEY UPDATE 
   `name` = VALUES(`name`),
   `previewUrl` = VALUES(`previewUrl`),

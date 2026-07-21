@@ -68,16 +68,16 @@ INSERT INTO master_palette_colors (id, name, primary, secondary, accent, is_acti
 (@pal_pixel_quest, 'Pixel Quest 8-Bit', '#f43f5e', '#101018', '#facc15', 1);
 
 -- 5. Insert Template Designs
--- id | name | slug | previewUrl | thumbnailUrl | isPublished | isPremium | categoryId | price | description | tags | paletteId
-INSERT INTO template_designs (id, name, slug, previewUrl, thumbnailUrl, isPublished, isPremium, categoryId, price, description, tags, paletteId) VALUES 
-(1, 'Dark Elegant', 'dark-elegant', NULL, NULL, 1, 0, @cat_basic, 0, 'Desain mewah dengan nuansa gelap dan emas', '["elegant","dark","gold","Elegan"]', @pal_dark_elegant),
-(2, 'Light Modern', 'light-modern', NULL, NULL, 1, 0, @cat_basic, 0, 'Desain bersih, cerah, dan kontemporer', '["clean","modern","white","Minimalis"]', @pal_light_modern),
-(3, 'Botanical Watercolor', 'botanical-watercolor', NULL, NULL, 1, 1, @cat_premium, 50000, 'Desain bunga cat air yang romantis dan manis', '["floral","watercolor","romantic","Rustic","Floral"]', @pal_botanical),
-(4, 'Royal Gold Heritage', 'royal-gold', NULL, NULL, 1, 1, @cat_premium, 75000, 'Desain megah dengan ukiran emas tradisional', '["royal","gold","heritage","Elegan"]', @pal_royal_gold),
-(5, 'Minimalist Sand & Terra', 'minimalist-terra', NULL, NULL, 1, 1, @cat_premium, 50000, 'Estetika boho dengan warna bumi yang hangat', '["boho","minimalist","earthy","Minimalis","Rustic"]', @pal_minimalist_terra),
-(6, 'Celestial Sparkle', 'celestial-sparkle', NULL, NULL, 1, 1, @cat_exclusive, 100000, 'Nuansa magis langit malam bertabur bintang', '["celestial","dreamy","night","Elegan"]', @pal_celestial),
-(7, 'The Editorial Story', 'editorial-magazine', NULL, NULL, 1, 1, @cat_exclusive, 150000, 'Gaya majalah fashion kelas atas yang ikonik', '["editorial","magazine","fashion","Minimalis"]', @pal_editorial),
-(13, 'Pixel Quest 8-Bit', 'pixel-quest', '/demo/pixel-quest', NULL, 1, 1, @cat_premium, 129000, 'Desain retro 8-bit yang unik dan penuh nostalgia', '["retro","8bit","pixel","gaming"]', @pal_pixel_quest);
+-- id | name | slug | previewUrl | thumbnailUrl | isPublished | categoryId | price | description | tags | paletteId
+INSERT INTO template_designs (id, name, slug, previewUrl, thumbnailUrl, isPublished, categoryId, price, description, tags, paletteId) VALUES
+(1, 'Dark Elegant', 'dark-elegant', NULL, NULL, 1, @cat_basic, 0, 'Desain mewah dengan nuansa gelap dan emas', '["elegant","dark","gold","Elegan"]', @pal_dark_elegant),
+(2, 'Light Modern', 'light-modern', NULL, NULL, 1, @cat_basic, 0, 'Desain bersih, cerah, dan kontemporer', '["clean","modern","white","Minimalis"]', @pal_light_modern),
+(3, 'Botanical Watercolor', 'botanical-watercolor', NULL, NULL, 1, @cat_premium, 50000, 'Desain bunga cat air yang romantis dan manis', '["floral","watercolor","romantic","Rustic","Floral"]', @pal_botanical),
+(4, 'Royal Gold Heritage', 'royal-gold', NULL, NULL, 1, @cat_premium, 75000, 'Desain megah dengan ukiran emas tradisional', '["royal","gold","heritage","Elegan"]', @pal_royal_gold),
+(5, 'Minimalist Sand & Terra', 'minimalist-terra', NULL, NULL, 1, @cat_premium, 50000, 'Estetika boho dengan warna bumi yang hangat', '["boho","minimalist","earthy","Minimalis","Rustic"]', @pal_minimalist_terra),
+(6, 'Celestial Sparkle', 'celestial-sparkle', NULL, NULL, 1, @cat_exclusive, 100000, 'Nuansa magis langit malam bertabur bintang', '["celestial","dreamy","night","Elegan"]', @pal_celestial),
+(7, 'The Editorial Story', 'editorial-magazine', NULL, NULL, 1, @cat_exclusive, 150000, 'Gaya majalah fashion kelas atas yang ikonik', '["editorial","magazine","fashion","Minimalis"]', @pal_editorial),
+(13, 'Pixel Quest 8-Bit', 'pixel-quest', '/demo/pixel-quest', NULL, 1, @cat_premium, 129000, 'Desain retro 8-bit yang unik dan penuh nostalgia', '["retro","8bit","pixel","gaming"]', @pal_pixel_quest);
 
 -- 6. Link Templates to Sections (Default Features)
 -- dark-elegant

@@ -24,6 +24,7 @@ import {
   InvitationPackage,
   PACKAGE_PRICES,
   PACKAGE_LABELS,
+  PACKAGE_FEATURES,
 } from '../invitation/invitation.entity';
 
 @Controller('payment')
@@ -41,6 +42,7 @@ export class PaymentController {
       id,
       label: PACKAGE_LABELS[id],
       price: PACKAGE_PRICES[id],
+      features: PACKAGE_FEATURES[id],
     }));
   }
 

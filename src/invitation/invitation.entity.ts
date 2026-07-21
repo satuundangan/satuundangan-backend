@@ -51,6 +51,47 @@ export const PACKAGE_LABELS: Record<InvitationPackage, string> = {
   [InvitationPackage.EKSKLUSIF]: 'Eksklusif',
 };
 
+// Feature gating per tier. Single source of truth — enforced in invitation
+// service + surfaced via GET /payment/packages. Tier comes from the package the
+// user buys, NOT the template (all templates are free & tier-neutral).
+// watermark=true means the "Created with SatuUndangan" branding shows.
+// galleryLimit: max gallery photos (0 = none). guestLimit is phase 2 (not enforced yet).
+export interface PackageFeatures {
+  gallery: boolean;
+  galleryLimit: number;
+  customMusic: boolean;
+  watermark: boolean;
+  whatsapp: boolean;
+  subdomain: boolean;
+}
+
+export const PACKAGE_FEATURES: Record<InvitationPackage, PackageFeatures> = {
+  [InvitationPackage.BASIC]: {
+    gallery: false,
+    galleryLimit: 0,
+    customMusic: false,
+    watermark: true,
+    whatsapp: false,
+    subdomain: false,
+  },
+  [InvitationPackage.PREMIUM]: {
+    gallery: true,
+    galleryLimit: 8,
+    customMusic: true,
+    watermark: false,
+    whatsapp: true,
+    subdomain: false,
+  },
+  [InvitationPackage.EKSKLUSIF]: {
+    gallery: true,
+    galleryLimit: 20,
+    customMusic: true,
+    watermark: false,
+    whatsapp: true,
+    subdomain: true,
+  },
+};
+
 @Entity()
 export class Invitation {
   @PrimaryGeneratedColumn()

@@ -45,7 +45,6 @@ describe('Invitation Access & Decoding (E2E)', () => {
       thumbnailUrl: 'http://example.com/thumb.jpg',
       price: 0,
       isPublished: true,
-      isPremium: false,
     });
     const savedTemplate = await templateRepo.save(template);
     templateId = savedTemplate.id;

@@ -36,14 +36,6 @@ export class CreateTemplateDesignDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @IsOptional()
-  @IsBoolean()
-  isPremium?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  showBranding?: boolean;
-
   @IsNumber()
   @IsOptional()
   price?: number;

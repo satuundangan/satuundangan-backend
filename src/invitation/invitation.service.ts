@@ -7,7 +7,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Invitation, InvitationPackage } from './invitation.entity';
+import {
+  Invitation,
+  InvitationPackage,
+  PACKAGE_FEATURES,
+  PackageFeatures,
+} from './invitation.entity';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { UpdateInvitationDto } from './dto/update-invitation.dto';
 import { User } from '../user/user.entity';
@@ -57,17 +62,20 @@ export class InvitationService {
         throw new NotFoundException(
           `Template design with ID ${dto.templateDesignId} not found`,
         );
+    }
 
-      if (dto.isCustomMusic && !template.isPremium) {
-        throw new ForbiddenException(
-          'Custom music is only available for Premium templates.',
+    // Custom music is gated by the chosen package tier, not the template.
+    if (dto.isCustomMusic) {
+      if (!dto.templateDesignId) {
+        throw new BadRequestException(
+          'Template Design ID is required for custom music',
         );
       }
-    } else if (dto.isCustomMusic) {
-      // Custom music requires a template
-      throw new BadRequestException(
-        'Template Design ID is required for custom music',
-      );
+      if (!this.featuresFor(dto.package).customMusic) {
+        throw new ForbiddenException(
+          'Musik custom hanya tersedia untuk paket Premium & Eksklusif.',
+        );
+      }
     }
 
     const invitationData = {
@@ -87,7 +95,7 @@ export class InvitationService {
       socialMediaBrides: dto.socialMediaBrides || {},
       socialMediaGroom: dto.socialMediaGroom || {},
       parents: dto.parents || { brideParents: '', groomParents: '' },
-      galleryImages: dto.galleryImages || [],
+      galleryImages: this.applyGalleryPolicy(dto.package, dto.galleryImages),
       bankAccounts: dto.bankAccounts || [],
     };
 
@@ -214,19 +222,13 @@ export class InvitationService {
     const invitation = await this.findOneById(id, user);
     this.logger.log(`Updating invitation invitationId=${id}`);
 
-    // 2. Premium Validation for Update
+    // Custom music gating on update — by effective package tier, not template.
     if (dto.isCustomMusic === true) {
-      // If user is enabling custom music, check current template or new template
-      const templateId = dto.templateDesignId || invitation.templateDesignId;
-      if (templateId) {
-        const template = await this.templateRepo.findOne({
-          where: { id: templateId },
-        });
-        if (template && !template.isPremium) {
-          throw new ForbiddenException(
-            'Custom music is only available for Premium templates.',
-          );
-        }
+      const effectivePkg = dto.package ?? invitation.package;
+      if (!this.featuresFor(effectivePkg).customMusic) {
+        throw new ForbiddenException(
+          'Musik custom hanya tersedia untuk paket Premium & Eksklusif.',
+        );
       }
     }
 
@@ -263,6 +265,12 @@ export class InvitationService {
     if (nextSubdomain !== undefined) {
       invitation.subdomain = nextSubdomain;
     }
+
+    // Re-gate gallery against the effective tier (strips/truncates on downgrade).
+    invitation.galleryImages = this.applyGalleryPolicy(
+      dto.package ?? invitation.package,
+      invitation.galleryImages,
+    );
 
     // Ensure Unified Logic for Events on Update
     if (invitation.mergeEvents) {
@@ -492,10 +500,29 @@ export class InvitationService {
         selectedSections: invitation.selectedSections,
         whatsappMessageTemplate: invitation.whatsappMessageTemplate,
       },
-      is_premium: invitation.templateDesign?.isPremium || false,
-      show_branding: invitation.templateDesign?.showBranding || false,
+      // Watermark is a tier feature now: Basic shows branding, Premium/Eksklusif hide it.
+      show_branding: this.featuresFor(invitation.package).watermark,
       is_published: invitation.isPublished,
     };
+  }
+
+  // Effective feature set for a tier. Falls back to Basic when tier is missing.
+  private featuresFor(pkg?: InvitationPackage): PackageFeatures {
+    return (
+      PACKAGE_FEATURES[pkg ?? InvitationPackage.BASIC] ??
+      PACKAGE_FEATURES[InvitationPackage.BASIC]
+    );
+  }
+
+  // Enforce gallery access + photo cap for a tier. Basic gets none.
+  private applyGalleryPolicy(
+    pkg: InvitationPackage | undefined,
+    images?: string[],
+  ): string[] {
+    const f = this.featuresFor(pkg);
+    if (!f.gallery) return [];
+    const list = images || [];
+    return f.galleryLimit > 0 ? list.slice(0, f.galleryLimit) : list;
   }
 
   async findWithGuest(invitationSlug: string, guestSlug: string) {

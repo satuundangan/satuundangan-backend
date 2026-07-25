@@ -643,6 +643,13 @@ export class AdminService {
       }
     }
 
+    if (data.filterGroup !== undefined) {
+      data.filterGroup =
+        typeof data.filterGroup === 'string' && data.filterGroup.trim()
+          ? data.filterGroup.trim()
+          : null;
+    }
+
     if (data.sampleContent !== undefined) {
       data.sampleContent =
         data.sampleContent && typeof data.sampleContent === 'object'

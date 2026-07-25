@@ -57,6 +57,9 @@ export class TemplateDesign {
   @Column({ type: 'text', nullable: true })
   tags: string;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  filterGroup?: string | null;
+
   @Column({ type: 'text', nullable: true })
   sectionOptions?: string;
 

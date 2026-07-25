@@ -64,6 +64,10 @@ export class CreateTemplateDesignDto {
 
   @IsOptional()
   @IsString()
+  filterGroup?: string | null;
+
+  @IsOptional()
+  @IsString()
   defaultMusic?: string | null;
 
   @IsOptional()

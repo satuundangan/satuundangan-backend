@@ -18,6 +18,10 @@ export class CreateTemplateDesignDto {
 
   @IsString()
   @IsOptional()
+  componentKey?: string;
+
+  @IsString()
+  @IsOptional()
   previewUrl?: string;
 
   @IsString()

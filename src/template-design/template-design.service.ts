@@ -30,6 +30,7 @@ export class TemplateDesignService {
 
   async findAll(): Promise<TemplateDesign[]> {
     const templates = await this.templateRepo.find({
+      where: { isPublished: true },
       order: { name: 'ASC' },
       relations: ['category', 'palette', 'sections', 'sections.section'],
     });
@@ -93,7 +94,7 @@ export class TemplateDesignService {
   }
 
   async findByCategory(category?: string): Promise<TemplateDesign[]> {
-    const where: any = {};
+    const where: any = { isPublished: true };
     if (category && category !== 'semua') {
       where.category = { name: category };
     }

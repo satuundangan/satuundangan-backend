@@ -21,6 +21,10 @@ export class TemplateDesign {
   @Column({ unique: true })
   slug: string;
 
+  // Which coded SFC (in src/templates/) renders this design; null = fall back to the slug
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  componentKey?: string | null;
+
   @Column({ nullable: true })
   previewUrl: string;
 

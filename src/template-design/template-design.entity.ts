@@ -70,6 +70,11 @@ export class TemplateDesign {
   @Column({ type: 'text', nullable: true })
   sampleContent?: string;
 
+  // Config-driven theme payload (JSON) consumed by the frontend `dynamic-theme` renderer.
+  // See satuundangan-frontend/src/templates/dynamic-theme.schema.md for the v1 schema.
+  @Column({ type: 'text', nullable: true })
+  designConfig?: string;
+
   @Column({ type: 'varchar', nullable: true })
   defaultMusic?: string | null;
 

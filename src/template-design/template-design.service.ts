@@ -19,6 +19,10 @@ export class TemplateDesignService {
       data.sampleContent = JSON.stringify(data.sampleContent) as any;
     }
 
+    if (data.designConfig && typeof data.designConfig === 'object') {
+      data.designConfig = JSON.stringify(data.designConfig) as any;
+    }
+
     if (Array.isArray(data.tags)) {
       data.tags = JSON.stringify(data.tags);
     }
@@ -68,9 +72,7 @@ export class TemplateDesignService {
       dataToUpdate.sectionOptions &&
       typeof dataToUpdate.sectionOptions === 'object'
     ) {
-      dataToUpdate.sectionOptions = JSON.stringify(
-        dataToUpdate.sectionOptions,
-      );
+      dataToUpdate.sectionOptions = JSON.stringify(dataToUpdate.sectionOptions);
     }
 
     if (
@@ -79,6 +81,15 @@ export class TemplateDesignService {
     ) {
       dataToUpdate.sampleContent = JSON.stringify(
         dataToUpdate.sampleContent,
+      ) as any;
+    }
+
+    if (
+      dataToUpdate.designConfig &&
+      typeof dataToUpdate.designConfig === 'object'
+    ) {
+      dataToUpdate.designConfig = JSON.stringify(
+        dataToUpdate.designConfig,
       ) as any;
     }
 
@@ -120,6 +131,14 @@ export class TemplateDesignService {
     if (typeof template.sampleContent === 'string') {
       try {
         result.sampleContent = JSON.parse(template.sampleContent);
+      } catch (err: any) {
+        // Fallback if not JSON — leave as-is
+      }
+    }
+
+    if (typeof template.designConfig === 'string') {
+      try {
+        result.designConfig = JSON.parse(template.designConfig);
       } catch (err: any) {
         // Fallback if not JSON — leave as-is
       }

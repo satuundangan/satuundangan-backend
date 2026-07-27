@@ -91,6 +91,9 @@ export class CreateTemplateDesignDto {
 
   @IsOptional()
   sampleContent?: any;
+
+  @IsOptional()
+  designConfig?: any;
 }
 
 export class UpdateTemplateDesignDto extends PartialType(

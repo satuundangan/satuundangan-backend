@@ -834,4 +834,52 @@ export class AdminService {
 
     return results;
   }
+
+  async getDashboardStats() {
+    // 1. Get Category Distribution over all invitations in database
+    const rawCategories = await this.invitationRepo
+      .createQueryBuilder('inv')
+      .select('inv.category', 'category')
+      .addSelect('COUNT(inv.id)', 'count')
+      .groupBy('inv.category')
+      .getRawMany();
+
+    const categoryStats = rawCategories.map((item) => ({
+      category: item.category || 'Lainnya',
+      count: Number(item.count) || 0,
+    }));
+
+    // 2. Get 7-Day Registration Trend for Invitations
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const rawTrend = await this.invitationRepo
+      .createQueryBuilder('inv')
+      .select("DATE_FORMAT(inv.createdAt, '%Y-%m-%d')", 'date')
+      .addSelect('COUNT(inv.id)', 'count')
+      .where('inv.createdAt >= :sevenDaysAgo', { sevenDaysAgo })
+      .groupBy('date')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    // Map last 7 days array with default 0 if missing
+    const trendStats: { date: string; dayLabel: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const found = rawTrend.find((item) => item.date === dateStr);
+      trendStats.push({
+        date: dateStr,
+        dayLabel: i === 0 ? 'Hari Ini' : i === 1 ? 'Kemarin' : `H-${i}`,
+        count: found ? Number(found.count) : 0,
+      });
+    }
+
+    return {
+      categories: categoryStats,
+      trend: trendStats,
+    };
+  }
 }

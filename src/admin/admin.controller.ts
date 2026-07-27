@@ -295,4 +295,9 @@ export class AdminController {
   getSystemHealth() {
     return this.service.getSystemHealth();
   }
+
+  @Get('stats')
+  getDashboardStats() {
+    return this.service.getDashboardStats();
+  }
 }

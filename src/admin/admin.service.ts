@@ -839,9 +839,11 @@ export class AdminService {
     // 1. Get Category Distribution over all invitations in database
     const rawCategories = await this.invitationRepo
       .createQueryBuilder('inv')
-      .select('inv.category', 'category')
+      .leftJoin('inv.templateDesign', 'templateDesign')
+      .leftJoin('templateDesign.category', 'category')
+      .select('category.name', 'category')
       .addSelect('COUNT(inv.id)', 'count')
-      .groupBy('inv.category')
+      .groupBy('category.name')
       .getRawMany();
 
     const categoryStats = rawCategories.map((item) => ({

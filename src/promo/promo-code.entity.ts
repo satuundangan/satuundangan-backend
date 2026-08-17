@@ -40,6 +40,13 @@ export class PromoCode {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  isExitIntentActive: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  exitIntentText: string | null;
+
+
   @CreateDateColumn()
   createdAt: Date;
 

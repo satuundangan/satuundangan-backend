@@ -7,7 +7,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Invitation } from './invitation.entity';
+import {
+  Invitation,
+  InvitationPackage,
+  PACKAGE_FEATURES,
+  PackageFeatures,
+} from './invitation.entity';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { UpdateInvitationDto } from './dto/update-invitation.dto';
 import { User } from '../user/user.entity';
@@ -19,6 +24,12 @@ import {
   InvitationActivity,
 } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import {
+  normalizeSubdomain,
+  validateSubdomainFormat,
+  type SubdomainCheckResult,
+} from './subdomain.util';
+import { Not } from 'typeorm';
 
 @Injectable()
 export class InvitationService {
@@ -51,17 +62,20 @@ export class InvitationService {
         throw new NotFoundException(
           `Template design with ID ${dto.templateDesignId} not found`,
         );
+    }
 
-      if (dto.isCustomMusic && !template.isPremium) {
-        throw new ForbiddenException(
-          'Custom music is only available for Premium templates.',
+    // Custom music is gated by the chosen package tier, not the template.
+    if (dto.isCustomMusic) {
+      if (!dto.templateDesignId) {
+        throw new BadRequestException(
+          'Template Design ID is required for custom music',
         );
       }
-    } else if (dto.isCustomMusic) {
-      // Custom music requires a template
-      throw new BadRequestException(
-        'Template Design ID is required for custom music',
-      );
+      if (!this.featuresFor(dto.package).customMusic) {
+        throw new ForbiddenException(
+          'Musik custom hanya tersedia untuk paket Premium & Eksklusif.',
+        );
+      }
     }
 
     const invitationData = {
@@ -81,7 +95,7 @@ export class InvitationService {
       socialMediaBrides: dto.socialMediaBrides || {},
       socialMediaGroom: dto.socialMediaGroom || {},
       parents: dto.parents || { brideParents: '', groomParents: '' },
-      galleryImages: dto.galleryImages || [],
+      galleryImages: this.applyGalleryPolicy(dto.package, dto.galleryImages),
       bankAccounts: dto.bankAccounts || [],
     };
 
@@ -129,9 +143,17 @@ export class InvitationService {
 
     invitation.slug = slug;
 
+    // Custom subdomain (optional). Tier-gated + validated + unique, else reject.
+    if (dto.subdomain) {
+      this.assertSubdomainAllowed(dto.package);
+      invitation.subdomain = await this.resolveSubdomain(dto.subdomain);
+    } else {
+      invitation.subdomain = null;
+    }
+
     const saved = await this.invitationRepo.save(invitation);
     this.logger.log(
-      `Invitation created invitationId=${saved.id} slug=${saved.slug} userId=${user.id}`,
+      `Invitation created invitationId=${saved.id} slug=${saved.slug} subdomain=${saved.subdomain ?? '-'} userId=${user.id}`,
     );
     return saved;
   }
@@ -165,7 +187,6 @@ export class InvitationService {
       videoPrewedding: invitation.videoPrewedding || '',
       turutMengundang: invitation.turutMengundang || '',
       footerText: invitation.footerText || '',
-      healthProtocol: invitation.healthProtocol ?? true,
       enableCover: invitation.enableCover ?? true,
     }));
 
@@ -201,19 +222,13 @@ export class InvitationService {
     const invitation = await this.findOneById(id, user);
     this.logger.log(`Updating invitation invitationId=${id}`);
 
-    // 2. Premium Validation for Update
+    // Custom music gating on update — by effective package tier, not template.
     if (dto.isCustomMusic === true) {
-      // If user is enabling custom music, check current template or new template
-      const templateId = dto.templateDesignId || invitation.templateDesignId;
-      if (templateId) {
-        const template = await this.templateRepo.findOne({
-          where: { id: templateId },
-        });
-        if (template && !template.isPremium) {
-          throw new ForbiddenException(
-            'Custom music is only available for Premium templates.',
-          );
-        }
+      const effectivePkg = dto.package ?? invitation.package;
+      if (!this.featuresFor(effectivePkg).customMusic) {
+        throw new ForbiddenException(
+          'Musik custom hanya tersedia untuk paket Premium & Eksklusif.',
+        );
       }
     }
 
@@ -232,7 +247,30 @@ export class InvitationService {
       }
     }
 
+    // Custom subdomain change. '' / null clears it; any value is validated.
+    let nextSubdomain: string | null | undefined;
+    if (dto.subdomain !== undefined) {
+      if (dto.subdomain) {
+        // Effective tier = incoming package, else the invitation's current tier.
+        this.assertSubdomainAllowed(dto.package ?? invitation.package);
+        nextSubdomain = await this.resolveSubdomain(dto.subdomain, invitation.id);
+      } else {
+        nextSubdomain = null;
+      }
+      delete dto.subdomain; // prevent raw value leaking via Object.assign
+    }
+
     Object.assign(invitation, dto);
+
+    if (nextSubdomain !== undefined) {
+      invitation.subdomain = nextSubdomain;
+    }
+
+    // Re-gate gallery against the effective tier (strips/truncates on downgrade).
+    invitation.galleryImages = this.applyGalleryPolicy(
+      dto.package ?? invitation.package,
+      invitation.galleryImages,
+    );
 
     // Ensure Unified Logic for Events on Update
     if (invitation.mergeEvents) {
@@ -322,11 +360,109 @@ export class InvitationService {
     return this.buildInvitationResponse(invitation);
   }
 
+  // Custom subdomain is a tier-Eksklusif feature. Reject other tiers.
+  private assertSubdomainAllowed(pkg?: InvitationPackage): void {
+    if (pkg !== InvitationPackage.EKSKLUSIF) {
+      throw new ForbiddenException(
+        'Subdomain custom hanya tersedia untuk paket Eksklusif',
+      );
+    }
+  }
+
+  // Normalize + validate format + enforce uniqueness. Throws on invalid/taken.
+  // excludeId skips the invitation's own row (so re-saving same value is ok).
+  private async resolveSubdomain(
+    input: string,
+    excludeId?: number,
+  ): Promise<string> {
+    const normalized = normalizeSubdomain(input);
+    const format = validateSubdomainFormat(normalized);
+    if (!format.valid) {
+      throw new BadRequestException(format.reason || 'Subdomain tidak valid');
+    }
+
+    const existing = await this.invitationRepo.findOne({
+      where: excludeId
+        ? { subdomain: normalized, id: Not(excludeId) }
+        : { subdomain: normalized },
+      select: ['id'],
+    });
+    if (existing) {
+      throw new BadRequestException(
+        'Subdomain sudah digunakan oleh undangan lain',
+      );
+    }
+
+    return normalized;
+  }
+
+  // Non-throwing availability check for live UI feedback at /create.
+  async checkSubdomainAvailability(
+    input: string,
+    excludeId?: number,
+  ): Promise<SubdomainCheckResult> {
+    const normalized = normalizeSubdomain(input);
+    const format = validateSubdomainFormat(normalized);
+    if (!format.valid) {
+      return { available: false, normalized, reason: format.reason };
+    }
+
+    const existing = await this.invitationRepo.findOne({
+      where: excludeId
+        ? { subdomain: normalized, id: Not(excludeId) }
+        : { subdomain: normalized },
+      select: ['id'],
+    });
+    if (existing) {
+      return {
+        available: false,
+        normalized,
+        reason: 'Subdomain sudah digunakan',
+      };
+    }
+
+    return { available: true, normalized };
+  }
+
+  // Public resolve by subdomain (parsed from Host header by frontend/edge).
+  // Mirrors findBySlug: published-only, logs a view.
+  async findBySubdomain(input: string): Promise<any> {
+    const normalized = normalizeSubdomain(input);
+    this.logger.log(`Public invitation requested subdomain=${normalized}`);
+
+    const invitation = await this.invitationRepo.findOne({
+      where: { subdomain: normalized },
+      relations: ['user', 'templateDesign'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    if (!invitation.isPublished) {
+      this.logger.warn(
+        `Public invitation blocked unpublished subdomain=${normalized} invitationId=${invitation.id}`,
+      );
+      throw new ForbiddenException('Undangan belum dipublikasikan');
+    }
+
+    void this.logActivity(invitation, null, ActivityAction.VIEW);
+
+    return this.buildInvitationResponse(invitation);
+  }
+
   private buildInvitationResponse(invitation: Invitation): any {
+    // Read-path gating is the authoritative backstop: features are served
+    // per the invitation's paid tier, regardless of what got stored while
+    // editing (package is only locked at payment settlement).
+    const features = this.featuresFor(invitation.package);
+    const serveCustomMusic = features.customMusic && invitation.isCustomMusic;
     return {
       id: invitation.id,
       title: invitation.title,
       slug: invitation.slug,
+      subdomain: invitation.subdomain || null,
+      package: invitation.package,
       template_slug: invitation.templateDesign?.slug || null,
       price: Number(invitation.templateDesign?.price || 0),
       content: {
@@ -340,8 +476,12 @@ export class InvitationService {
         quoteType: invitation.quoteType,
         quoteText: invitation.quoteText,
         loveStory: invitation.loveStory as unknown,
-        musicChoice: invitation.musicChoice,
-        isCustomMusic: invitation.isCustomMusic,
+        // Custom (uploaded) music only plays on tiers that allow it.
+        musicChoice:
+          invitation.isCustomMusic && !features.customMusic
+            ? null
+            : invitation.musicChoice,
+        isCustomMusic: serveCustomMusic,
         bridePhotoUrl: invitation.bridePhotoUrl,
         groomPhotoUrl: invitation.groomPhotoUrl,
         photoCoupleUrl: invitation.photoCoupleUrl,
@@ -353,7 +493,10 @@ export class InvitationService {
         mergeEvents: invitation.mergeEvents,
         floorPlanImageUrl: invitation.floorPlanImageUrl,
         menu: invitation.menu,
-        galleryImages: invitation.galleryImages,
+        galleryImages: this.applyGalleryPolicy(
+          invitation.package,
+          invitation.galleryImages,
+        ),
         giftDeliveryAddress: invitation.giftDeliveryAddress,
         eWalletLink: invitation.eWalletLink,
         bankAccounts: invitation.bankAccounts || [],
@@ -365,14 +508,33 @@ export class InvitationService {
         liveStreamingLink: invitation.liveStreamingLink,
         footerText: invitation.footerText,
         enableCover: invitation.enableCover,
-        healthProtocol: invitation.healthProtocol,
         enableGuestMessage: invitation.enableGuestMessage,
         selectedSections: invitation.selectedSections,
         whatsappMessageTemplate: invitation.whatsappMessageTemplate,
       },
-      is_premium: invitation.templateDesign?.isPremium || false,
+      // Watermark is a tier feature now: Basic shows branding, Premium/Eksklusif hide it.
+      show_branding: features.watermark,
       is_published: invitation.isPublished,
     };
+  }
+
+  // Effective feature set for a tier. Falls back to Basic when tier is missing.
+  private featuresFor(pkg?: InvitationPackage): PackageFeatures {
+    return (
+      PACKAGE_FEATURES[pkg ?? InvitationPackage.BASIC] ??
+      PACKAGE_FEATURES[InvitationPackage.BASIC]
+    );
+  }
+
+  // Enforce gallery access + photo cap for a tier. Basic gets none.
+  private applyGalleryPolicy(
+    pkg: InvitationPackage | undefined,
+    images?: string[],
+  ): string[] {
+    const f = this.featuresFor(pkg);
+    if (!f.gallery) return [];
+    const list = images || [];
+    return f.galleryLimit > 0 ? list.slice(0, f.galleryLimit) : list;
   }
 
   async findWithGuest(invitationSlug: string, guestSlug: string) {

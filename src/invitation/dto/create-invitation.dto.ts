@@ -6,7 +6,9 @@ import {
   IsArray,
   ValidateNested,
   IsNumber,
+  IsEnum,
 } from 'class-validator';
+import { InvitationPackage } from '../invitation.entity';
 import { Type, Expose } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -140,6 +142,24 @@ export class CreateInvitationDto {
   @IsOptional()
   @IsString()
   slug?: string;
+
+  @ApiPropertyOptional({
+    enum: InvitationPackage,
+    example: InvitationPackage.BASIC,
+    description: 'Pricing tier. Set at checkout. Gates premium features.',
+  })
+  @IsOptional()
+  @IsEnum(InvitationPackage)
+  package?: InvitationPackage;
+
+  @ApiPropertyOptional({
+    example: 'rina-budi',
+    description:
+      'Custom subdomain (tier Eksklusif) → <value>.satuundangan.id. Dinormalisasi + dicek unik di server.',
+  })
+  @IsOptional()
+  @IsString()
+  subdomain?: string;
 
   @ApiPropertyOptional({ example: 'John & Jane' })
   @IsOptional()
@@ -325,10 +345,6 @@ export class CreateInvitationDto {
   @ApiProperty({ example: true })
   @IsBoolean()
   enableCover: boolean;
-
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  healthProtocol: boolean;
 
   @ApiPropertyOptional({ example: ['akad', 'resepsi', 'galeri'] })
   selectedSections?: string[];

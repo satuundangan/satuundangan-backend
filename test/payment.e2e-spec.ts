@@ -161,7 +161,7 @@ describe('Payment E2E', () => {
   });
 
   it('should handle Midtrans Webhook (Success)', async () => {
-    const grossAmount = '50000.00';
+    const grossAmount = '89000.00';
     const statusCode = '200';
 
     // Create Signature: SHA512(order_id + status_code + gross_amount + ServerKey)

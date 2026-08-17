@@ -18,6 +18,10 @@ export class CreateTemplateDesignDto {
 
   @IsString()
   @IsOptional()
+  componentKey?: string;
+
+  @IsString()
+  @IsOptional()
   previewUrl?: string;
 
   @IsString()
@@ -36,10 +40,6 @@ export class CreateTemplateDesignDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @IsOptional()
-  @IsBoolean()
-  isPremium?: boolean;
-
   @IsNumber()
   @IsOptional()
   price?: number;
@@ -56,7 +56,19 @@ export class CreateTemplateDesignDto {
   description?: string | null;
 
   @IsOptional()
+  @IsString()
+  seoTitle?: string | null;
+
+  @IsOptional()
+  @IsString()
+  seoDescription?: string | null;
+
+  @IsOptional()
   tags?: any;
+
+  @IsOptional()
+  @IsString()
+  filterGroup?: string | null;
 
   @IsOptional()
   @IsString()
@@ -76,6 +88,12 @@ export class CreateTemplateDesignDto {
     order: number;
     is_enabled: boolean;
   }[];
+
+  @IsOptional()
+  sampleContent?: any;
+
+  @IsOptional()
+  designConfig?: any;
 }
 
 export class UpdateTemplateDesignDto extends PartialType(

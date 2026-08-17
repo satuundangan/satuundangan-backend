@@ -68,7 +68,6 @@ describe('Full User Journey (E2E)', () => {
       thumbnailUrl: 'http://example.com/thumb.jpg',
       price: 100000, // Not free
       isPublished: true,
-      isPremium: true,
     });
     const savedTemplate = await templateRepo.save(template);
     templateId = savedTemplate.id;

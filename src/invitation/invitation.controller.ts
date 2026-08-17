@@ -83,6 +83,27 @@ export class InvitationController {
     return this.invitationService.findBySlug(slug);
   }
 
+  @Get('subdomain/check')
+  @ApiTags('Invitation')
+  @ApiOperation({ summary: 'Check custom subdomain availability (live)' })
+  checkSubdomain(
+    @Query('value') value: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    return this.invitationService.checkSubdomainAvailability(
+      value,
+      excludeId ? +excludeId : undefined,
+    );
+  }
+
+  @Get('subdomain/:subdomain')
+  @ApiTags('Invitation')
+  @ApiOperation({ summary: 'Resolve a published invitation by subdomain' })
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
+  findBySubdomain(@Param('subdomain') subdomain: string) {
+    return this.invitationService.findBySubdomain(subdomain);
+  }
+
   @Get('slug/:invitationSlug/guest/:guestSlug')
   @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
   async getInvitationWithGuest(

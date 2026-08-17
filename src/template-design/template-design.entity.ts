@@ -21,6 +21,10 @@ export class TemplateDesign {
   @Column({ unique: true })
   slug: string;
 
+  // Which coded SFC (in src/templates/) renders this design; null = fall back to the slug
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  componentKey?: string | null;
+
   @Column({ nullable: true })
   previewUrl: string;
 
@@ -29,9 +33,6 @@ export class TemplateDesign {
 
   @Column({ default: true })
   isPublished: boolean;
-
-  @Column({ default: false })
-  isPremium: boolean;
 
   @ManyToOne(() => Category, (category) => category.templates, {
     nullable: true,
@@ -51,11 +52,28 @@ export class TemplateDesign {
   @Column({ type: 'varchar', nullable: true })
   description: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  seoTitle?: string | null;
+
+  @Column({ type: 'varchar', length: 320, nullable: true })
+  seoDescription?: string | null;
+
   @Column({ type: 'text', nullable: true })
   tags: string;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  filterGroup?: string | null;
+
   @Column({ type: 'text', nullable: true })
   sectionOptions?: string;
+
+  @Column({ type: 'text', nullable: true })
+  sampleContent?: string;
+
+  // Config-driven theme payload (JSON) consumed by the frontend `dynamic-theme` renderer.
+  // See satuundangan-frontend/src/templates/dynamic-theme.schema.md for the v1 schema.
+  @Column({ type: 'text', nullable: true })
+  designConfig?: string;
 
   @Column({ type: 'varchar', nullable: true })
   defaultMusic?: string | null;

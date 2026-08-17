@@ -24,6 +24,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { UserService } from '../user/user.service';
+import { TurnstileGuard } from '../common/turnstile/turnstile.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -45,6 +46,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @UseGuards(TurnstileGuard)
   @ApiOperation({ summary: 'Register user baru' })
   @ApiBody({ type: RegisterDto })
   register(@Body() dto: RegisterDto) {
@@ -52,6 +54,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @UseGuards(TurnstileGuard)
   @ApiOperation({ summary: 'Login user' })
   @ApiBody({ type: LoginDto })
   login(@Body() dto: LoginDto) {
@@ -59,6 +62,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @UseGuards(TurnstileGuard)
   @ApiOperation({ summary: 'Request reset password token' })
   @ApiBody({ type: ForgotPasswordDto })
   forgotPassword(@Body() dto: ForgotPasswordDto) {

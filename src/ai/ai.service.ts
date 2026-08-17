@@ -64,7 +64,7 @@ export class AiService {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),

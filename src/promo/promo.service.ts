@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Not } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { PromoCode, DiscountType } from './promo-code.entity';
@@ -17,6 +18,11 @@ export interface PromoValidationResult {
 
 @Injectable()
 export class PromoService {
+
+  async getActiveExitIntent(): Promise<PromoCode | null> {
+    return this.promoRepo.findOne({ where: { isActive: true, isExitIntentActive: true } });
+  }
+
   private readonly logger = new Logger(PromoService.name);
 
   constructor(
@@ -29,6 +35,7 @@ export class PromoService {
   async validate(
     code: string,
     invitationId: number,
+    baseAmount?: number,
   ): Promise<PromoValidationResult> {
     const promo = await this.promoRepo.findOne({
       where: { code: code.toUpperCase() },
@@ -96,7 +103,12 @@ export class PromoService {
       return { valid: false, message: 'Undangan tidak ditemukan' };
     }
 
-    const originalPrice = Number(invitation.templateDesign?.price || 0);
+    // Discount applies to the package price when provided (checkout tier),
+    // falling back to the template price for legacy callers.
+    const originalPrice =
+      baseAmount !== undefined
+        ? baseAmount
+        : Number(invitation.templateDesign?.price || 0);
     const { discountAmount, finalPrice } = this.calculateDiscount(
       originalPrice,
       promo,
@@ -243,6 +255,9 @@ export class PromoService {
           : promo.validUntil,
     };
 
+    if (updated.isExitIntentActive) {
+      await this.promoRepo.update({ isExitIntentActive: true, id: Not(id) }, { isExitIntentActive: false });
+    }
     Object.assign(promo, updated);
     return this.promoRepo.save(promo);
   }

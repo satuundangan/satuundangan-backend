@@ -290,4 +290,14 @@ export class AdminController {
   deletePromoCode(@Param('id', ParseIntPipe) id: number) {
     return this.promoService.remove(id);
   }
+
+  @Get('health')
+  getSystemHealth() {
+    return this.service.getSystemHealth();
+  }
+
+  @Get('stats')
+  getDashboardStats() {
+    return this.service.getDashboardStats();
+  }
 }

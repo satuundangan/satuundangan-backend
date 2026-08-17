@@ -31,6 +31,67 @@ const jsonTextArrayTransformer = {
   },
 };
 
+// Pricing tier (feature-gating). All templates free to all; features gated by tier.
+export enum InvitationPackage {
+  BASIC = 'basic',
+  PREMIUM = 'premium',
+  EKSKLUSIF = 'eksklusif',
+}
+
+// Tier prices (IDR). Source of truth for checkout — not template price.
+export const PACKAGE_PRICES: Record<InvitationPackage, number> = {
+  [InvitationPackage.BASIC]: 89000,
+  [InvitationPackage.PREMIUM]: 179000,
+  [InvitationPackage.EKSKLUSIF]: 239000,
+};
+
+export const PACKAGE_LABELS: Record<InvitationPackage, string> = {
+  [InvitationPackage.BASIC]: 'Basic',
+  [InvitationPackage.PREMIUM]: 'Premium',
+  [InvitationPackage.EKSKLUSIF]: 'Eksklusif',
+};
+
+// Feature gating per tier. Single source of truth — enforced in invitation
+// service + surfaced via GET /payment/packages. Tier comes from the package the
+// user buys, NOT the template (all templates are free & tier-neutral).
+// watermark=true means the "Created with SatuUndangan" branding shows.
+// galleryLimit: max gallery photos (0 = none). guestLimit is phase 2 (not enforced yet).
+export interface PackageFeatures {
+  gallery: boolean;
+  galleryLimit: number;
+  customMusic: boolean;
+  watermark: boolean;
+  whatsapp: boolean;
+  subdomain: boolean;
+}
+
+export const PACKAGE_FEATURES: Record<InvitationPackage, PackageFeatures> = {
+  [InvitationPackage.BASIC]: {
+    gallery: false,
+    galleryLimit: 0,
+    customMusic: false,
+    watermark: true,
+    whatsapp: false,
+    subdomain: false,
+  },
+  [InvitationPackage.PREMIUM]: {
+    gallery: true,
+    galleryLimit: 8,
+    customMusic: true,
+    watermark: false,
+    whatsapp: true,
+    subdomain: false,
+  },
+  [InvitationPackage.EKSKLUSIF]: {
+    gallery: true,
+    galleryLimit: 20,
+    customMusic: true,
+    watermark: false,
+    whatsapp: true,
+    subdomain: true,
+  },
+};
+
 @Entity()
 export class Invitation {
   @PrimaryGeneratedColumn()
@@ -41,6 +102,19 @@ export class Invitation {
 
   @Column({ nullable: true, unique: true })
   slug: string;
+
+  // Pricing tier. Set at checkout when user picks a package. Gates premium features.
+  @Column({
+    type: 'enum',
+    enum: InvitationPackage,
+    default: InvitationPackage.BASIC,
+  })
+  package: InvitationPackage;
+
+  // Custom subdomain (tier Eksklusif), e.g. "namapasangan" → namapasangan.satuundangan.id
+  // Explicit type: TS union string|null reflects as Object, which TypeORM can't map.
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  subdomain: string | null;
 
   @Column({ nullable: true })
   coupleName: string;
@@ -190,9 +264,6 @@ export class Invitation {
 
   @Column({ default: true })
   enableCover: boolean;
-
-  @Column({ default: true })
-  healthProtocol: boolean;
 
   @Column({ default: true })
   enableGuestMessage: boolean;

@@ -9,38 +9,44 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
-  private readonly s3Client: S3Client;
+  private readonly s3Client: S3Client | null = null;
   private readonly bucketName: string;
   private readonly publicUrl: string;
+  private readonly isLocalMode: boolean;
+  private readonly localUploadDir: string;
 
   constructor(private readonly configService: ConfigService) {
-    const accountId = this.configService.getOrThrow<string>('R2_ACCOUNT_ID');
+    const accountId = this.configService.get<string>('R2_ACCOUNT_ID');
+    this.bucketName = this.configService.get<string>('R2_BUCKET_NAME') ?? '';
+    this.publicUrl = this.configService.get<string>('R2_PUBLIC_URL') ?? '';
 
-    // Retrieve all necessary variables from the ConfigService using getOrThrow for safety
-    this.bucketName = this.configService.getOrThrow<string>('R2_BUCKET_NAME');
-    this.publicUrl = this.configService.getOrThrow<string>('R2_PUBLIC_URL');
-
-    this.s3Client = new S3Client({
-      region: 'auto',
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: this.configService.getOrThrow<string>('R2_ACCESS_KEY_ID'),
-        secretAccessKey: this.configService.getOrThrow<string>(
-          'R2_SECRET_ACCESS_KEY',
-        ),
-      },
-    });
+    if (accountId && this.bucketName && this.publicUrl) {
+      this.isLocalMode = false;
+      this.s3Client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: this.configService.getOrThrow<string>('R2_ACCESS_KEY_ID'),
+          secretAccessKey: this.configService.getOrThrow<string>('R2_SECRET_ACCESS_KEY'),
+        },
+      });
+      this.logger.log('UploadService: using Cloudflare R2');
+    } else {
+      this.isLocalMode = true;
+      this.localUploadDir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(this.localUploadDir)) {
+        fs.mkdirSync(this.localUploadDir, { recursive: true });
+      }
+      this.logger.warn('UploadService: R2 not configured — using local file storage at ./uploads');
+    }
   }
 
-  /**
-   * Uploads a file to Cloudflare R2 and returns its public URL.
-   * @param file The file to upload, compliant with Express.Multer.File.
-   * @returns An object containing the public URL of the uploaded file and a success message.
-   */
   async uploadFile(file: Express.Multer.File) {
     if (!file) {
       this.logger.warn('Upload rejected: no file provided');
@@ -48,6 +54,18 @@ export class UploadService {
     }
 
     const fileKey = `${Date.now()}-${file.originalname}`;
+
+    if (this.isLocalMode) {
+      const filePath = path.join(this.localUploadDir, fileKey);
+      fs.writeFileSync(filePath, file.buffer);
+      this.logger.log(`Local upload saved key=${fileKey} size=${file.size}`);
+      const port = this.configService.get<string>('PORT') ?? '3000';
+      return {
+        fileUrl: `http://localhost:${port}/uploads/${encodeURIComponent(fileKey)}`,
+        message: 'Upload successful (local) ✅',
+      };
+    }
+
     this.logger.log(
       `Uploading file to R2 key=${fileKey} size=${file.size} mimetype=${file.mimetype}`,
     );
@@ -60,10 +78,9 @@ export class UploadService {
         ContentType: file.mimetype,
       });
 
-      await this.s3Client.send(command);
+      await this.s3Client!.send(command);
       this.logger.log(`Upload successful key=${fileKey} size=${file.size}`);
 
-      // ✅ Correctly construct the final URL using your public domain
       return {
         fileUrl: `${this.publicUrl}/${fileKey}`,
         message: 'Upload successful ✅',
@@ -77,17 +94,23 @@ export class UploadService {
     }
   }
 
-  /**
-   * Deletes a file from Cloudflare R2.
-   * @param fileUrl The public URL of the file to delete.
-   */
   async deleteFile(fileUrl: string) {
     if (!fileUrl) return;
 
-    // Extract the key from the URL
-    // e.g., https://pub-xxx.r2.dev/123456-image.jpg -> 123456-image.jpg
-    const fileKey = fileUrl.replace(`${this.publicUrl}/`, '');
+    if (this.isLocalMode) {
+      const parts = fileUrl.split('/uploads/');
+      if (parts[1]) {
+        const fileName = decodeURIComponent(parts[1]);
+        const filePath = path.join(this.localUploadDir, fileName);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          this.logger.log(`Local file deleted: ${fileName}`);
+        }
+      }
+      return { message: 'File deleted successfully' };
+    }
 
+    const fileKey = fileUrl.replace(`${this.publicUrl}/`, '');
     this.logger.log(`Deleting file from R2 key=${fileKey}`);
 
     try {
@@ -96,7 +119,7 @@ export class UploadService {
         Key: fileKey,
       });
 
-      await this.s3Client.send(command);
+      await this.s3Client!.send(command);
       this.logger.log(`Delete successful key=${fileKey}`);
       return { message: 'File deleted successfully' };
     } catch (error) {

@@ -52,7 +52,13 @@ export class AdminService {
   ) {}
 
   // Users
-  async listUsers(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
+  async listUsers(
+    page = 1,
+    limit = 20,
+    q?: string,
+    sortBy = 'id',
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
+  ) {
     const where = q
       ? [{ name: ILike(`%${q}%`) }, { email: ILike(`%${q}%`) }]
       : undefined;
@@ -109,7 +115,13 @@ export class AdminService {
   }
 
   // Invitations
-  async listInvitations(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
+  async listInvitations(
+    page = 1,
+    limit = 20,
+    q?: string,
+    sortBy = 'id',
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
+  ) {
     const where = q
       ? [
           { title: ILike(`%${q}%`) },
@@ -156,7 +168,13 @@ export class AdminService {
   }
 
   // Guests
-  async listGuests(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
+  async listGuests(
+    page = 1,
+    limit = 20,
+    q?: string,
+    sortBy = 'id',
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
+  ) {
     const where = q
       ? [
           { name: ILike(`%${q}%`) },
@@ -196,7 +214,13 @@ export class AdminService {
   }
 
   // Guest Messages
-  async listGuestMessages(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC') {
+  async listGuestMessages(
+    page = 1,
+    limit = 20,
+    q?: string,
+    sortBy = 'id',
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
+  ) {
     const where = q
       ? [{ guestName: ILike(`%${q}%`) }, { message: ILike(`%${q}%`) }]
       : undefined;
@@ -221,7 +245,9 @@ export class AdminService {
     if (!filtersStr) return where;
     try {
       const filters = JSON.parse(filtersStr);
-      const filterEntries = Object.entries(filters).filter(([_, value]) => value !== undefined && value !== null && value !== '');
+      const filterEntries = Object.entries(filters).filter(
+        ([_, value]) => value !== undefined && value !== null && value !== '',
+      );
       if (filterEntries.length === 0) return where;
 
       const applyToObj = (obj: any) => {
@@ -241,7 +267,9 @@ export class AdminService {
       };
 
       if (Array.isArray(where)) {
-        return where.length === 0 ? [applyToObj({})] : where.map(obj => applyToObj(obj));
+        return where.length === 0
+          ? [applyToObj({})]
+          : where.map((obj) => applyToObj(obj));
       } else {
         return applyToObj(where || {});
       }
@@ -251,7 +279,14 @@ export class AdminService {
   }
 
   // Template Designs
-  async listTemplateDesigns(page = 1, limit = 20, q?: string, sortBy = 'id', sortOrder: 'ASC' | 'DESC' = 'DESC', filters?: string) {
+  async listTemplateDesigns(
+    page = 1,
+    limit = 20,
+    q?: string,
+    sortBy = 'id',
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
+    filters?: string,
+  ) {
     let where: any = q
       ? [
           { name: ILike(`%${q}%`) },
@@ -643,12 +678,35 @@ export class AdminService {
       }
     }
 
+    if (data.filterGroup !== undefined) {
+      data.filterGroup =
+        typeof data.filterGroup === 'string' && data.filterGroup.trim()
+          ? data.filterGroup.trim()
+          : null;
+    }
+
+    if (data.sampleContent !== undefined) {
+      data.sampleContent =
+        data.sampleContent && typeof data.sampleContent === 'object'
+          ? JSON.stringify(data.sampleContent)
+          : data.sampleContent;
+    }
+
+    if (data.designConfig !== undefined) {
+      data.designConfig =
+        data.designConfig && typeof data.designConfig === 'object'
+          ? JSON.stringify(data.designConfig)
+          : data.designConfig;
+    }
+
     return data as Partial<TemplateDesign>;
   }
 
   private transformTemplateDesign(template: TemplateDesign) {
     const result = { ...template } as any;
     result.tags = this.safeParse(template.tags);
+    result.sampleContent = this.safeParse(template.sampleContent);
+    result.designConfig = this.safeParse(template.designConfig);
     result.isActive = template.isPublished;
 
     // Use linked palette colors if available, otherwise use custom paletteColors
@@ -705,5 +763,125 @@ export class AdminService {
     } catch (err) {
       return value;
     }
+  }
+
+  async getSystemHealth() {
+    const results = {
+      database: { status: 'unhealthy', msg: 'Disconnected' },
+      storage: { status: 'unhealthy', msg: 'Not Configured' },
+      email: { status: 'unhealthy', msg: 'Not Configured' },
+      payment: { status: 'unhealthy', msg: 'Not Configured' },
+      rendered: new Date().toLocaleTimeString('id-ID'),
+    };
+
+    // 1. Database Check
+    try {
+      const dbStartTime = Date.now();
+      await this.userRepo.query('SELECT 1');
+      const dbLatency = Date.now() - dbStartTime;
+      results.database = {
+        status: 'healthy',
+        msg: `Terhubung (${dbLatency}ms)`,
+      };
+    } catch (e) {
+      results.database = {
+        status: 'unhealthy',
+        msg: `Error: ${e.message || e}`,
+      };
+    }
+
+    // 2. Storage Check
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.AWS_BUCKET_NAME;
+    if (cloudName) {
+      results.storage = {
+        status: 'healthy',
+        msg: `Cloud Active - ${cloudName}`,
+      };
+    } else {
+      results.storage = {
+        status: 'healthy',
+        msg: 'Local Storage - Active',
+      };
+    }
+
+    // 3. Email Check
+    const cloudflareAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
+    if (cloudflareAccount) {
+      results.email = {
+        status: 'healthy',
+        msg: 'Cloudflare API Active',
+      };
+    } else {
+      results.email = {
+        status: 'unhealthy',
+        msg: 'Cloudflare credentials missing',
+      };
+    }
+
+    // 4. Payment Gateway Check
+    const midtransServerKey = process.env.MIDTRANS_SERVER_KEY;
+    if (midtransServerKey) {
+      results.payment = {
+        status: 'healthy',
+        msg: 'Midtrans API Ready',
+      };
+    } else {
+      results.payment = {
+        status: 'unhealthy',
+        msg: 'Midtrans server key missing',
+      };
+    }
+
+    return results;
+  }
+
+  async getDashboardStats() {
+    // 1. Get Category Distribution over all invitations in database
+    const rawCategories = await this.invitationRepo
+      .createQueryBuilder('inv')
+      .leftJoin('inv.templateDesign', 'templateDesign')
+      .leftJoin('templateDesign.category', 'category')
+      .select('category.name', 'category')
+      .addSelect('COUNT(inv.id)', 'count')
+      .groupBy('category.name')
+      .getRawMany();
+
+    const categoryStats = rawCategories.map((item) => ({
+      category: item.category || 'Lainnya',
+      count: Number(item.count) || 0,
+    }));
+
+    // 2. Get 7-Day Registration Trend for Invitations
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const rawTrend = await this.invitationRepo
+      .createQueryBuilder('inv')
+      .select("DATE_FORMAT(inv.createdAt, '%Y-%m-%d')", 'date')
+      .addSelect('COUNT(inv.id)', 'count')
+      .where('inv.createdAt >= :sevenDaysAgo', { sevenDaysAgo })
+      .groupBy('date')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    // Map last 7 days array with default 0 if missing
+    const trendStats: { date: string; dayLabel: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const found = rawTrend.find((item) => item.date === dateStr);
+      trendStats.push({
+        date: dateStr,
+        dayLabel: i === 0 ? 'Hari Ini' : i === 1 ? 'Kemarin' : `H-${i}`,
+        count: found ? Number(found.count) : 0,
+      });
+    }
+
+    return {
+      categories: categoryStats,
+      trend: trendStats,
+    };
   }
 }

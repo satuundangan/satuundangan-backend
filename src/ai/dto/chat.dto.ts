@@ -1,12 +1,21 @@
-import { IsArray, IsObject, IsOptional, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class MessageDto {
   @ApiProperty()
+  @IsIn(['user', 'assistant'])
   role: 'user' | 'assistant';
 
   @ApiProperty()
+  @IsString()
   content: string;
 }
 

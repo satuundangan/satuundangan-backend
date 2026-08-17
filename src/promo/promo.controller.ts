@@ -20,6 +20,23 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 @ApiTags('Promo')
 @Controller('promo')
 export class PromoController {
+
+  @Get('active-intent')
+  @ApiOperation({ summary: 'Get active exit intent promo' })
+  async getActiveIntent() {
+    const promo = await this.promoService.getActiveExitIntent();
+    if (!promo) return { success: true, data: null };
+    return {
+      success: true,
+      data: {
+        code: promo.code,
+        discount_type: promo.discountType,
+        discount_value: Number(promo.discountValue),
+        text: promo.exitIntentText
+      }
+    };
+  }
+
   constructor(private readonly promoService: PromoService) {}
 
   @Post('validate')
@@ -29,6 +46,7 @@ export class PromoController {
     const result = await this.promoService.validate(
       dto.code,
       dto.invitation_id,
+      dto.base_amount,
     );
 
     if (!result.valid) {

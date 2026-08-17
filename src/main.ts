@@ -2,7 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
-import { json, urlencoded } from 'express';
+import { json, urlencoded, static as expressStatic } from 'express';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -44,6 +45,9 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);
+
+  // Serve local uploads when R2 is not configured (dev fallback)
+  app.use('/uploads', expressStatic(join(process.cwd(), 'uploads')));
 
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }

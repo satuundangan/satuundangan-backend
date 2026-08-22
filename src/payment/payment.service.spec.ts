@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { Payment } from './payment.entity';
-import { Invitation } from '../invitation/invitation.entity';
+import { Invitation, InvitationPackage } from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
 import { PromoCode } from '../promo/promo-code.entity';
 import { PromoService } from '../promo/promo.service';
@@ -34,12 +34,16 @@ describe('PaymentService', () => {
     create: jest.fn(),
     save: jest.fn(),
     findOne: jest.fn(),
+    update: jest.fn(),
+    increment: jest.fn(),
   };
 
   const mockInvitationRepo = {
     findOne: jest.fn(),
     save: jest.fn(),
   };
+
+  const mockUserRepo = { increment: jest.fn(), findOne: jest.fn(), save: jest.fn() };
 
   const mockPromoService = {
     validate: jest.fn(),
@@ -52,20 +56,18 @@ describe('PaymentService', () => {
     creditCommission: jest.fn(),
   };
 
+  const mockManager = {
+    getRepository: jest.fn((entity) => {
+      if (entity === Payment) return mockPaymentRepo;
+      if (entity === Invitation) return mockInvitationRepo;
+      if (entity === User) return mockUserRepo;
+      throw new Error(`Unexpected entity in test manager: ${String(entity)}`);
+    }),
+  };
+
   const mockDataSource = {
-    getRepository: jest.fn().mockReturnValue({
-      findOne: jest.fn(),
-    }),
-    transaction: jest.fn().mockImplementation(async (cb) => {
-      const manager = {
-        getRepository: jest.fn().mockReturnValue({
-          save: jest.fn().mockResolvedValue({}),
-          findOne: jest.fn(),
-          update: jest.fn(),
-        }),
-      };
-      return cb(manager);
-    }),
+    getRepository: jest.fn().mockReturnValue({ findOne: jest.fn() }),
+    transaction: jest.fn().mockImplementation(async (cb) => cb(mockManager)),
   };
 
   const mockConfigService = {
@@ -88,7 +90,7 @@ describe('PaymentService', () => {
           provide: getRepositoryToken(Invitation),
           useValue: mockInvitationRepo,
         },
-        { provide: getRepositoryToken(User), useValue: {} },
+        { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: getRepositoryToken(PromoCode), useValue: {} },
         { provide: PromoService, useValue: mockPromoService },
         { provide: AffiliateService, useValue: mockAffiliateService },
@@ -130,6 +132,7 @@ describe('PaymentService', () => {
       const result = await service.createTransaction(
         invitationId,
         mockUser as any,
+        InvitationPackage.BASIC,
       );
 
       expect(mockCreateTransaction).toHaveBeenCalled();
@@ -167,7 +170,11 @@ describe('PaymentService', () => {
       mockPaymentRepo.create.mockReturnValue({ id: 9 });
       mockPaymentRepo.save.mockResolvedValue({ id: 9 });
 
-      await service.createTransaction(invitationId, mockUser as any);
+      await service.createTransaction(
+        invitationId,
+        mockUser as any,
+        InvitationPackage.BASIC,
+      );
 
       expect(mockCreateTransaction).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -177,7 +184,7 @@ describe('PaymentService', () => {
           },
           item_details: [
             expect.objectContaining({
-              name: expect.stringMatching(/^Undangan Digital putra & putri/),
+              name: expect.stringMatching(/^Undangan Basic putra & putri/),
             }),
           ],
         }),
@@ -203,31 +210,47 @@ describe('PaymentService', () => {
       mockPromoService.release.mockResolvedValue(undefined);
 
       await expect(
-        service.createTransaction(invitationId, mockUser as any),
+        service.createTransaction(
+          invitationId,
+          mockUser as any,
+          InvitationPackage.BASIC,
+        ),
       ).rejects.toThrow(BadGatewayException);
       await expect(
-        service.createTransaction(invitationId, mockUser as any),
+        service.createTransaction(
+          invitationId,
+          mockUser as any,
+          InvitationPackage.BASIC,
+        ),
       ).rejects.toThrow('Gagal membuat transaksi Midtrans: Validation failed');
     });
 
-    it('should activate free template without calling payment gateway', async () => {
+    it('should activate invitation without calling payment gateway when a promo brings the price to zero', async () => {
       const invitationId = 2;
       const mockUser = { id: 1, name: 'Test User', email: 'test@example.com' };
       const mockInvitation = {
         id: invitationId,
         title: 'Free Wedding',
         user: mockUser,
-        templateDesign: { price: 0 },
       };
 
       mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
       mockInvitationRepo.save.mockResolvedValue({});
       mockPaymentRepo.create.mockReturnValue({ id: 2 });
       mockPaymentRepo.save.mockResolvedValue({ id: 2 });
+      mockPromoService.validate.mockResolvedValue({
+        valid: true,
+        promoCode: { id: 1 },
+        discountAmount: 89000,
+        finalPrice: 0,
+      });
+      mockPromoService.tryReserve.mockResolvedValue(true);
 
       const result = await service.createTransaction(
         invitationId,
         mockUser as any,
+        InvitationPackage.BASIC,
+        'PROMO100',
       );
 
       expect(mockCreateTransaction).not.toHaveBeenCalled();

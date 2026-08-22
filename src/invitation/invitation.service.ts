@@ -475,6 +475,7 @@ export class InvitationService {
         quoteSource: invitation.quoteSource,
         quoteType: invitation.quoteType,
         quoteText: invitation.quoteText,
+        religion: invitation.religion ?? null,
         loveStory: invitation.loveStory as unknown,
         // Custom (uploaded) music only plays on tiers that allow it.
         musicChoice:

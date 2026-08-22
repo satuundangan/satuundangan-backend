@@ -260,22 +260,25 @@ describe('PaymentService', () => {
 
   describe('handleMidtransNotification', () => {
     it('should mark payment as SUCCESS on settlement', async () => {
+      const mockInvitation = { id: 1, isPublished: false };
       const mockPayment = {
         id: 1,
         orderId: 'INV-1-123',
         status: PaymentStatus.PENDING,
-        invitation: { isPublished: false },
+        invitationId: 1,
         paymentType: null,
         paymentMethod: null,
         fraudStatus: null,
         transactionId: null,
         settlementTime: null,
         affiliateProfileId: null,
+        package: null,
       };
 
       mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
       mockPaymentRepo.save.mockResolvedValue(mockPayment);
-      mockInvitationRepo.save.mockResolvedValue({});
+      mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
+      mockInvitationRepo.save.mockResolvedValue(mockInvitation);
 
       const grossAmount = '99000.00';
       const signature = createHash('sha512')
@@ -297,7 +300,7 @@ describe('PaymentService', () => {
       expect(mockPayment.paymentMethod).toBe('midtrans');
       expect(mockPayment.paymentType).toBe('bank_transfer');
       expect(mockPayment.transactionId).toBe('midtrans-tx-1');
-      expect(mockPayment.invitation.isPublished).toBe(true);
+      expect(mockInvitation.isPublished).toBe(true);
       expect(result.updatedStatus).toBe(PaymentStatus.SUCCESS);
     });
 
@@ -306,22 +309,25 @@ describe('PaymentService', () => {
       ['GoPay', 'gopay'],
       ['QRIS', 'qris'],
     ])('should mark %s settlement as SUCCESS', async (_label, paymentType) => {
+      const mockInvitation = { id: 10, isPublished: false };
       const mockPayment = {
         id: 10,
         orderId: `INV-${paymentType}-123`,
         status: PaymentStatus.PENDING,
-        invitation: { isPublished: false },
+        invitationId: 10,
         paymentType: null,
         paymentMethod: null,
         fraudStatus: null,
         transactionId: null,
         settlementTime: null,
         affiliateProfileId: null,
+        package: null,
       };
 
       mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
       mockPaymentRepo.save.mockResolvedValue(mockPayment);
-      mockInvitationRepo.save.mockResolvedValue({});
+      mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
+      mockInvitationRepo.save.mockResolvedValue(mockInvitation);
 
       const grossAmount = '79000.00';
       const signature = createHash('sha512')
@@ -344,7 +350,7 @@ describe('PaymentService', () => {
       expect(mockPayment.status).toBe(PaymentStatus.SUCCESS);
       expect(mockPayment.paymentMethod).toBe('midtrans');
       expect(mockPayment.paymentType).toBe(paymentType);
-      expect(mockPayment.invitation.isPublished).toBe(true);
+      expect(mockInvitation.isPublished).toBe(true);
       expect(result.updatedStatus).toBe(PaymentStatus.SUCCESS);
     });
 
@@ -393,6 +399,249 @@ describe('PaymentService', () => {
           transaction_status: 'settlement',
         }),
       ).rejects.toThrow('Invalid Midtrans signature');
+    });
+
+    it('rejects an invalid signature before any transaction is opened', async () => {
+      await expect(
+        service.handleMidtransNotification({
+          order_id: 'INV-99-1',
+          status_code: '200',
+          gross_amount: '89000.00',
+          signature_key: 'invalid',
+          transaction_status: 'settlement',
+        }),
+      ).rejects.toThrow('Invalid Midtrans signature');
+
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('locks the payment row inside the transaction for a settlement notification', async () => {
+      const mockPayment = {
+        id: 20,
+        orderId: 'INV-20-123',
+        status: PaymentStatus.PENDING,
+        invitationId: 20,
+        paymentType: null,
+        paymentMethod: null,
+        fraudStatus: null,
+        transactionId: null,
+        settlementTime: null,
+        affiliateProfileId: null,
+        package: null,
+      };
+
+      mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+      mockPaymentRepo.save.mockResolvedValue(mockPayment);
+      mockInvitationRepo.findOne.mockResolvedValue(null);
+
+      const grossAmount = '89000.00';
+      const signature = createHash('sha512')
+        .update(`INV-20-123200${grossAmount}mock-midtrans-server-key`)
+        .digest('hex');
+
+      await service.handleMidtransNotification({
+        order_id: 'INV-20-123',
+        status_code: '200',
+        gross_amount: grossAmount,
+        signature_key: signature,
+        transaction_status: 'settlement',
+        transaction_id: 'midtrans-tx-20',
+        payment_type: 'bank_transfer',
+      });
+
+      expect(mockDataSource.transaction).toHaveBeenCalled();
+      expect(mockPaymentRepo.findOne.mock.calls[0][0]).toEqual({
+        where: { orderId: 'INV-20-123' },
+        lock: { mode: 'pessimistic_write' },
+      });
+    });
+
+    it('does not downgrade a settled payment on a late expire notification', async () => {
+      const mockPayment = {
+        id: 21,
+        orderId: 'INV-21-123',
+        status: PaymentStatus.SUCCESS,
+        invitationId: 21,
+        paymentType: 'bank_transfer',
+        paymentMethod: 'midtrans',
+        fraudStatus: 'accept',
+        transactionId: 'midtrans-tx-21',
+        settlementTime: new Date('2026-01-01'),
+        affiliateProfileId: null,
+        promoCodeId: null,
+        package: null,
+      };
+
+      mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+
+      const grossAmount = '89000.00';
+      const signature = createHash('sha512')
+        .update(`INV-21-123200${grossAmount}mock-midtrans-server-key`)
+        .digest('hex');
+
+      const result = await service.handleMidtransNotification({
+        order_id: 'INV-21-123',
+        status_code: '200',
+        gross_amount: grossAmount,
+        signature_key: signature,
+        transaction_status: 'expire',
+      });
+
+      expect(result).toEqual({
+        orderId: 'INV-21-123',
+        updatedStatus: PaymentStatus.SUCCESS,
+      });
+      expect(mockPaymentRepo.save).not.toHaveBeenCalled();
+      expect(mockPromoService.release).not.toHaveBeenCalled();
+      expect(mockPayment.status).toBe(PaymentStatus.SUCCESS);
+    });
+
+    describe('ai_credits idempotency', () => {
+      it('does not double-credit on a duplicate settlement webhook', async () => {
+        const mockPayment = {
+          id: 30,
+          orderId: 'AI-CREDIT-5-10-123',
+          status: PaymentStatus.SUCCESS,
+          purpose: 'ai_credits',
+          userId: 5,
+          aiCreditsAmount: 10,
+          paymentType: 'bank_transfer',
+          paymentMethod: 'midtrans',
+          fraudStatus: 'accept',
+          transactionId: 'midtrans-tx-30',
+          settlementTime: new Date('2026-01-01'),
+          invitationId: null,
+          affiliateProfileId: null,
+        };
+
+        mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+        mockPaymentRepo.save.mockResolvedValue(mockPayment);
+
+        const grossAmount = '14000.00';
+        const signature = createHash('sha512')
+          .update(
+            `AI-CREDIT-5-10-123200${grossAmount}mock-midtrans-server-key`,
+          )
+          .digest('hex');
+
+        await service.handleMidtransNotification({
+          order_id: 'AI-CREDIT-5-10-123',
+          status_code: '200',
+          gross_amount: grossAmount,
+          signature_key: signature,
+          transaction_status: 'settlement',
+          transaction_id: 'midtrans-tx-30-dup',
+          payment_type: 'bank_transfer',
+        });
+
+        expect(mockUserRepo.increment).not.toHaveBeenCalled();
+      });
+
+      it('credits ai credits exactly once on a fresh settlement', async () => {
+        const mockPayment = {
+          id: 31,
+          orderId: 'AI-CREDIT-5-10-124',
+          status: PaymentStatus.PENDING,
+          purpose: 'ai_credits',
+          userId: 5,
+          aiCreditsAmount: 10,
+          paymentType: null,
+          paymentMethod: null,
+          fraudStatus: null,
+          transactionId: null,
+          settlementTime: null,
+          invitationId: null,
+          affiliateProfileId: null,
+        };
+
+        mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+        mockPaymentRepo.save.mockResolvedValue(mockPayment);
+
+        const grossAmount = '14000.00';
+        const signature = createHash('sha512')
+          .update(
+            `AI-CREDIT-5-10-124200${grossAmount}mock-midtrans-server-key`,
+          )
+          .digest('hex');
+
+        await service.handleMidtransNotification({
+          order_id: 'AI-CREDIT-5-10-124',
+          status_code: '200',
+          gross_amount: grossAmount,
+          signature_key: signature,
+          transaction_status: 'settlement',
+          transaction_id: 'midtrans-tx-31',
+          payment_type: 'bank_transfer',
+        });
+
+        expect(mockUserRepo.increment).toHaveBeenCalledTimes(1);
+        expect(mockUserRepo.increment).toHaveBeenCalledWith(
+          { id: 5 },
+          'aiCredits',
+          10,
+        );
+      });
+    });
+
+    it('throws NotFoundException with the standard message for an unknown orderId', async () => {
+      mockPaymentRepo.findOne.mockResolvedValue(null);
+
+      const grossAmount = '89000.00';
+      const signature = createHash('sha512')
+        .update(`INV-404-1200${grossAmount}mock-midtrans-server-key`)
+        .digest('hex');
+
+      await expect(
+        service.handleMidtransNotification({
+          order_id: 'INV-404-1',
+          status_code: '200',
+          gross_amount: grossAmount,
+          signature_key: signature,
+          transaction_status: 'settlement',
+        }),
+      ).rejects.toThrow('Payment with order_id INV-404-1 not found');
+    });
+
+    it('saves the payment before crediting the affiliate commission', async () => {
+      const mockPayment = {
+        id: 40,
+        orderId: 'INV-40-123',
+        status: PaymentStatus.PENDING,
+        invitationId: 40,
+        paymentType: null,
+        paymentMethod: null,
+        fraudStatus: null,
+        transactionId: null,
+        settlementTime: null,
+        affiliateProfileId: 7,
+        package: InvitationPackage.BASIC,
+      };
+
+      mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+      mockPaymentRepo.save.mockResolvedValue(mockPayment);
+      mockInvitationRepo.findOne.mockResolvedValue(null);
+      mockAffiliateService.creditCommission.mockResolvedValue(null);
+
+      const grossAmount = '89000.00';
+      const signature = createHash('sha512')
+        .update(`INV-40-123200${grossAmount}mock-midtrans-server-key`)
+        .digest('hex');
+
+      await service.handleMidtransNotification({
+        order_id: 'INV-40-123',
+        status_code: '200',
+        gross_amount: grossAmount,
+        signature_key: signature,
+        transaction_status: 'settlement',
+        transaction_id: 'midtrans-tx-40',
+        payment_type: 'bank_transfer',
+      });
+
+      expect(mockPaymentRepo.save).toHaveBeenCalled();
+      expect(mockAffiliateService.creditCommission).toHaveBeenCalled();
+      expect(mockPaymentRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
+        mockAffiliateService.creditCommission.mock.invocationCallOrder[0],
+      );
     });
   });
 });

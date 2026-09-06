@@ -320,103 +320,147 @@ export class PaymentService {
       throw new UnauthorizedException('Invalid Midtrans signature');
     }
 
-    const payment = await this.paymentRepo.findOne({
-      where: { orderId: payload.order_id },
-      relations: ['invitation'],
-    });
+    let result!: { orderId: string; updatedStatus: PaymentStatus | string };
+    let promoIdToRelease: number | null = null;
 
-    if (!payment) {
-      this.logger.warn(
-        `Midtrans notification payment not found orderId=${payload.order_id}`,
-      );
-      throw new NotFoundException(
-        `Payment with order_id ${payload.order_id} not found`,
-      );
-    }
+    await this.dataSource.transaction(async (manager) => {
+      const paymentRepo = manager.getRepository(Payment);
 
-    payment.transactionId =
-      payload.transaction_id ?? payment.transactionId ?? null;
-    payment.paymentMethod = 'midtrans';
-    payment.paymentType = payload.payment_type ?? payment.paymentType ?? null;
-    payment.fraudStatus = payload.fraud_status ?? null;
+      // Locked, fresh read. MySQL REPEATABLE READ would hand back a stale
+      // snapshot without this lock; the lock is what serializes concurrent
+      // webhook deliveries for the same order_id.
+      const payment = await paymentRepo.findOne({
+        where: { orderId: payload.order_id },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    const previousStatus = payment.status;
-    const mappedStatus = this.mapMidtransStatus(payload);
-    payment.status = mappedStatus;
-
-    if (mappedStatus === PaymentStatus.SUCCESS) {
-      const settlementAt =
-        payload.settlement_time || payload.transaction_time || null;
-      payment.settlementTime = settlementAt
-        ? new Date(settlementAt)
-        : new Date();
-
-      if (
-        payment.purpose === 'ai_credits' &&
-        payment.userId &&
-        payment.aiCreditsAmount
-      ) {
-        await this.dataSource.transaction(async (manager) => {
-          await manager.getRepository(Payment).save(payment);
-          await manager
-            .getRepository(User)
-            .increment(
-              { id: payment.userId! },
-              'aiCredits',
-              payment.aiCreditsAmount!,
-            );
-        });
-        this.logger.log(
-          `AI credits added from payment orderId=${payment.orderId} userId=${payment.userId} credits=${payment.aiCreditsAmount}`,
+      if (!payment) {
+        this.logger.warn(
+          `Midtrans notification payment not found orderId=${payload.order_id}`,
         );
-        return { orderId: payment.orderId, updatedStatus: payment.status };
+        throw new NotFoundException(
+          `Payment with order_id ${payload.order_id} not found`,
+        );
       }
 
-      // D-12: wrap invitation publish + payment save + commission credit in ONE transaction
-      await this.dataSource.transaction(async (manager) => {
-        if (payment.invitation) {
-          payment.invitation.isPublished = true;
-          if (payment.package) {
-            payment.invitation.package = payment.package;
+      const previousStatus = payment.status;
+      const mappedStatus = this.mapMidtransStatus(payload);
+
+      // Terminal-state guard: a settled payment is never downgraded by a
+      // late expire/cancel/deny. Only detectable because the read above is
+      // locked+fresh.
+      if (
+        previousStatus === PaymentStatus.SUCCESS &&
+        mappedStatus !== PaymentStatus.SUCCESS
+      ) {
+        this.logger.warn(
+          `Ignoring late ${payload.transaction_status} for settled payment orderId=${payment.orderId}`,
+        );
+        result = { orderId: payment.orderId, updatedStatus: previousStatus };
+        return; // no writes
+      }
+
+      payment.transactionId =
+        payload.transaction_id ?? payment.transactionId ?? null;
+      payment.paymentMethod = 'midtrans';
+      payment.paymentType =
+        payload.payment_type ?? payment.paymentType ?? null;
+      payment.fraudStatus = payload.fraud_status ?? null;
+      payment.status = mappedStatus;
+
+      if (mappedStatus === PaymentStatus.SUCCESS) {
+        const settlementAt =
+          payload.settlement_time || payload.transaction_time || null;
+        payment.settlementTime = settlementAt
+          ? new Date(settlementAt)
+          : new Date();
+
+        if (
+          payment.purpose === 'ai_credits' &&
+          payment.userId &&
+          payment.aiCreditsAmount
+        ) {
+          await paymentRepo.save(payment);
+          // previousStatus is the true committed status thanks to the
+          // lock — this is what stops a duplicate settlement webhook from
+          // double-crediting.
+          if (previousStatus !== PaymentStatus.SUCCESS) {
+            await manager
+              .getRepository(User)
+              .increment(
+                { id: payment.userId! },
+                'aiCredits',
+                payment.aiCreditsAmount!,
+              );
+            this.logger.log(
+              `AI credits added from payment orderId=${payment.orderId} userId=${payment.userId} credits=${payment.aiCreditsAmount}`,
+            );
           }
-          await manager.getRepository(Invitation).save(payment.invitation);
-          this.logger.log(
-            `Invitation published from payment orderId=${payment.orderId} invitationId=${payment.invitation.id} package=${payment.package ?? 'n/a'}`,
-          );
+          result = { orderId: payment.orderId, updatedStatus: payment.status };
+          return;
         }
-        await manager.getRepository(Payment).save(payment);
+
+        // D-12: invitation publish + payment save + commission credit stay
+        // in ONE transaction.
+        if (payment.invitationId) {
+          const invitation = await manager.getRepository(Invitation).findOne({
+            where: { id: payment.invitationId },
+          });
+          if (invitation) {
+            invitation.isPublished = true;
+            if (payment.package) {
+              invitation.package = payment.package;
+            }
+            await manager.getRepository(Invitation).save(invitation);
+            this.logger.log(
+              `Invitation published from payment orderId=${payment.orderId} invitationId=${invitation.id} package=${payment.package ?? 'n/a'}`,
+            );
+          }
+        }
+
+        // ORDER IS LOAD-BEARING: save BEFORE creditCommission.
+        // creditCommission writes commissionCredited=true via
+        // paymentRepo.update, which does not refresh this in-memory
+        // object; saving after would clobber it.
+        await paymentRepo.save(payment);
         if (payment.affiliateProfileId) {
           await this.affiliateService.creditCommission(payment.id, manager);
         }
-      });
 
+        this.logger.log(
+          `Payment status updated orderId=${payment.orderId} previousStatus=${previousStatus} newStatus=${payment.status}`,
+        );
+        result = { orderId: payment.orderId, updatedStatus: payment.status };
+        return;
+      }
+
+      if (
+        previousStatus === PaymentStatus.PENDING &&
+        [
+          PaymentStatus.EXPIRED,
+          PaymentStatus.FAILURE,
+          PaymentStatus.FAILED,
+        ].includes(mappedStatus) &&
+        payment.promoCodeId
+      ) {
+        promoIdToRelease = payment.promoCodeId; // released AFTER commit, see below
+      }
+
+      await paymentRepo.save(payment);
       this.logger.log(
         `Payment status updated orderId=${payment.orderId} previousStatus=${previousStatus} newStatus=${payment.status}`,
       );
-      return { orderId: payment.orderId, updatedStatus: payment.status };
-    }
+      result = { orderId: payment.orderId, updatedStatus: payment.status };
+    });
 
-    if (
-      previousStatus === PaymentStatus.PENDING &&
-      [
-        PaymentStatus.EXPIRED,
-        PaymentStatus.FAILURE,
-        PaymentStatus.FAILED,
-      ].includes(mappedStatus) &&
-      payment.promoCodeId
-    ) {
-      await this.promoService.release(payment.promoCodeId);
+    if (promoIdToRelease !== null) {
+      await this.promoService.release(promoIdToRelease);
       this.logger.log(
-        `Promo reservation released after payment ${mappedStatus} orderId=${payment.orderId} promoId=${payment.promoCodeId}`,
+        `Promo reservation released after payment failure promoId=${promoIdToRelease}`,
       );
     }
 
-    await this.paymentRepo.save(payment);
-    this.logger.log(
-      `Payment status updated orderId=${payment.orderId} previousStatus=${previousStatus} newStatus=${payment.status}`,
-    );
-
-    return { orderId: payment.orderId, updatedStatus: payment.status };
+    return result;
   }
 
   async createAiCreditTransaction(packageId: string, user: User) {

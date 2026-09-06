@@ -167,6 +167,9 @@ export class Invitation {
   @Column({ default: 'default' })
   quoteType: string;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  religion: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   dateTime: Date;
 

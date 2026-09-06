@@ -16,7 +16,10 @@ export class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 100 })
+  // UNIQUE is the DB-level backstop for the webhook lookup: handleMidtransNotification
+  // resolves a payment purely by orderId, so a duplicate row would make findOne
+  // silently ambiguous (TypeORM returns an arbitrary match).
+  @Column({ type: 'varchar', length: 100, unique: true })
   orderId: string;
 
   @Column({ type: 'varchar', length: 255 })

@@ -12,13 +12,13 @@ import { InvitationPackage } from '../invitation.entity';
 import { Type, Expose } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export enum QuoteSource {
+export enum Religion {
   ISLAM = 'islam',
-  KATOLIK = 'katolik',
   KRISTEN = 'kristen',
-  BUDHA = 'budha',
+  KATOLIK = 'katolik',
   HINDU = 'hindu',
-  BEBAS = 'bebas',
+  BUDHA = 'budha',
+  UMUM = 'umum',
 }
 
 // Nested DTO Classes
@@ -199,6 +199,11 @@ export class CreateInvitationDto {
   @IsOptional()
   @IsString()
   quoteText?: string;
+
+  @ApiPropertyOptional({ enum: Religion, example: 'islam' })
+  @IsOptional()
+  @IsEnum(Religion)
+  religion?: Religion;
 
   @ApiProperty({ type: [LoveStoryItem] })
   @IsArray()

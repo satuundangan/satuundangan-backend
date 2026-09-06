@@ -16,6 +16,7 @@ import { CategoryModule } from './category/category.module';
 import { PromoModule } from './promo/promo.module';
 import { AffiliateModule } from './affiliate/affiliate.module';
 import { AiModule } from './ai/ai.module';
+import { ArticleModule } from './article/article.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -50,6 +51,7 @@ import { AppService } from './app.service';
     PromoModule,
     AffiliateModule,
     AiModule,
+    ArticleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -22,7 +22,7 @@ INSERT INTO template_designs (
   'arabian-night',
   'dynamic-theme',
   'https://satuundangan.id/demo/arabian-night',
-  'https://satuundangan.id/assets/images/arabian-night/hero.svg',
+  'https://cdn.satuundangan.id/templates/arabian-night-cover.svg',
   1,
   @cat_exclusive,
   239000.00,

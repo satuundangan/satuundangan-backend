@@ -78,7 +78,7 @@ export class InvitationController {
   @Get('slug/:slug')
   @ApiTags('Invitation')
   @ApiOperation({ summary: 'Find an invitation by slug' })
-  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
+  @Header('Cache-Control', 'private, no-store')
   findBySlug(@Param('slug') slug: string) {
     return this.invitationService.findBySlug(slug);
   }
@@ -99,13 +99,13 @@ export class InvitationController {
   @Get('subdomain/:subdomain')
   @ApiTags('Invitation')
   @ApiOperation({ summary: 'Resolve a published invitation by subdomain' })
-  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
+  @Header('Cache-Control', 'private, no-store')
   findBySubdomain(@Param('subdomain') subdomain: string) {
     return this.invitationService.findBySubdomain(subdomain);
   }
 
   @Get('slug/:invitationSlug/guest/:guestSlug')
-  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30')
+  @Header('Cache-Control', 'private, no-store')
   async getInvitationWithGuest(
     @Param('invitationSlug') invitationSlug: string,
     @Param('guestSlug') guestSlug: string,

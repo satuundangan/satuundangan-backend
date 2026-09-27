@@ -354,6 +354,12 @@ export class InvitationService {
       throw new ForbiddenException('Undangan belum dipublikasikan');
     }
 
+    if (!invitation.isGuestPublic) {
+      throw new ForbiddenException(
+        'Undangan ini privat. Gunakan link undangan khusus dari pemilik.',
+      );
+    }
+
     // 3. Async Increment Views & Log Activity (Anonymous)
     void this.logActivity(invitation, null, ActivityAction.VIEW);
 
@@ -444,6 +450,12 @@ export class InvitationService {
         `Public invitation blocked unpublished subdomain=${normalized} invitationId=${invitation.id}`,
       );
       throw new ForbiddenException('Undangan belum dipublikasikan');
+    }
+
+    if (!invitation.isGuestPublic) {
+      throw new ForbiddenException(
+        'Undangan ini privat. Gunakan link undangan khusus dari pemilik.',
+      );
     }
 
     void this.logActivity(invitation, null, ActivityAction.VIEW);
@@ -540,7 +552,7 @@ export class InvitationService {
 
   async findWithGuest(invitationSlug: string, guestSlug: string) {
     this.logger.log(
-      `Guest invitation requested invitationSlug=${invitationSlug} guestSlug=${guestSlug}`,
+      `Guest invitation requested invitationSlug=${invitationSlug}`,
     );
     const invitation = await this.invitationRepo.findOne({
       where: { slug: invitationSlug },
@@ -556,7 +568,11 @@ export class InvitationService {
       throw new ForbiddenException('Undangan belum dipublikasikan');
     }
 
-    const guest = invitation.guests.find((g) => g.slug === guestSlug);
+    const guest = invitation.guests.find(
+      (g) =>
+        g.accessToken === guestSlug ||
+        (invitation.isGuestPublic && g.slug === guestSlug),
+    );
     if (!guest) throw new NotFoundException('Guest not found');
 
     // track first visit and increment visit count
@@ -570,7 +586,11 @@ export class InvitationService {
     // 4. Async Increment Views & Log Activity (Named Guest)
     void this.logActivity(invitation, guest.name, ActivityAction.VIEW);
 
-    return { invitation, guest, tracked: { updatedFirstVisit: needsUpdate } };
+    return {
+      invitation: this.buildInvitationResponse(invitation),
+      guest: { name: guest.name },
+      tracked: { updatedFirstVisit: needsUpdate },
+    };
   }
 
   // Helper for Logging

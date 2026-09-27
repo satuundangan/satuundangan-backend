@@ -26,6 +26,15 @@ export class Guest {
   @Column()
   slug: string;
 
+  @Column({
+    name: 'access_token',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+    unique: true,
+  })
+  accessToken: string | null;
+
   @Column({ nullable: true })
   group: string;
 

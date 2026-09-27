@@ -11,6 +11,7 @@ import { CreateGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
 import * as xlsx from 'xlsx';
 import * as fs from 'fs';
+import { randomBytes } from 'crypto';
 import { slugify } from 'transliteration';
 
 @Injectable()
@@ -43,6 +44,7 @@ export class GuestService {
       degree: dto.degree,
       phoneNumber: dto.phoneNumber,
       slug,
+      accessToken: this.createAccessToken(),
       group: dto.group,
       statusSend: dto.statusSend,
       rsvpStatus: dto.rsvpStatus ?? 'belum',
@@ -243,11 +245,12 @@ export class GuestService {
       relations: ['invitation'],
     });
     if (!guest) throw new NotFoundException('Guest not found');
+    await this.ensureAccessToken(guest);
     const base = process.env.FRONTEND_URL || 'https://satuundangan.id';
     const invitationSlug = guest.invitation?.slug;
     if (!invitationSlug) throw new NotFoundException('Invitation slug missing');
 
-    let url = `${base.replace(/\/$/, '')}/inv/${invitationSlug}/${guest.slug}`;
+    let url = `${base.replace(/\/$/, '')}/inv/${invitationSlug}/${guest.accessToken}`;
     if (guest.invitation.encryptedGuestName) {
       const encoded = Buffer.from(guest.name, 'utf-8').toString('base64');
       url += `?e=${encodeURIComponent(encoded)}`;
@@ -272,8 +275,10 @@ export class GuestService {
       );
     }
 
+    await this.ensureAccessToken(guest);
+
     const base = process.env.FRONTEND_URL || 'https://satuundangan.id';
-    let url = `${base.replace(/\/$/, '')}/inv/${guest.invitation.slug}/${guest.slug}`;
+    let url = `${base.replace(/\/$/, '')}/inv/${guest.invitation.slug}/${guest.accessToken}`;
 
     if (guest.invitation.encryptedGuestName) {
       const encoded = Buffer.from(guest.name, 'utf-8').toString('base64');
@@ -321,6 +326,16 @@ export class GuestService {
       message: `Tamu ${guest.name} berhasil Check-in`,
       check_in_time: guest.checkedInAt,
     };
+  }
+
+  private createAccessToken(): string {
+    return randomBytes(24).toString('base64url');
+  }
+
+  private async ensureAccessToken(guest: Guest): Promise<void> {
+    if (guest.accessToken) return;
+    guest.accessToken = this.createAccessToken();
+    await this.guestRepo.save(guest);
   }
 
   async findAllByInvitationWithMessages(

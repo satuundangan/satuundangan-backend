@@ -128,6 +128,9 @@ export class Invitation {
   @Column({ default: false })
   isPublished: boolean;
 
+  @Column({ default: true })
+  isGuestPublic: boolean;
+
   @Column({ nullable: true })
   quoteSource: string;
 

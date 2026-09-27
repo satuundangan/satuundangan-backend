@@ -185,6 +185,14 @@ export class CreateInvitationDto {
   @Expose({ name: 'is_published' })
   isPublished?: boolean;
 
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Allow anyone with the invitation link to view it.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isGuestPublic?: boolean;
+
   @ApiPropertyOptional({ example: 'QS. Ar-Rum: 21' })
   @IsOptional()
   @IsString()

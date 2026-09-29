@@ -126,4 +126,17 @@ export class GuestController {
   checkIn(@Param('id') id: number) {
     return this.guestService.checkIn(id);
   }
+
+  @Post('check-in-token')
+  checkInByToken(@Body('token') token: string, @Body() body?: any) {
+    return this.guestService.checkInByToken(token ?? body?.token ?? body?.accessToken ?? body);
+  }
+
+  @Get('invitation/:invitationId/check-in-summary')
+  getCheckInSummary(
+    @Param('invitationId') invitationId: number,
+    @CurrentUser() user: any,
+  ) {
+    return this.guestService.getCheckInSummary(invitationId, user.id);
+  }
 }

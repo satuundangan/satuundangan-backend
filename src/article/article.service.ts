@@ -129,16 +129,26 @@ export class ArticleService {
     return article;
   }
 
-  async findAllPublished(page: number = 1, limit: number = 20) {
+  async findAllPublished(page: number = 1, limit: number = 20, q?: string) {
     const skip = (page - 1) * limit;
 
-    const [items, total] = await this.articleRepository.findAndCount({
-      where: { status: 'published' },
-      order: { publishedAt: 'DESC' },
-      skip,
-      take: limit,
-      relations: ['author'],
-    });
+    const qb = this.articleRepository
+      .createQueryBuilder('article')
+      .leftJoinAndSelect('article.author', 'author')
+      .where("article.status = 'published'");
+
+    if (q && q.trim()) {
+      qb.andWhere(
+        '(article.title LIKE :q OR article.excerpt LIKE :q OR article.content LIKE :q)',
+        { q: `%${q.trim()}%` },
+      );
+    }
+
+    qb.orderBy('article.publishedAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
 
     return {
       items,

@@ -89,7 +89,11 @@ export class ArticleController {
 
   @Get('articles')
   findAllPublished(@Query() query: PaginationQueryDto) {
-    return this.articleService.findAllPublished(query.page, query.limit);
+    return this.articleService.findAllPublished(
+      query.page,
+      query.limit,
+      query.q,
+    );
   }
 
   @Get('articles/:slug')

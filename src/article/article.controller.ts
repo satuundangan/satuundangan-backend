@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ArticleService } from './article.service';
+import { ArticleBotService } from './article-bot.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,7 +23,27 @@ import { ApiTags } from '@nestjs/swagger';
 @ApiTags('Articles')
 @Controller()
 export class ArticleController {
-  constructor(private readonly articleService: ArticleService) {}
+  constructor(
+    private readonly articleService: ArticleService,
+    private readonly articleBotService: ArticleBotService,
+  ) {}
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Get('admin/articles/bot-status')
+  getBotStatus() {
+    return this.articleBotService.getStatus();
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Post('admin/articles/auto-generate')
+  autoGenerateArticle(
+    @Body() body: { topic?: string; status?: 'published' | 'draft' },
+  ) {
+    return this.articleBotService.generateAndPublishNextArticle(
+      body?.topic,
+      body?.status || 'published',
+    );
+  }
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Get('admin/articles')

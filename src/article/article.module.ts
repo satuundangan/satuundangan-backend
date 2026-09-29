@@ -6,10 +6,12 @@ import { ArticleController } from './article.controller';
 import { ArticleService } from './article.service';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
+import { ArticleBotService } from './article-bot.service';
+
 @Module({
   imports: [TypeOrmModule.forFeature([Article, User])],
   controllers: [ArticleController],
-  providers: [ArticleService, AdminGuard],
-  exports: [ArticleService],
+  providers: [ArticleService, ArticleBotService, AdminGuard],
+  exports: [ArticleService, ArticleBotService],
 })
 export class ArticleModule {}

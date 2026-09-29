@@ -11,6 +11,7 @@ When tackling tasks, you can delegate or assume the following specialized roles:
 - **`backend_engineer`**: Specialist in NestJS, TypeORM, MySQL, Midtrans payment gateway, Auth (Google OAuth, Turnstile, TOTP), and access tokens.
 - **`seo_strategist`**: Specialist in programmatic SEO, JSON-LD Schema markup, Indonesian wedding keyword clusters, dynamic OpenGraph, and Article CMS.
 - **`qa_tester`**: Specialist in Vitest, Jest, Playwright, Puppeteer, user journey verification, and build regression testing.
+- **`data_analyst`**: Specialist in growth metrics, Midtrans conversion funnels, template popularity rankings, guest RSVP analytics, viral loops, and churn reduction.
 
 ---
 

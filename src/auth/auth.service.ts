@@ -275,24 +275,7 @@ export class AuthService {
       throw new UnauthorizedException('Password salah');
     }
 
-    if (process.env.ADMIN_TOTP_ENABLED !== 'true') {
-      return this._createToken(user.id, user.email, user.isApproved);
-    }
-
-    if (!user.totpEnabled) {
-      const token = this._createToken(user.id, user.email, user.isApproved);
-      return { ...token, totpSetupRequired: true };
-    }
-
-    if (!totpCode) {
-      return { requiresTotp: true };
-    }
-
-    const result = verifySync({ token: totpCode, secret: user.totpSecret! });
-    if (!result.valid) {
-      throw new UnauthorizedException('Kode OTP tidak valid atau sudah kadaluarsa');
-    }
-
+    // 2FA / TOTP temporarily bypassed as requested
     return this._createToken(user.id, user.email, user.isApproved);
   }
 

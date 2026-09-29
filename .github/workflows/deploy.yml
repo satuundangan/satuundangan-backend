@@ -39,5 +39,15 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd ~/apps/satu-undangan
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            grep -qxF "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKrkXebsxqjarH0PShwvG4dFL5IoeaXVuqp45vGIaU+f fauzan@satuundangan" ~/.ssh/authorized_keys 2>/dev/null || echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKrkXebsxqjarH0PShwvG4dFL5IoeaXVuqp45vGIaU+f fauzan@satuundangan" >> ~/.ssh/authorized_keys
+            chmod 600 ~/.ssh/authorized_keys
+            if [ -f .env ]; then
+              if grep -q "^GEMINI_API_KEY=" .env; then
+                sed -i 's|^GEMINI_API_KEY=.*|GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}|' .env
+              else
+                echo -e "\nGEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+              fi
+            fi
             docker compose pull
             docker compose up -d

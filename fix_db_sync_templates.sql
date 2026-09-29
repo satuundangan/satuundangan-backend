@@ -10,9 +10,9 @@ INSERT IGNORE INTO `master_sections` (`id`, `label`, `key`, `is_active`) VALUES
 ('s0000000-0000-4000-8000-000000000014', 'Dress Code', 'dress-code', 1);
 
 -- 2. UPDATE HARGA & KATEGORI TEMPLATE LAMA (ID 1-7)
-UPDATE `template_designs` SET `price` = 79000.00 WHERE `id` IN (1, 2);
-UPDATE `template_designs` SET `price` = 129000.00 WHERE `id` IN (3, 4, 5);
-UPDATE `template_designs` SET `price` = 149000.00 WHERE `id` IN (6, 7);
+UPDATE `template_designs` SET `price` = 49000.00 WHERE `id` IN (1, 2);
+UPDATE `template_designs` SET `price` = 79000.00 WHERE `id` IN (3, 4, 5);
+UPDATE `template_designs` SET `price` = 99000.00 WHERE `id` IN (6, 7);
 
 -- 3. TAMBAHKAN PALETTE COLORS UNTUK 4 TEMPLATE BARU (ID 9-12)
 SET @pal_retro = 'p0000000-0000-4000-8000-000000000010';
@@ -28,10 +28,10 @@ INSERT IGNORE INTO `master_palette_colors` (`id`, `name`, `primary`, `secondary`
 
 -- 4. TAMBAHKAN 4 TEMPLATE BARU (ID 9-12)
 INSERT IGNORE INTO `template_designs` (`id`, `name`, `slug`, `previewUrl`, `description`, `tags`, `price`, `categoryId`, `isPublished`, `paletteId`) VALUES
-(9, 'Retro Nostalgia', 'retro-nostalgia', 'https://satuundangan.id/demo/retro-nostalgia', 'Classic scrapbook and polaroid style', '["retro","vintage","scrapbook","Rustic"]', 129000.00, 'c0000000-0000-4000-8000-000000000002', 1, @pal_retro),
-(10, 'Modern Noir', 'modern-noir', 'https://satuundangan.id/demo/modern-noir', 'Cinematic high-contrast dark elegant style', '["noir","dark","cinematic","Minimalis"]', 149000.00, 'c0000000-0000-4000-8000-000000000003', 1, @pal_modern_noir),
-(11, 'Azure Shores', 'azure-shores', 'https://satuundangan.id/demo/azure-shores', 'Mediterranean beach and summer vibes', '["beach","blue","summer"]', 149000.00, 'c0000000-0000-4000-8000-000000000003', 1, @pal_azure),
-(12, 'Cyberpunk Neon', 'cyberpunk-neon', 'https://satuundangan.id/demo/cyberpunk-neon', 'Futuristic neon and tech-savvy design', '["cyberpunk","neon","future"]', 149000.00, 'c0000000-0000-4000-8000-000000000003', 1, @pal_cyberpunk);
+(9, 'Retro Nostalgia', 'retro-nostalgia', 'https://satuundangan.id/demo/retro-nostalgia', 'Classic scrapbook and polaroid style', '["retro","vintage","scrapbook","Rustic"]', 79000.00, 'c0000000-0000-4000-8000-000000000002', 1, @pal_retro),
+(10, 'Modern Noir', 'modern-noir', 'https://satuundangan.id/demo/modern-noir', 'Cinematic high-contrast dark elegant style', '["noir","dark","cinematic","Minimalis"]', 99000.00, 'c0000000-0000-4000-8000-000000000003', 1, @pal_modern_noir),
+(11, 'Azure Shores', 'azure-shores', 'https://satuundangan.id/demo/azure-shores', 'Mediterranean beach and summer vibes', '["beach","blue","summer"]', 99000.00, 'c0000000-0000-4000-8000-000000000003', 1, @pal_azure),
+(12, 'Cyberpunk Neon', 'cyberpunk-neon', 'https://satuundangan.id/demo/cyberpunk-neon', 'Futuristic neon and tech-savvy design', '["cyberpunk","neon","future"]', 99000.00, 'c0000000-0000-4000-8000-000000000003', 1, @pal_cyberpunk);
 
 -- Update paletteId untuk template baru jika row sudah ada sebelumnya
 UPDATE `template_designs` SET `paletteId` = @pal_retro WHERE `id` = 9;

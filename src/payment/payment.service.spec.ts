@@ -241,7 +241,7 @@ describe('PaymentService', () => {
       mockPromoService.validate.mockResolvedValue({
         valid: true,
         promoCode: { id: 1 },
-        discountAmount: 89000,
+        discountAmount: 49000,
         finalPrice: 0,
       });
       mockPromoService.tryReserve.mockResolvedValue(true);
@@ -406,7 +406,7 @@ describe('PaymentService', () => {
         service.handleMidtransNotification({
           order_id: 'INV-99-1',
           status_code: '200',
-          gross_amount: '89000.00',
+          gross_amount: '49000.00',
           signature_key: 'invalid',
           transaction_status: 'settlement',
         }),
@@ -434,7 +434,7 @@ describe('PaymentService', () => {
       mockPaymentRepo.save.mockResolvedValue(mockPayment);
       mockInvitationRepo.findOne.mockResolvedValue(null);
 
-      const grossAmount = '89000.00';
+      const grossAmount = '49000.00';
       const signature = createHash('sha512')
         .update(`INV-20-123200${grossAmount}mock-midtrans-server-key`)
         .digest('hex');
@@ -474,7 +474,7 @@ describe('PaymentService', () => {
 
       mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
 
-      const grossAmount = '89000.00';
+      const grossAmount = '49000.00';
       const signature = createHash('sha512')
         .update(`INV-21-123200${grossAmount}mock-midtrans-server-key`)
         .digest('hex');
@@ -586,7 +586,7 @@ describe('PaymentService', () => {
     it('throws NotFoundException with the standard message for an unknown orderId', async () => {
       mockPaymentRepo.findOne.mockResolvedValue(null);
 
-      const grossAmount = '89000.00';
+      const grossAmount = '49000.00';
       const signature = createHash('sha512')
         .update(`INV-404-1200${grossAmount}mock-midtrans-server-key`)
         .digest('hex');
@@ -622,7 +622,7 @@ describe('PaymentService', () => {
       mockInvitationRepo.findOne.mockResolvedValue(null);
       mockAffiliateService.creditCommission.mockResolvedValue(null);
 
-      const grossAmount = '89000.00';
+      const grossAmount = '49000.00';
       const signature = createHash('sha512')
         .update(`INV-40-123200${grossAmount}mock-midtrans-server-key`)
         .digest('hex');

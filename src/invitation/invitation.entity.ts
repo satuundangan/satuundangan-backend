@@ -40,9 +40,9 @@ export enum InvitationPackage {
 
 // Tier prices (IDR). Source of truth for checkout — not template price.
 export const PACKAGE_PRICES: Record<InvitationPackage, number> = {
-  [InvitationPackage.BASIC]: 89000,
-  [InvitationPackage.PREMIUM]: 179000,
-  [InvitationPackage.EKSKLUSIF]: 239000,
+  [InvitationPackage.BASIC]: 49000,
+  [InvitationPackage.PREMIUM]: 79000,
+  [InvitationPackage.EKSKLUSIF]: 99000,
 };
 
 export const PACKAGE_LABELS: Record<InvitationPackage, string> = {
@@ -67,14 +67,6 @@ export interface PackageFeatures {
 
 export const PACKAGE_FEATURES: Record<InvitationPackage, PackageFeatures> = {
   [InvitationPackage.BASIC]: {
-    gallery: false,
-    galleryLimit: 0,
-    customMusic: false,
-    watermark: true,
-    whatsapp: false,
-    subdomain: false,
-  },
-  [InvitationPackage.PREMIUM]: {
     gallery: true,
     galleryLimit: 8,
     customMusic: true,
@@ -82,9 +74,17 @@ export const PACKAGE_FEATURES: Record<InvitationPackage, PackageFeatures> = {
     whatsapp: true,
     subdomain: false,
   },
-  [InvitationPackage.EKSKLUSIF]: {
+  [InvitationPackage.PREMIUM]: {
     gallery: true,
     galleryLimit: 20,
+    customMusic: true,
+    watermark: false,
+    whatsapp: true,
+    subdomain: true,
+  },
+  [InvitationPackage.EKSKLUSIF]: {
+    gallery: true,
+    galleryLimit: 35,
     customMusic: true,
     watermark: false,
     whatsapp: true,

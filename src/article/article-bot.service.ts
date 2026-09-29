@@ -255,8 +255,14 @@ Balas HANYA dalam format JSON valid dengan struktur:
   ]
 }`;
 
-    // Try Gemini 2.5 Flash first, then fallback to Gemini 1.5 Flash
-    const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+    // Try modern Gemini Flash models (3.8-flash, 3.5-flash, flash-latest)
+    const models = [
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+    ];
     let lastError: any = null;
 
     for (const model of models) {

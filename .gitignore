@@ -57,3 +57,9 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.code-workspace
+
+# Local uploads & tools
+/uploads
+/.claude
+list_s3.js
+

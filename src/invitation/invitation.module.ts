@@ -7,6 +7,7 @@ import { InvitationController } from './invitation.controller';
 import { InvitationActivity } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { User } from '../user/user.entity';
+import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { User } from '../user/user.entity';
       InvitationActivity,
       TemplateDesign,
       User,
+      AffiliateProfile,
     ]),
   ],
   providers: [InvitationService],

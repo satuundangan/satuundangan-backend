@@ -94,7 +94,15 @@ export class PaymentService {
 
     let affiliateProfileId: number | null = null;
     if (affiliateCode && affiliateCode.trim()) {
-      throw new BadRequestException('Kode afiliasi sedang tidak tersedia');
+      const affiliateRes = await this.affiliateService.validateAffiliateCode(
+        affiliateCode.trim(),
+      );
+      if (!affiliateRes.valid) {
+        throw new BadRequestException(
+          affiliateRes.message || 'Kode afiliasi tidak valid',
+        );
+      }
+      affiliateProfileId = affiliateRes.affiliateProfileId ?? null;
     }
 
     const existingPendingPayment = await this.paymentRepo.findOne({

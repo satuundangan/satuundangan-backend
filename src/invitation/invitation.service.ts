@@ -24,6 +24,7 @@ import {
   InvitationActivity,
 } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
+import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
 import {
   normalizeSubdomain,
   validateSubdomainFormat,
@@ -46,6 +47,8 @@ export class InvitationService {
     private readonly templateRepo: Repository<TemplateDesign>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(AffiliateProfile)
+    private readonly affiliateProfileRepo: Repository<AffiliateProfile>,
   ) {}
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
@@ -319,6 +322,19 @@ export class InvitationService {
     await this.invitationRepo.remove(invitation);
   }
 
+  private async getReferralCodeForUser(userId?: number): Promise<string | null> {
+    if (!userId) return null;
+    try {
+      const profile = await this.affiliateProfileRepo.findOne({
+        where: { userId },
+        select: ['affiliateCode'],
+      });
+      return profile?.affiliateCode || null;
+    } catch {
+      return null;
+    }
+  }
+
   async findBySlugForOwner(slug: string, userId: number): Promise<any> {
     const invitation = await this.invitationRepo.findOne({
       where: { slug },
@@ -333,7 +349,8 @@ export class InvitationService {
       throw new ForbiddenException('You are not the owner of this invitation');
     }
 
-    return this.buildInvitationResponse(invitation);
+    const referralCode = await this.getReferralCodeForUser(invitation.user?.id);
+    return this.buildInvitationResponse(invitation, referralCode);
   }
 
   async findBySlug(slug: string): Promise<any> {
@@ -363,7 +380,8 @@ export class InvitationService {
     // 3. Async Increment Views & Log Activity (Anonymous)
     void this.logActivity(invitation, null, ActivityAction.VIEW);
 
-    return this.buildInvitationResponse(invitation);
+    const referralCode = await this.getReferralCodeForUser(invitation.user?.id);
+    return this.buildInvitationResponse(invitation, referralCode);
   }
 
   // Custom subdomain is a tier-Eksklusif feature. Reject other tiers.
@@ -460,10 +478,14 @@ export class InvitationService {
 
     void this.logActivity(invitation, null, ActivityAction.VIEW);
 
-    return this.buildInvitationResponse(invitation);
+    const referralCode = await this.getReferralCodeForUser(invitation.user?.id);
+    return this.buildInvitationResponse(invitation, referralCode);
   }
 
-  private buildInvitationResponse(invitation: Invitation): any {
+  private buildInvitationResponse(
+    invitation: Invitation,
+    referralCode?: string | null,
+  ): any {
     // Read-path gating is the authoritative backstop: features are served
     // per the invitation's paid tier, regardless of what got stored while
     // editing (package is only locked at payment settlement).
@@ -477,7 +499,11 @@ export class InvitationService {
       package: invitation.package,
       template_slug: invitation.templateDesign?.slug || null,
       price: Number(invitation.templateDesign?.price || 0),
+      referral_code: referralCode || null,
+      referralCode: referralCode || null,
       content: {
+        referral_code: referralCode || null,
+        referralCode: referralCode || null,
         templateDesignId: invitation.templateDesignId,
         templateName: invitation.templateName,
         templatePrice: Number(invitation.templateDesign?.price || 0),
@@ -586,8 +612,9 @@ export class InvitationService {
     // 4. Async Increment Views & Log Activity (Named Guest)
     void this.logActivity(invitation, guest.name, ActivityAction.VIEW);
 
+    const referralCode = await this.getReferralCodeForUser(invitation.user?.id);
     return {
-      invitation: this.buildInvitationResponse(invitation),
+      invitation: this.buildInvitationResponse(invitation, referralCode),
       guest: { name: guest.name },
       tracked: { updatedFirstVisit: needsUpdate },
     };

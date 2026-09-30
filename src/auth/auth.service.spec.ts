@@ -1,3 +1,9 @@
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn(() => 'TESTSECRET'),
+  generateURI: jest.fn(() => 'otpauth://totp/test'),
+  verifySync: jest.fn(() => true),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { getRepositoryToken } from '@nestjs/typeorm';

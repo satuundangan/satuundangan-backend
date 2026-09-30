@@ -6,6 +6,7 @@ import { Guest } from '../dashboard-user/guest/guest.entity';
 import { InvitationActivity } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { User } from '../user/user.entity';
+import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
 
 describe('InvitationService', () => {
   let service: InvitationService;
@@ -26,6 +27,7 @@ describe('InvitationService', () => {
         { provide: getRepositoryToken(InvitationActivity), useValue: mockRepo },
         { provide: getRepositoryToken(TemplateDesign), useValue: mockRepo },
         { provide: getRepositoryToken(User), useValue: mockRepo },
+        { provide: getRepositoryToken(AffiliateProfile), useValue: mockRepo },
       ],
     }).compile();
 

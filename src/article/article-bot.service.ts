@@ -14,39 +14,39 @@ export const WEDDING_KEYWORDS_BANK = [
   {
     keyword: 'contoh kata mutiara undangan pernikahan kristen ayat alkitab',
     category: 'teks-undangan',
-    defaultCover: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1561345806-a2a89814df7a?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'teks undangan pernikahan islami sesuai sunnah walimatul ursy',
     category: 'teks-undangan',
-    defaultCover: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1653137790376-8f7f92afe14e?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'ayat alquran untuk undangan pernikahan ar rum 21 arab latin',
     category: 'teks-undangan',
-    defaultCover: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1665306376180-3349308d5a38?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'contoh penulisan turut mengundang pada undangan pernikahan yang sopan',
     category: 'teks-undangan',
-    defaultCover: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1647470224844-054e5023ebf9?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'contoh teks undangan pernikahan katolik doa dan sakramen perkawinan',
     category: 'teks-undangan',
-    defaultCover: 'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1769374072596-cec462031154?auto=format&fit=crop&w=1200&q=80',
   },
 
   // Cluster 2: Rundown Acara & Panitia
   {
     keyword: 'susunan panitia pernikahan keluarga checklist dan pembagian tugas lengkap',
     category: 'rundown-panitia',
-    defaultCover: 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1759661937582-0ccd5dacf20f?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'rundown acara akad nikah dan resepsi 2 jam sederhana khidmat',
     category: 'rundown-panitia',
-    defaultCover: 'https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1677768061409-3d4fbd0250d1?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'teks mc pernikahan formal akad dan resepsi bahasa indonesia modern',
@@ -68,14 +68,14 @@ export const WEDDING_KEYWORDS_BANK = [
   {
     keyword: 'cara menghemat budget cetak undangan dengan undangan pernikahan digital',
     category: 'budget',
-    defaultCover: 'https://images.unsplash.com/photo-1537633552985-df8429e8048b?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1737749685390-0959c05aecbb?auto=format&fit=crop&w=1200&q=80',
   },
 
   // Cluster 4: Tips Undangan Digital & Musik
   {
     keyword: 'keuntungan undangan pernikahan digital website dibanding undangan fisik',
     category: 'undangan-digital',
-    defaultCover: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1555774698-0b77e0d5fac6?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'daftar lagu romantis pernikahan pengiring undangan digital terpopuler',
@@ -92,19 +92,64 @@ export const WEDDING_KEYWORDS_BANK = [
   {
     keyword: 'urutan prosesi pernikahan adat jawa panggih midodareni siraman',
     category: 'adat',
-    defaultCover: 'https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1551843326-629cf58c42a5?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'tahapan prosesi pernikahan adat sunda ngeuyeuk seureuh sungkeman lengkap',
     category: 'adat',
-    defaultCover: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1610425303802-f09737e52e28?auto=format&fit=crop&w=1200&q=80',
   },
   {
     keyword: 'ide tema undangan pernikahan anime jepang unik aesthetic keren',
     category: 'tema',
-    defaultCover: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1200&q=80',
+    defaultCover: 'https://images.unsplash.com/photo-1519882189396-71f93cb4714b?auto=format&fit=crop&w=1200&q=80',
   },
 ];
+
+
+export function resolveContextualCover(text: string, fallback?: string): string {
+  const lower = (text || '').toLowerCase();
+  if (lower.includes('kristen') || lower.includes('alkitab') || lower.includes('gereja') || lower.includes('matrimony')) {
+    return 'https://images.unsplash.com/photo-1561345806-a2a89814df7a?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('katolik') || lower.includes('sakramen')) {
+    return 'https://images.unsplash.com/photo-1769374072596-cec462031154?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('quran') || lower.includes('ar rum') || lower.includes('ayat')) {
+    return 'https://images.unsplash.com/photo-1665306376180-3349308d5a38?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('islami') || lower.includes('sunnah') || lower.includes('walimatul') || lower.includes('akad')) {
+    return 'https://images.unsplash.com/photo-1653137790376-8f7f92afe14e?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('turut mengundang') || lower.includes('teks undangan') || lower.includes('kata mutiara')) {
+    return 'https://images.unsplash.com/photo-1647470224844-054e5023ebf9?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('panitia') || lower.includes('checklist') || lower.includes('tugas')) {
+    return 'https://images.unsplash.com/photo-1759661937582-0ccd5dacf20f?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('rundown') || lower.includes('susunan acara') || lower.includes('resepsi') || lower.includes('mc')) {
+    return 'https://images.unsplash.com/photo-1677768061409-3d4fbd0250d1?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('budget') || lower.includes('biaya') || lower.includes('hemat') || lower.includes('seserahan')) {
+    return 'https://images.unsplash.com/photo-1559599101-f09722fb4948?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('jawa') || lower.includes('panggih') || lower.includes('siraman')) {
+    return 'https://images.unsplash.com/photo-1551843326-629cf58c42a5?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('sunda') || lower.includes('siger')) {
+    return 'https://images.unsplash.com/photo-1610425303802-f09737e52e28?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('anime') || lower.includes('jepang')) {
+    return 'https://images.unsplash.com/photo-1519882189396-71f93cb4714b?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('lagu') || lower.includes('musik')) {
+    return 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80';
+  }
+  if (lower.includes('digital') || lower.includes('online') || lower.includes('website')) {
+    return 'https://images.unsplash.com/photo-1737749685390-0959c05aecbb?auto=format&fit=crop&w=1200&q=80';
+  }
+  return fallback || 'https://images.unsplash.com/photo-1737749685390-0959c05aecbb?auto=format&fit=crop&w=1200&q=80';
+}
 
 @Injectable()
 export class ArticleBotService {
@@ -191,7 +236,7 @@ export class ArticleBotService {
       ? {
           keyword: customTopic,
           category: 'pernikahan',
-          defaultCover: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80',
+          defaultCover: resolveContextualCover(customTopic),
         }
       : await this.getNextUnpublishedKeyword();
 
@@ -202,6 +247,12 @@ export class ArticleBotService {
     // Ensure CTA Box is present for maximum conversion to SatuUndangan
     const contentWithCTA = this.ensureCtaAndBranding(generated.content);
 
+    // Resolve contextually accurate cover image
+    const finalCover = resolveContextualCover(
+      `${generated.title} ${topicItem.keyword}`,
+      topicItem.defaultCover,
+    );
+
     // Save article to database
     const newArticle = await this.articleService.create(
       {
@@ -209,7 +260,7 @@ export class ArticleBotService {
         slug: generated.slug || slugify(generated.title, { lower: true, strict: true }),
         content: contentWithCTA,
         excerpt: generated.excerpt,
-        coverImage: generated.coverImage || topicItem.defaultCover,
+        coverImage: finalCover,
         metaTitle: generated.metaTitle || generated.title,
         metaDescription: generated.metaDescription || generated.excerpt,
         focusKeyword: generated.focusKeyword || topicItem.keyword,
@@ -255,18 +306,15 @@ Balas HANYA dalam format JSON valid dengan struktur:
   ]
 }`;
 
-    // User preference: Prioritaskan model kecil / lite terlebih dahulu
+    // Prioritize fast and cost-effective flash models first
     const models = [
-      'gemini-3.5-flash-lite',
-      'gemini-3.1-flash-lite',
-      'gemini-flash-lite-latest',
-      'gemini-2.5-flash-lite',
-      'gemini-3.8-flash',
-      'gemini-3.7-flash',
-      'gemini-3.6-flash',
-      'gemini-3.5-flash',
-      'gemini-flash-latest',
-      'gemini-3-flash-preview',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
+      'gemini-2.5-pro',
+      'gemini-1.5-pro',
     ];
     let lastError: any = null;
 

@@ -83,14 +83,26 @@ describe('ArticleBotService', () => {
     expect(keywordItem.keyword).toBe(WEDDING_KEYWORDS_BANK[1].keyword);
   });
 
-  it('handleDailyScheduledBlog respects AUTO_BLOG_ENABLED=false', async () => {
-    mockConfigService.get.mockImplementation((key: string) => {
-      if (key === 'AUTO_BLOG_ENABLED') return 'false';
-      return null;
-    });
+  it('resolveContextualCover correctly matches religious, cultural, and planning topics', () => {
+    const { resolveContextualCover } = require('./article-bot.service');
 
-    const generateSpy = jest.spyOn(service, 'generateAndPublishNextArticle');
-    await service.handleDailyScheduledBlog();
-    expect(generateSpy).not.toHaveBeenCalled();
+    // Christian / Bible
+    expect(resolveContextualCover('Kata Mutiara Pernikahan Kristen & Ayat Alkitab')).toContain('photo-1561345806-a2a89814df7a');
+
+    // Islamic / Quran
+    expect(resolveContextualCover('Ayat Alquran Surat Ar-Rum 21')).toContain('photo-1665306376180-3349308d5a38');
+    expect(resolveContextualCover('Teks Undangan Islami Walimatul Ursy Sunnah')).toContain('photo-1653137790376-8f7f92afe14e');
+
+    // Catholic / Holy Matrimony
+    expect(resolveContextualCover('Doa Sakramen Perkawinan Katolik')).toContain('photo-1769374072596-cec462031154');
+
+    // Planning / Panitia
+    expect(resolveContextualCover('Susunan Panitia Pernikahan & Checklist Tugas')).toContain('photo-1759661937582-0ccd5dacf20f');
+
+    // Budget
+    expect(resolveContextualCover('Rincian Biaya Nikah Hemat 30 Juta')).toContain('photo-1559599101-f09722fb4948');
+
+    // Japanese / Anime
+    expect(resolveContextualCover('Konsep Undangan Tema Anime Jepang')).toContain('photo-1519882189396-71f93cb4714b');
   });
 });

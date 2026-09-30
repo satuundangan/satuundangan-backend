@@ -1,14 +1,75 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TemplateDesign } from './template-design.entity';
+import { Category } from '../category/category.entity';
 
 @Injectable()
-export class TemplateDesignService {
+export class TemplateDesignService implements OnModuleInit {
   constructor(
     @InjectRepository(TemplateDesign)
     private readonly templateRepo: Repository<TemplateDesign>,
+    @InjectRepository(Category)
+    private readonly categoryRepo: Repository<Category>,
   ) {}
+
+  async onModuleInit() {
+    await this.seedMissingTemplatesAndSyncTaxonomy();
+  }
+
+  async seedMissingTemplatesAndSyncTaxonomy() {
+    try {
+      const premiumCat = await this.categoryRepo.findOne({ where: { name: 'Premium' } });
+      const exclusiveCat = await this.categoryRepo.findOne({ where: { name: 'Exclusive' } });
+
+      const missingTemplates = [
+        {
+          slug: 'meowly-married',
+          name: 'Meowly Married',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Bold & Unik',
+          description: 'Tema ceria dan menggemaskan untuk pasangan pecinta kucing',
+          tags: JSON.stringify(['kucing', 'cat', 'cute', 'pet lovers', 'playful']),
+          previewUrl: 'https://satuundangan.id/demo/meowly-married',
+          thumbnailUrl: 'https://cdn.satuundangan.id/templates/meowly-married.jpg',
+          paletteColors: ['#FFB5A7', '#FCD5CE', '#F8EDEB'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          isPublished: true,
+        },
+        {
+          slug: 'pixel-quest',
+          name: 'Pixel Quest',
+          category: exclusiveCat,
+          price: 99000,
+          filterGroup: 'Anime & Pop Culture',
+          description: 'Tema retro game 8-bit RPG petualangan cinta sejati',
+          tags: JSON.stringify(['pixel', 'retro', 'gaming', 'rpg', '8-bit', 'arcade']),
+          previewUrl: 'https://satuundangan.id/demo/pixel-quest',
+          thumbnailUrl: 'https://cdn.satuundangan.id/templates/pixel-quest.jpg',
+          paletteColors: ['#3B82F6', '#10B981', '#F59E0B'],
+          defaultMusic: 'wedding-retro-adventure.mp3',
+          isPublished: true,
+        },
+      ];
+
+      for (const tpl of missingTemplates) {
+        const existing = await this.templateRepo.findOne({ where: { slug: tpl.slug } });
+        if (!existing) {
+          const created = this.templateRepo.create(tpl as any);
+          await this.templateRepo.save(created);
+        }
+      }
+
+      // Re-align taxonomy so every filter group has 3+ templates (e.g. Modern Noir in Minimalis & Modern)
+      const modernNoir = await this.templateRepo.findOne({ where: { slug: 'modern-noir' } });
+      if (modernNoir && modernNoir.filterGroup !== 'Minimalis & Modern') {
+        await this.templateRepo.update(modernNoir.id, { filterGroup: 'Minimalis & Modern' });
+      }
+    } catch (err: any) {
+      console.warn('Template taxonomy auto-sync warning:', err?.message || err);
+    }
+  }
 
   async create(data: Partial<TemplateDesign>): Promise<TemplateDesign> {
     if (typeof data.sectionOptions === 'object') {

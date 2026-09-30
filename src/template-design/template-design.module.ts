@@ -7,9 +7,11 @@ import { TemplateDesignController } from './template-design.controller';
 import { User } from '../user/user.entity';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
+import { Category } from '../category/category.entity';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TemplateDesign, TemplateDesignSection, User]),
+    TypeOrmModule.forFeature([TemplateDesign, TemplateDesignSection, User, Category]),
   ],
   controllers: [TemplateDesignController],
   providers: [TemplateDesignService, AdminGuard],

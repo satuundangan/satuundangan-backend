@@ -29,6 +29,10 @@ describe('TemplateDesignService', () => {
           provide: getRepositoryToken(TemplateDesign),
           useValue: mockTemplateRepo,
         },
+        {
+          provide: getRepositoryToken(require('../category/category.entity').Category),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
       ],
     }).compile();
 

@@ -4,6 +4,15 @@ import { AuthService } from './auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../user/user.service';
+import { TurnstileService } from '../common/turnstile/turnstile.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { User } from '../user/user.entity';
+
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn(() => 'MOCKSECRET'),
+  generateURI: jest.fn(() => 'otpauth://totp/mock'),
+  verifySync: jest.fn(() => ({ valid: true })),
+}));
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -12,6 +21,7 @@ describe('AuthController', () => {
   const mockJwtService = {};
   const mockConfigService = { get: jest.fn() };
   const mockUserService = {};
+  const mockTurnstileService = { validateTurnstileToken: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -21,6 +31,8 @@ describe('AuthController', () => {
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: UserService, useValue: mockUserService },
+        { provide: TurnstileService, useValue: mockTurnstileService },
+        { provide: getRepositoryToken(User), useValue: {} },
       ],
     }).compile();
 

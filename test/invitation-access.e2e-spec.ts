@@ -1,6 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
+
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn(() => 'MOCKSECRET'),
+  generateURI: jest.fn(() => 'otpauth://totp/mock'),
+  verifySync: jest.fn(() => ({ valid: true })),
+}));
+
 import { AppModule } from '../src/app.module';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { TemplateDesign } from '../src/template-design/template-design.entity';
@@ -111,18 +118,17 @@ describe('Invitation Access & Decoding (E2E)', () => {
     await app.close();
   });
 
-  it('should get share link from backend', async () => {
+  it('should get share link from backend with accessToken', async () => {
     const res = await request(app.getHttpServer())
       .get(`/guests/${guestId}/share`)
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
-    expect(res.body.url).toContain(`/inv/${invitationSlug}/${guestSlug}`);
-    // Check if encoded name is present if invitation has encryptedGuestName
-    // (In this test it's false by default, but let's check what backend does)
+    expect(res.body.url).toContain(`/inv/${invitationSlug}`);
+    expect(res.body.waLink).toContain('wa.me');
   });
 
-  it('should return invitation data via public slug endpoint', async () => {
+  it('should return invitation data via public slug endpoint when isGuestPublic is true', async () => {
     const res = await request(app.getHttpServer())
       .get(`/invitation/slug/${invitationSlug}`)
       .expect(200);
@@ -131,7 +137,7 @@ describe('Invitation Access & Decoding (E2E)', () => {
     expect(res.body.title).toBe('QA Wedding');
   });
 
-  it('should return invitation with guest data via the long guest endpoint', async () => {
+  it('should return invitation with guest data when isGuestPublic is true via guestSlug', async () => {
     const res = await request(app.getHttpServer())
       .get(`/invitation/slug/${invitationSlug}/guest/${guestSlug}`)
       .expect(200);
@@ -139,5 +145,79 @@ describe('Invitation Access & Decoding (E2E)', () => {
     expect(res.body.invitation.slug).toBe(invitationSlug);
     expect(res.body.guest.slug).toBe(guestSlug);
     expect(res.body.guest.name).toBe('Budi Santoso');
+  });
+
+  it('should block anonymous access with 403 Forbidden when isGuestPublic is false', async () => {
+    // Set invitation to private
+    await invitationRepo.update({ id: invitationId }, { isGuestPublic: false });
+
+    const res = await request(app.getHttpServer())
+      .get(`/invitation/slug/${invitationSlug}`)
+      .expect(403);
+
+    expect(res.body.message).toBe(
+      'Undangan ini privat. Gunakan link undangan khusus dari pemilik.',
+    );
+
+    // Also verify via /invitations alias
+    const aliasRes = await request(app.getHttpServer())
+      .get(`/invitations/slug/${invitationSlug}`)
+      .expect(403);
+
+    expect(aliasRes.body.message).toBe(
+      'Undangan ini privat. Gunakan link undangan khusus dari pemilik.',
+    );
+  });
+
+  it('should reject access with 404 when isGuestPublic is false and accessed via raw name slug', async () => {
+    await request(app.getHttpServer())
+      .get(`/invitation/slug/${invitationSlug}/guest/${guestSlug}`)
+      .expect(404);
+  });
+
+  it('should allow access with 200 when isGuestPublic is false and accessed via accessToken', async () => {
+    // Fetch guest to get their generated accessToken
+    const guest = await guestRepo.findOne({ where: { id: guestId } });
+    expect(guest?.accessToken).toBeDefined();
+
+    const res = await request(app.getHttpServer())
+      .get(`/invitation/slug/${invitationSlug}/guest/${guest?.accessToken}`)
+      .expect(200);
+
+    expect(res.body.invitation.slug).toBe(invitationSlug);
+    expect(res.body.guest.name).toBe('Budi Santoso');
+    expect(res.body.guest.accessToken).toBe(guest?.accessToken);
+
+    // Also verify via /invitations alias
+    const aliasRes = await request(app.getHttpServer())
+      .get(`/invitations/slug/${invitationSlug}/guest/${guest?.accessToken}`)
+      .expect(200);
+
+    expect(aliasRes.body.invitation.slug).toBe(invitationSlug);
+    expect(aliasRes.body.guest.name).toBe('Budi Santoso');
+  });
+
+  it('should check in guest via check-in-token using private accessToken', async () => {
+    const guest = await guestRepo.findOne({ where: { id: guestId } });
+
+    const res = await request(app.getHttpServer())
+      .post('/guests/check-in-token')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ token: guest?.accessToken })
+      .expect(201);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.alreadyCheckedIn).toBe(false);
+    expect(res.body.guest.name).toBe('Budi Santoso');
+
+    // Second check-in should be idempotent and return alreadyCheckedIn: true
+    const secondRes = await request(app.getHttpServer())
+      .post('/guests/check-in-token')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ token: guest?.accessToken })
+      .expect(201);
+
+    expect(secondRes.body.success).toBe(true);
+    expect(secondRes.body.alreadyCheckedIn).toBe(true);
   });
 });

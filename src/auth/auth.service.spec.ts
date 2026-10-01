@@ -5,6 +5,12 @@ import { User } from '../user/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { EmailService } from './email.service';
 
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn(() => 'MOCKSECRET'),
+  generateURI: jest.fn(() => 'otpauth://totp/mock'),
+  verifySync: jest.fn(() => ({ valid: true })),
+}));
+
 describe('AuthService', () => {
   let service: AuthService;
 

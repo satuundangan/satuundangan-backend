@@ -252,4 +252,97 @@ describe('GuestService - CheckIn', () => {
       expect(summary.recentCheckIns).toEqual([]);
     });
   });
+
+  describe('Guest AccessToken & Privacy Link Generation', () => {
+    it('should create guest with secure 24-byte base64url accessToken', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 7,
+        user: { id: 10 },
+      });
+
+      guestRepo.create.mockImplementation((data: any) => ({
+        id: 50,
+        ...data,
+      }));
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const guest = await service.create(
+        {
+          name: 'Anisa Rahma',
+          invitationId: 7,
+          slug: 'anisa-rahma',
+        },
+        10,
+      );
+
+      expect(guestRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Anisa Rahma',
+          slug: 'anisa-rahma',
+          accessToken: expect.any(String),
+        }),
+      );
+      expect(guest.accessToken).toBeTruthy();
+      expect((guest.accessToken as unknown as string).length).toBeGreaterThan(20);
+    });
+
+    it('should backfill missing accessToken in findAllByInvitation', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 8,
+        user: { id: 11 },
+      });
+
+      const legacyGuest: any = {
+        id: 55,
+        name: 'Tamu Lama',
+        accessToken: null,
+      };
+
+      guestRepo.find.mockResolvedValue([legacyGuest]);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.findAllByInvitation(8, 11);
+
+      expect(result).toHaveLength(1);
+      expect(legacyGuest.accessToken).toBeTruthy();
+      expect(typeof legacyGuest.accessToken).toBe('string');
+      expect(guestRepo.save).toHaveBeenCalledWith(legacyGuest);
+    });
+
+    it('should build private invite URL using accessToken', async () => {
+      guestRepo.findOne.mockResolvedValue({
+        id: 60,
+        name: 'Citra Kirana',
+        accessToken: 'private-token-777',
+        invitation: {
+          slug: 'citra-rezky',
+          encryptedGuestName: false,
+        },
+      });
+
+      const { url } = await service.buildInviteUrlForGuest(60);
+
+      expect(url).toContain('/inv/citra-rezky/private-token-777');
+    });
+
+    it('should build WhatsApp link with private accessToken in URL and encoded message', async () => {
+      guestRepo.findOne.mockResolvedValue({
+        id: 61,
+        name: 'Rezky Aditya',
+        phoneNumber: '081234567890',
+        accessToken: 'private-token-888',
+        invitation: {
+          slug: 'citra-rezky',
+          coupleName: 'Citra & Rezky',
+          user: { id: 15 },
+        },
+      });
+
+      const result = await service.buildWhatsAppLink(61, 15);
+
+      expect(result.url).toContain('/inv/citra-rezky/private-token-888');
+      expect(result.waLink).toContain('https://wa.me/6281234567890');
+      expect(result.waLink).toContain(encodeURIComponent(result.url));
+    });
+  });
 });

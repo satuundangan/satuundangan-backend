@@ -17,6 +17,7 @@ import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { UpdateInvitationDto } from './dto/update-invitation.dto';
 import { User } from '../user/user.entity';
 import slugify from 'slugify';
+import { randomBytes } from 'crypto';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 import {
@@ -570,7 +571,7 @@ export class InvitationService {
 
     const guest = invitation.guests.find(
       (g) =>
-        g.accessToken === guestSlug ||
+        (g.accessToken && g.accessToken === guestSlug) ||
         (invitation.isGuestPublic && g.slug === guestSlug),
     );
     if (!guest) throw new NotFoundException('Guest not found');
@@ -581,6 +582,9 @@ export class InvitationService {
     if (!guest.firstVisitAt) {
       guest.firstVisitAt = new Date();
     }
+    if (!guest.accessToken) {
+      guest.accessToken = randomBytes(24).toString('base64url');
+    }
     await this.guestRepo.save(guest);
 
     // 4. Async Increment Views & Log Activity (Named Guest)
@@ -588,7 +592,14 @@ export class InvitationService {
 
     return {
       invitation: this.buildInvitationResponse(invitation),
-      guest: { name: guest.name },
+      guest: {
+        id: guest.id,
+        name: guest.name,
+        slug: guest.slug,
+        accessToken: guest.accessToken,
+        group: guest.group,
+        degree: guest.degree,
+      },
       tracked: { updatedFirstVisit: needsUpdate },
     };
   }

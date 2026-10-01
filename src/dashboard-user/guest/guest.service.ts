@@ -64,10 +64,18 @@ export class GuestService {
     if (!invitation)
       throw new ForbiddenException('You do not have access to this invitation');
 
-    return this.guestRepo.find({
+    const guests = await this.guestRepo.find({
       where: { invitation: { id: invitationId } },
       order: { id: 'ASC' },
     });
+
+    for (const g of guests) {
+      if (!g.accessToken) {
+        await this.ensureAccessToken(g);
+      }
+    }
+
+    return guests;
   }
 
   async update(
@@ -200,6 +208,7 @@ export class GuestService {
         degree,
         phoneNumber,
         slug,
+        accessToken: this.createAccessToken(),
         group,
         statusSend,
         rsvpStatus,

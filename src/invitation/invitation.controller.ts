@@ -19,7 +19,7 @@ import { User } from '../user/user.entity';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 
-@Controller('invitation')
+@Controller(['invitation', 'invitations'])
 export class InvitationController {
   constructor(private readonly invitationService: InvitationService) {}
 

@@ -15,9 +15,7 @@ import { GuestService } from './guest.service';
 import { CreateGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import * as path from 'path';
-import * as fs from 'fs';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../user/user.entity';
@@ -74,15 +72,12 @@ export class GuestController {
   @Post('import')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const filename = `${Date.now()}-${file.originalname}`;
-          cb(null, filename);
-        },
-      }),
+      // Keep guest lists (names + phones) in memory: ./uploads is served
+      // publicly, and a failed import used to leave the file behind.
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
       fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(xlsx|xls)$/)) {
+        if (!/\.(xlsx|xls)$/i.test(file.originalname)) {
           return cb(
             new BadRequestException('Only Excel files are allowed!'),
             false,
@@ -97,17 +92,14 @@ export class GuestController {
     @Body('invitationId') invitationId: string,
     @CurrentUser() user: any,
   ) {
-    const filepath = path.resolve(file.path);
-    const guests = await this.guestService.importFromExcel(
-      filepath,
+    if (!file?.buffer) {
+      throw new BadRequestException('File Excel wajib diunggah.');
+    }
+    return this.guestService.importFromExcel(
+      file.buffer,
       user.id,
       invitationId ? parseInt(invitationId) : undefined,
     );
-
-    // optional: delete file after processing
-    fs.unlinkSync(filepath);
-
-    return guests;
   }
 
   // ✅ Build share link and WhatsApp deeplink for a guest

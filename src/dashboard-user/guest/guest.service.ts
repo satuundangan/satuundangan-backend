@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull } from 'typeorm';
@@ -10,9 +11,16 @@ import { Invitation } from '../../invitation/invitation.entity';
 import { CreateGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
 import * as xlsx from 'xlsx';
-import * as fs from 'fs';
 import { randomBytes } from 'crypto';
 import { slugify } from 'transliteration';
+
+// Excel stores 0812… as a number, dropping the leading 0 (→ 812…).
+// Restore it so wa.me links and stored numbers stay valid.
+function restoreLeadingZero(phone?: string): string | undefined {
+  if (phone === undefined || phone === null) return phone;
+  const trimmed = String(phone).trim();
+  return /^8\d{7,}$/.test(trimmed) ? `0${trimmed}` : trimmed;
+}
 
 @Injectable()
 export class GuestService {
@@ -34,15 +42,16 @@ export class GuestService {
       );
     }
 
+    const name = String(dto.name).trim();
     const slug =
       dto.slug && dto.slug.trim().length > 0
         ? dto.slug
-        : await this.generateUniqueSlug(dto.name, dto.invitationId);
+        : await this.generateUniqueSlug(name, dto.invitationId);
 
     const guest = this.guestRepo.create({
-      name: dto.name,
+      name,
       degree: dto.degree,
-      phoneNumber: dto.phoneNumber,
+      phoneNumber: restoreLeadingZero(dto.phoneNumber),
       slug,
       accessToken: this.createAccessToken(),
       group: dto.group,
@@ -111,30 +120,21 @@ export class GuestService {
   }
 
   async importFromExcel(
-    filepath: string,
+    buffer: Buffer,
     userId: number,
     fallbackInvitationId?: number,
   ): Promise<Guest[]> {
-    let buffer: Buffer;
+    let workbook: xlsx.WorkBook;
     try {
-      buffer = fs.readFileSync(filepath);
-    } catch (error) {
-      throw new Error(
-        `Failed to read Excel file at ${filepath}. Error: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      workbook = xlsx.read(buffer, { type: 'buffer' });
+    } catch {
+      throw new BadRequestException('File Excel tidak bisa dibaca.');
     }
 
-    const workbook = xlsx.read(buffer, { type: 'buffer' });
-
-    if (workbook.SheetNames.length === 0) {
-      throw new Error('No sheets found in the Excel workbook.');
-    }
-
-    const sheetName: string = workbook.SheetNames[0];
-
-    const sheet = workbook.Sheets[sheetName];
+    const sheetName = workbook.SheetNames[0];
+    const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
     if (!sheet) {
-      throw new Error(`Sheet '${sheetName}' not found in the workbook.`);
+      throw new BadRequestException('File Excel tidak memiliki sheet.');
     }
 
     const rows: Record<string, unknown>[] = xlsx.utils.sheet_to_json(sheet);
@@ -156,11 +156,23 @@ export class GuestService {
         return '';
       };
 
-      const name = (getVal(['Name', 'Nama', 'nama']) || '').toString();
+      const name = (getVal(['Name', 'Nama', 'nama']) || '')
+        .toString()
+        .trim()
+        .slice(0, 255);
       const degree = (getVal(['Degree', 'Gelar', 'gelar']) || '').toString();
-      const phoneNumber = (
-        getVal(['Phone Number', 'Phone', 'Telepon', 'Nomor HP', 'wa']) || ''
-      ).toString();
+      const phoneNumber = restoreLeadingZero(
+        (
+          getVal([
+            'Phone Number',
+            'Phone',
+            'Telepon',
+            'Nomor HP',
+            'WhatsApp',
+            'wa',
+          ]) || ''
+        ).toString(),
+      );
       const rawSlug = (getVal(['Slug', 'slug']) || '').toString().trim();
 
       const rowInvId = Number(getVal(['Invitation ID', 'ID Undangan']));
@@ -200,6 +212,7 @@ export class GuestService {
         degree,
         phoneNumber,
         slug,
+        accessToken: this.createAccessToken(),
         group,
         statusSend,
         rsvpStatus,
@@ -305,8 +318,8 @@ export class GuestService {
     const phone = (guest.phoneNumber || '').replace(/[^0-9]/g, '');
     const waNumber = phone.startsWith('0')
       ? `62${phone.slice(1)}`
-      : phone.startsWith('62')
-        ? phone
+      : phone.startsWith('8')
+        ? `62${phone}`
         : phone;
 
     const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;

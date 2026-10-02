@@ -52,11 +52,25 @@ export class LoveStoryItem {
   @IsOptional()
   @IsString()
   @NotDataUrl()
+  image?: string;
+
+  // Legacy key; read path maps it to `image`.
+  @ApiPropertyOptional({ example: 'https://cdn.com/story.jpg' })
+  @IsOptional()
+  @IsString()
+  @NotDataUrl()
   images?: string;
 
-  @ApiProperty({ example: 'Kami bertemu di kampus' })
+  @ApiPropertyOptional({ example: 'Kami bertemu di kampus' })
+  @IsOptional()
   @IsString()
-  content: string;
+  description?: string;
+
+  // Legacy key; read path maps it to `description`.
+  @ApiPropertyOptional({ example: 'Kami bertemu di kampus' })
+  @IsOptional()
+  @IsString()
+  content?: string;
 
   @ApiPropertyOptional({ example: '2018-09-01' })
   @IsOptional()
@@ -125,6 +139,13 @@ export class BankAccount {
   @IsString()
   @NotDataUrl()
   bankLogoUrl?: string;
+
+  // Key the studio editor sends; bankLogoUrl kept for legacy rows.
+  @ApiPropertyOptional({ example: 'https://cdn.com/bca.png' })
+  @IsOptional()
+  @IsString()
+  @NotDataUrl()
+  bankLogo?: string;
 }
 
 export class EWalletLinkItem {

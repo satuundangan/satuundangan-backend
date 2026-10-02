@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Invitation } from '../invitation/invitation.entity';
 import { UserConsent } from './user-consent.entity';
 
@@ -51,6 +58,12 @@ export class User {
 
   @Column({ type: 'bool', default: false })
   totpEnabled: boolean;
+
+  @CreateDateColumn({ type: 'datetime' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'datetime' })
+  updatedAt: Date;
 
   @OneToMany(() => Invitation, (invitation) => invitation.user, {
     onDelete: 'CASCADE',

@@ -12,6 +12,7 @@ import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
+import { ActivityLog } from './entities/activity-log.entity';
 import { UploadService } from '../modules/upload/upload.service';
 
 function createChainableQueryBuilder(rawManyResult: any[]) {
@@ -63,6 +64,7 @@ describe('AdminService - getDashboardStats', () => {
         { provide: getRepositoryToken(Audio), useValue: {} },
         { provide: getRepositoryToken(Bank), useValue: {} },
         { provide: getRepositoryToken(PaletteColor), useValue: {} },
+        { provide: getRepositoryToken(ActivityLog), useValue: {} },
         { provide: UploadService, useValue: {} },
       ],
     }).compile();

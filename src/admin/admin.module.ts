@@ -16,6 +16,8 @@ import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
+import { ActivityLog } from './entities/activity-log.entity';
+import { TelemetryController } from './telemetry.controller';
 import { PromoModule } from '../promo/promo.module';
 import { UploadModule } from '../modules/upload/upload.module';
 
@@ -33,6 +35,7 @@ import { UploadModule } from '../modules/upload/upload.module';
       Audio,
       Bank,
       PaletteColor,
+      ActivityLog,
     ]),
     PromoModule,
     UploadModule,
@@ -42,6 +45,7 @@ import { UploadModule } from '../modules/upload/upload.module';
     AdminController,
     PublicSectionController,
     PublicAudioController,
+    TelemetryController,
   ],
 })
 export class AdminModule {}

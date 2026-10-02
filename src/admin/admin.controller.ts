@@ -20,6 +20,7 @@ import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { LogQueryDto } from './dto/log-query.dto';
 import { CreateAdminUserDto, UpdateAdminUserDto } from './dto/admin-user.dto';
 import {
   CreateTemplateDesignDto,
@@ -299,5 +300,23 @@ export class AdminController {
   @Get('stats')
   getDashboardStats() {
     return this.service.getDashboardStats();
+  }
+
+  // System & Activity Logs
+  @Get('logs')
+  listLogs(@Query() q: LogQueryDto) {
+    return this.service.listLogs(
+      q.page,
+      q.limit,
+      q.level,
+      q.action,
+      q.q,
+      q.userId,
+    );
+  }
+
+  @Get('logs/stats')
+  getLogStats() {
+    return this.service.getLogStats();
   }
 }

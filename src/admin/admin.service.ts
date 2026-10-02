@@ -16,6 +16,7 @@ import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
+import { ActivityLog } from './entities/activity-log.entity';
 import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
@@ -48,6 +49,8 @@ export class AdminService {
     @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
     @InjectRepository(PaletteColor)
     private readonly paletteColorRepo: Repository<PaletteColor>,
+    @InjectRepository(ActivityLog)
+    private readonly activityLogRepo: Repository<ActivityLog>,
     private readonly uploadService: UploadService,
   ) {}
 
@@ -56,18 +59,33 @@ export class AdminService {
     page = 1,
     limit = 20,
     q?: string,
-    sortBy = 'id',
+    sortBy = 'createdAt',
     sortOrder: 'ASC' | 'DESC' = 'DESC',
   ) {
-    const where = q
-      ? [{ name: ILike(`%${q}%`) }, { email: ILike(`%${q}%`) }]
-      : undefined;
-    const [data, total] = await this.userRepo.findAndCount({
-      where,
-      order: { [sortBy]: sortOrder },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.userRepo
+      .createQueryBuilder('user')
+      .loadRelationCountAndMap('user.invitationsCount', 'user.invitations');
+
+    if (q && q.trim()) {
+      qb.where('user.name LIKE :search OR user.email LIKE :search', {
+        search: `%${q.trim()}%`,
+      });
+    }
+
+    const validCols: Record<string, string> = {
+      id: 'user.id',
+      name: 'user.name',
+      email: 'user.email',
+      createdAt: 'user.createdAt',
+      isAdmin: 'user.isAdmin',
+    };
+    const orderCol = validCols[sortBy] || 'user.createdAt';
+
+    qb.orderBy(orderCol, sortOrder)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
     return { data, total, page, limit };
   }
 
@@ -884,4 +902,145 @@ export class AdminService {
       trend: trendStats,
     };
   }
+
+  // ==========================================
+  // Activity & Telemetry Logs
+  // ==========================================
+  async recordLog(payload: {
+    action: string;
+    level?: string;
+    path?: string;
+    method?: string;
+    details?: any;
+    userId?: number;
+    userEmail?: string;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    try {
+      const log = this.activityLogRepo.create({
+        action: payload.action,
+        level: payload.level || 'INFO',
+        path: payload.path,
+        method: payload.method,
+        details: payload.details,
+        userId: payload.userId,
+        userEmail: payload.userEmail,
+        ip: payload.ip,
+        userAgent: payload.userAgent,
+      });
+      return await this.activityLogRepo.save(log);
+    } catch (err) {
+      console.error('Failed to save activity log:', err);
+      return null;
+    }
+  }
+
+  async listLogs(
+    page = 1,
+    limit = 50,
+    level?: string,
+    action?: string,
+    q?: string,
+    userId?: number,
+  ) {
+    const qb = this.activityLogRepo.createQueryBuilder('log');
+
+    if (level && level !== 'ALL') {
+      qb.andWhere('log.level = :level', { level });
+    }
+
+    if (action && action !== 'ALL') {
+      qb.andWhere('log.action = :action', { action });
+    }
+
+    if (userId) {
+      qb.andWhere('log.userId = :userId', { userId });
+    }
+
+    if (q && q.trim()) {
+      qb.andWhere(
+        '(log.path LIKE :search OR log.userEmail LIKE :search OR log.action LIKE :search)',
+        { search: `%${q.trim()}%` },
+      );
+    }
+
+    qb.orderBy('log.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getLogStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const totalToday = await this.activityLogRepo
+      .createQueryBuilder('log')
+      .where('log.createdAt >= :today', { today })
+      .getCount();
+
+    const pageViewsToday = await this.activityLogRepo
+      .createQueryBuilder('log')
+      .where('log.createdAt >= :today AND log.action = :action', {
+        today,
+        action: 'PAGE_VIEW',
+      })
+      .getCount();
+
+    const errorsToday = await this.activityLogRepo
+      .createQueryBuilder('log')
+      .where('log.createdAt >= :today AND log.level = :level', {
+        today,
+        level: 'ERROR',
+      })
+      .getCount();
+
+    const activeUsersResult = await this.activityLogRepo
+      .createQueryBuilder('log')
+      .select('COUNT(DISTINCT log.userEmail)', 'count')
+      .where('log.createdAt >= :today AND log.userEmail IS NOT NULL', { today })
+      .getRawOne();
+    const activeUsersToday = parseInt(activeUsersResult?.count || '0', 10);
+
+    // Top 5 paths visited today
+    const topPaths = await this.activityLogRepo
+      .createQueryBuilder('log')
+      .select('log.path', 'path')
+      .addSelect('COUNT(log.id)', 'count')
+      .where(
+        'log.createdAt >= :today AND log.path IS NOT NULL AND log.action = :action',
+        {
+          today,
+          action: 'PAGE_VIEW',
+        },
+      )
+      .groupBy('log.path')
+      .orderBy('count', 'DESC')
+      .limit(5)
+      .getRawMany();
+
+    // Recent 5 errors
+    const recentErrors = await this.activityLogRepo
+      .createQueryBuilder('log')
+      .where('log.level = :level', { level: 'ERROR' })
+      .orderBy('log.createdAt', 'DESC')
+      .limit(5)
+      .getMany();
+
+    return {
+      totalToday,
+      pageViewsToday,
+      errorsToday,
+      activeUsersToday,
+      topPaths: (topPaths || []).map((p) => ({
+        path: p.path,
+        count: Number(p.count),
+      })),
+      recentErrors,
+    };
+  }
 }
+

@@ -6,6 +6,8 @@ import { Guest } from '../dashboard-user/guest/guest.entity';
 import { InvitationActivity, ActivityAction } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { User } from '../user/user.entity';
+import { Payment } from '../payment/payment.entity';
+import { ConfigService } from '@nestjs/config';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 describe('InvitationService', () => {
@@ -52,6 +54,8 @@ describe('InvitationService', () => {
         { provide: getRepositoryToken(InvitationActivity), useValue: activityRepo },
         { provide: getRepositoryToken(TemplateDesign), useValue: templateRepo },
         { provide: getRepositoryToken(User), useValue: userRepo },
+        { provide: getRepositoryToken(Payment), useValue: { count: jest.fn().mockResolvedValue(0) } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
       ],
     }).compile();
 

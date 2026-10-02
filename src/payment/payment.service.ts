@@ -559,6 +559,13 @@ export class PaymentService {
     status: PaymentStatus,
     user: User,
   ) {
+    // Dev/sandbox only: in production this would publish without paying.
+    if (this.getMidtransIsProduction()) {
+      throw new ForbiddenException(
+        'Simulasi pembayaran tidak tersedia di production.',
+      );
+    }
+
     const payment = await this.paymentRepo.findOne({
       where: { invitationId },
       order: { createdAt: 'DESC' },

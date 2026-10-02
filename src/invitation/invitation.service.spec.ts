@@ -1,3 +1,5 @@
+import { Payment } from '../payment/payment.entity';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { InvitationService } from './invitation.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -16,6 +18,7 @@ describe('InvitationService', () => {
     create: jest.fn(),
     save: jest.fn(),
     remove: jest.fn(),
+    count: jest.fn().mockResolvedValue(0),
   };
 
   beforeEach(async () => {
@@ -28,6 +31,8 @@ describe('InvitationService', () => {
         { provide: getRepositoryToken(TemplateDesign), useValue: mockRepo },
         { provide: getRepositoryToken(User), useValue: mockRepo },
         { provide: getRepositoryToken(AffiliateProfile), useValue: mockRepo },
+        { provide: getRepositoryToken(Payment), useValue: mockRepo },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
       ],
     }).compile();
 

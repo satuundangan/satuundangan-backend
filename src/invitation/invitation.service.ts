@@ -25,6 +25,9 @@ import {
 } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
+import { Payment } from '../payment/payment.entity';
+import { PaymentStatus } from '../payment/types/payment.type';
+import { ConfigService } from '@nestjs/config';
 import {
   normalizeSubdomain,
   validateSubdomainFormat,
@@ -49,6 +52,9 @@ export class InvitationService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(AffiliateProfile)
     private readonly affiliateProfileRepo: Repository<AffiliateProfile>,
+    @InjectRepository(Payment)
+    private readonly paymentRepo: Repository<Payment>,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
@@ -239,6 +245,23 @@ export class InvitationService {
       await this.assertEmailVerified(user.id);
     }
 
+    // Publishing and the paid tier are owned by payment settlement. Without
+    // this, PATCH {isPublished: true, package: 'eksklusif'} skips checkout.
+    const hasPaid = await this.hasSuccessfulPayment(invitation.id);
+    if (
+      dto.isPublished === true &&
+      !invitation.isPublished &&
+      !hasPaid &&
+      this.isProduction()
+    ) {
+      throw new ForbiddenException(
+        'Selesaikan pembayaran untuk mempublikasikan undangan.',
+      );
+    }
+    if (hasPaid && dto.package !== undefined) {
+      delete dto.package; // tier is locked to what was paid
+    }
+
     if (dto.slug && dto.slug !== invitation.slug) {
       const existing = await this.invitationRepo.findOne({
         where: { slug: dto.slug },
@@ -300,6 +323,21 @@ export class InvitationService {
       `Invitation updated invitationId=${saved.id} slug=${saved.slug} isPublished=${saved.isPublished}`,
     );
     return saved;
+  }
+
+  private async hasSuccessfulPayment(invitationId: number): Promise<boolean> {
+    const count = await this.paymentRepo.count({
+      where: { invitationId, status: PaymentStatus.SUCCESS },
+    });
+    return count > 0;
+  }
+
+  // Same switch PaymentService uses for Midtrans production mode.
+  private isProduction(): boolean {
+    return (
+      this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true' ||
+      this.configService.get('NODE_ENV') === 'production'
+    );
   }
 
   private async assertEmailVerified(userId: number) {

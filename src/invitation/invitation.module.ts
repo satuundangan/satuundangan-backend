@@ -8,6 +8,7 @@ import { InvitationActivity } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { User } from '../user/user.entity';
 import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
+import { Payment } from '../payment/payment.entity';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity
       TemplateDesign,
       User,
       AffiliateProfile,
+      Payment,
     ]),
   ],
   providers: [InvitationService],

@@ -7,7 +7,10 @@ import {
   ValidateNested,
   IsNumber,
   IsEnum,
+  Matches,
+  MaxLength,
 } from 'class-validator';
+import { applyDecorators } from '@nestjs/common';
 import { InvitationPackage } from '../invitation.entity';
 import { Type, Expose } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -21,6 +24,24 @@ export enum Religion {
   UMUM = 'umum',
 }
 
+// varchar(255) columns: reject over-long values with 400 instead of a DB 500.
+const VARCHAR_MAX = 255;
+const MaxVarchar = () =>
+  MaxLength(VARCHAR_MAX, {
+    message: '$property maksimal $constraint1 karakter.',
+  });
+
+// File fields must hold an uploaded CDN URL, never an inline base64 data: URL.
+const NotDataUrl = (each = false) =>
+  Matches(/^(?!data:)/, {
+    each,
+    message:
+      '$property harus berupa file yang sudah di-upload, bukan data base64. Silakan upload ulang.',
+  });
+
+// URL stored in a varchar(255) column.
+const StoredUrl = () => applyDecorators(NotDataUrl(), MaxVarchar());
+
 // Nested DTO Classes
 export class LoveStoryItem {
   @ApiProperty({ example: 'Awal Bertemu' })
@@ -30,6 +51,7 @@ export class LoveStoryItem {
   @ApiPropertyOptional({ example: 'https://cdn.com/story.jpg' })
   @IsOptional()
   @IsString()
+  @NotDataUrl()
   images?: string;
 
   @ApiProperty({ example: 'Kami bertemu di kampus' })
@@ -101,6 +123,7 @@ export class BankAccount {
   @ApiPropertyOptional({ example: 'https://cdn.com/bca.png' })
   @IsOptional()
   @IsString()
+  @NotDataUrl()
   bankLogoUrl?: string;
 }
 
@@ -116,6 +139,7 @@ export class EWalletLinkItem {
   @ApiPropertyOptional({ example: 'https://cdn.com/qris.png' })
   @IsOptional()
   @IsString()
+  @NotDataUrl()
   wallet_image?: string;
 }
 
@@ -136,11 +160,13 @@ export class LocationDetail {
 export class CreateInvitationDto {
   @ApiProperty({ example: 'Undangan Tes Postman' })
   @IsString()
+  @MaxVarchar()
   title: string;
 
   @ApiPropertyOptional({ example: 'undangan-tes-postman' })
   @IsOptional()
   @IsString()
+  @MaxVarchar()
   slug?: string;
 
   @ApiPropertyOptional({
@@ -164,19 +190,23 @@ export class CreateInvitationDto {
   @ApiPropertyOptional({ example: 'John & Jane' })
   @IsOptional()
   @IsString()
+  @MaxVarchar()
   coupleName?: string;
 
   @ApiProperty({ example: 'John Doe' })
   @IsString()
+  @MaxVarchar()
   groomName: string;
 
   @ApiProperty({ example: 'Jane Doe' })
   @IsString()
+  @MaxVarchar()
   brideName: string;
 
   @ApiPropertyOptional({ example: 'TemplateClassic01' })
   @IsOptional()
   @IsString()
+  @MaxVarchar()
   templateName?: string;
 
   @ApiPropertyOptional({ example: true })
@@ -196,11 +226,13 @@ export class CreateInvitationDto {
   @ApiPropertyOptional({ example: 'QS. Ar-Rum: 21' })
   @IsOptional()
   @IsString()
+  @MaxVarchar()
   quoteSource?: string;
 
   @ApiPropertyOptional({ example: 'default' })
   @IsOptional()
   @IsString()
+  @MaxVarchar()
   quoteType?: string;
 
   @ApiPropertyOptional({ example: 'Bismillah, semoga lancar!' })
@@ -221,6 +253,7 @@ export class CreateInvitationDto {
 
   @ApiProperty({ example: 'default1.mp3' })
   @IsString()
+  @StoredUrl()
   musicChoice: string;
 
   @ApiProperty({ example: false })
@@ -239,20 +272,24 @@ export class CreateInvitationDto {
 
   @ApiProperty({ example: 'https://cdn.com/photo.jpg' })
   @IsString()
+  @StoredUrl()
   bridePhotoUrl: string;
 
   @ApiProperty({ example: 'https://cdn.com/photo_groom.jpg' })
   @IsString()
+  @StoredUrl()
   groomPhotoUrl: string;
 
   @ApiPropertyOptional({ example: 'https://cdn.com/couple.jpg' })
   @IsOptional()
   @IsString()
+  @StoredUrl()
   photoCoupleUrl?: string;
 
   @ApiPropertyOptional({ example: 'https://youtube.com/prewedding' })
   @IsOptional()
   @IsString()
+  @StoredUrl()
   videoPrewedding?: string;
 
   @ApiPropertyOptional({ example: '2026-02-10T19:38' })
@@ -285,6 +322,7 @@ export class CreateInvitationDto {
   @ApiPropertyOptional({ example: 'https://cdn.com/denah.jpg' })
   @IsOptional()
   @IsString()
+  @StoredUrl()
   floorPlanImageUrl?: string;
 
   @ApiProperty({ type: Menu })
@@ -297,6 +335,7 @@ export class CreateInvitationDto {
   })
   @IsArray()
   @IsString({ each: true })
+  @NotDataUrl(true)
   galleryImages: string[];
 
   @ApiProperty({ example: ['Jl. Kenangan No. 123, Jakarta'] })
@@ -348,6 +387,7 @@ export class CreateInvitationDto {
   @ApiPropertyOptional({ example: 'https://youtube.com/livestream' })
   @IsOptional()
   @IsString()
+  @StoredUrl()
   liveStreamingLink?: string;
 
   @ApiPropertyOptional({ example: 'Terima kasih...' })

@@ -128,6 +128,20 @@ export class AdminService {
 
   async deleteUser(id: number) {
     const user = await this.getUser(id);
+    try {
+      await this.userRepo.query('DELETE FROM user_consents WHERE user_id = ?', [id]);
+    } catch {}
+    if (user.email) {
+      try {
+        await this.activityLogRepo.delete({ userEmail: user.email });
+      } catch {}
+    }
+    try {
+      const userInvs = await this.invitationRepo.find({ where: { user: { id } } });
+      for (const inv of userInvs) {
+        await this.deleteInvitation(inv.id);
+      }
+    } catch {}
     await this.userRepo.remove(user);
     return { success: true };
   }
@@ -1041,6 +1055,11 @@ export class AdminService {
       })),
       recentErrors,
     };
+  }
+
+  async clearLogs() {
+    await this.activityLogRepo.clear();
+    return { success: true, message: 'Semua catatan log berhasil dibersihkan' };
   }
 }
 

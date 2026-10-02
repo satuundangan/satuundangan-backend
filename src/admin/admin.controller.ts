@@ -319,4 +319,9 @@ export class AdminController {
   getLogStats() {
     return this.service.getLogStats();
   }
+
+  @Delete('logs')
+  clearLogs() {
+    return this.service.clearLogs();
+  }
 }

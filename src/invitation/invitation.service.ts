@@ -482,6 +482,31 @@ export class InvitationService {
     return this.buildInvitationResponse(invitation, referralCode);
   }
 
+  // Templates read story.description / story.image; older rows stored
+  // content / images (and the DTO used to strip image), so map both.
+  private normalizeLoveStory(loveStory: unknown): unknown {
+    if (!Array.isArray(loveStory)) return loveStory;
+    return loveStory.map((item: Record<string, unknown>) =>
+      item && typeof item === 'object'
+        ? {
+            ...item,
+            description: item.description ?? item.content ?? '',
+            image: item.image ?? item.images ?? item.photo ?? '',
+          }
+        : item,
+    );
+  }
+
+  // Studio editor uses bankLogo; legacy/admin rows may hold bankLogoUrl.
+  private normalizeBankAccounts(
+    bankAccounts: Invitation['bankAccounts'] | null,
+  ): Invitation['bankAccounts'] {
+    return (bankAccounts || []).map((b) => ({
+      ...b,
+      bankLogo: b.bankLogo ?? b.bankLogoUrl ?? '',
+    }));
+  }
+
   private buildInvitationResponse(
     invitation: Invitation,
     referralCode?: string | null,
@@ -514,7 +539,7 @@ export class InvitationService {
         quoteType: invitation.quoteType,
         quoteText: invitation.quoteText,
         religion: invitation.religion ?? null,
-        loveStory: invitation.loveStory as unknown,
+        loveStory: this.normalizeLoveStory(invitation.loveStory),
         // Custom (uploaded) music only plays on tiers that allow it.
         musicChoice:
           invitation.isCustomMusic && !features.customMusic
@@ -538,7 +563,7 @@ export class InvitationService {
         ),
         giftDeliveryAddress: invitation.giftDeliveryAddress,
         eWalletLink: invitation.eWalletLink,
-        bankAccounts: invitation.bankAccounts || [],
+        bankAccounts: this.normalizeBankAccounts(invitation.bankAccounts),
         socialMedia: invitation.socialMedia,
         socialMediaBrides: invitation.socialMediaBrides,
         socialMediaGroom: invitation.socialMediaGroom,

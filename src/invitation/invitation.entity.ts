@@ -227,6 +227,7 @@ export class Invitation {
     accountNumber: string;
     accountName: string;
     bankLogoUrl?: string;
+    bankLogo?: string;
   }[];
 
   @Column({ type: 'json' })

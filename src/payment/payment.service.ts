@@ -37,6 +37,9 @@ const AI_CREDIT_PACKAGES: Record<
   '10': { credits: 10, amount: 14000, label: '10 Kredit Nova' },
 };
 
+// Price charged when an admin checks out, to test real payments cheaply.
+const ADMIN_TEST_PRICE = 1;
+
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -97,6 +100,14 @@ export class PaymentService {
       throw new BadRequestException('Kode afiliasi sedang tidak tersedia');
     }
 
+    // Superadmin test checkout: real Midtrans flow in prod for Rp 1, no
+    // promo/affiliate side effects.
+    const isAdminTest = await this.isAdminUser(user.id);
+    if (isAdminTest) {
+      affiliateProfileId = null;
+      promoCode = undefined;
+    }
+
     const existingPendingPayment = await this.paymentRepo.findOne({
       where: {
         invitationId: invitation.id,
@@ -105,9 +116,13 @@ export class PaymentService {
       order: { createdAt: 'DESC' },
     });
 
+    const pendingPriceMismatch =
+      isAdminTest &&
+      Number(existingPendingPayment?.amount) !== ADMIN_TEST_PRICE;
+
     if (
-      existingPendingPayment?.snapToken ||
-      existingPendingPayment?.redirectUrl
+      !pendingPriceMismatch &&
+      (existingPendingPayment?.snapToken || existingPendingPayment?.redirectUrl)
     ) {
       this.logger.log(
         `Resuming pending payment orderId=${existingPendingPayment.orderId} invitationId=${invitation.id}`,
@@ -122,7 +137,12 @@ export class PaymentService {
     }
 
     // Price comes from the chosen package tier, not the template.
-    let grossAmount = PACKAGE_PRICES[pkg];
+    let grossAmount = isAdminTest ? ADMIN_TEST_PRICE : PACKAGE_PRICES[pkg];
+    if (isAdminTest) {
+      this.logger.warn(
+        `Admin test checkout invitationId=${invitationId} userId=${user.id} amount=${ADMIN_TEST_PRICE}`,
+      );
+    }
     let appliedPromo: PromoCode | undefined;
     let discountAmount = 0;
 
@@ -294,6 +314,14 @@ export class PaymentService {
       order_id: orderId,
       is_free: false,
     };
+  }
+
+  private async isAdminUser(userId: number): Promise<boolean> {
+    const found = await this.userRepo.findOne({
+      where: { id: userId },
+      select: ['id', 'isAdmin'],
+    });
+    return !!found?.isAdmin;
   }
 
   async handleMidtransNotification(payload: MidtransNotificationPayload) {

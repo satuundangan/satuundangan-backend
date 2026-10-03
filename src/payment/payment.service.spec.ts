@@ -146,6 +146,38 @@ describe('PaymentService', () => {
       });
     });
 
+    it('charges Rp 1 and skips promo when an admin checks out', async () => {
+      const mockUser = { id: 7, name: 'Admin', email: 'admin@example.com' };
+      mockInvitationRepo.findOne.mockResolvedValue({
+        id: 5,
+        title: 'Wedding',
+        user: mockUser,
+      });
+      mockUserRepo.findOne.mockResolvedValueOnce({ id: 7, isAdmin: true });
+      mockPaymentRepo.findOne.mockResolvedValue(null);
+      mockCreateTransaction.mockResolvedValue({
+        token: 't',
+        redirect_url: 'https://app.midtrans.com/snap/x',
+      });
+      mockPaymentRepo.create.mockImplementation((p) => p);
+      mockPaymentRepo.save.mockResolvedValue({ id: 1 });
+
+      await service.createTransaction(
+        5,
+        mockUser as any,
+        InvitationPackage.EKSKLUSIF,
+        'PROMO50',
+      );
+
+      const params = mockCreateTransaction.mock.calls.at(-1)[0];
+      expect(params.transaction_details.gross_amount).toBe(1);
+      expect(params.item_details[0].price).toBe(1);
+      expect(mockPromoService.validate).not.toHaveBeenCalled();
+      expect(mockPaymentRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 1, affiliateProfileId: null }),
+      );
+    });
+
     it('should sanitize Midtrans customer and item fields', async () => {
       const invitationId = 9;
       const mockUser = {

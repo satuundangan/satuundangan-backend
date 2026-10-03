@@ -19,8 +19,12 @@ export class TemplateDesignService implements OnModuleInit {
 
   async seedMissingTemplatesAndSyncTaxonomy() {
     try {
-      const premiumCat = await this.categoryRepo.findOne({ where: { name: 'Premium' } });
-      const exclusiveCat = await this.categoryRepo.findOne({ where: { name: 'Exclusive' } });
+      const premiumCat = await this.categoryRepo.findOne({
+        where: { name: 'Premium' },
+      });
+      const exclusiveCat = await this.categoryRepo.findOne({
+        where: { name: 'Exclusive' },
+      });
 
       const missingTemplates = [
         {
@@ -29,10 +33,18 @@ export class TemplateDesignService implements OnModuleInit {
           category: premiumCat,
           price: 79000,
           filterGroup: 'Bold & Unik',
-          description: 'Tema ceria dan menggemaskan untuk pasangan pecinta kucing',
-          tags: JSON.stringify(['kucing', 'cat', 'cute', 'pet lovers', 'playful']),
+          description:
+            'Tema ceria dan menggemaskan untuk pasangan pecinta kucing',
+          tags: JSON.stringify([
+            'kucing',
+            'cat',
+            'cute',
+            'pet lovers',
+            'playful',
+          ]),
           previewUrl: 'https://satuundangan.id/demo/meowly-married',
-          thumbnailUrl: 'https://cdn.satuundangan.id/templates/meowly-married.jpg',
+          thumbnailUrl:
+            'https://cdn.satuundangan.id/templates/meowly-married.jpg',
           paletteColors: ['#FFB5A7', '#FCD5CE', '#F8EDEB'],
           defaultMusic: 'wedding-acoustic-cheerful.mp3',
           isPublished: true,
@@ -44,17 +56,188 @@ export class TemplateDesignService implements OnModuleInit {
           price: 99000,
           filterGroup: 'Anime & Pop Culture',
           description: 'Tema retro game 8-bit RPG petualangan cinta sejati',
-          tags: JSON.stringify(['pixel', 'retro', 'gaming', 'rpg', '8-bit', 'arcade']),
+          tags: JSON.stringify([
+            'pixel',
+            'retro',
+            'gaming',
+            'rpg',
+            '8-bit',
+            'arcade',
+          ]),
           previewUrl: 'https://satuundangan.id/demo/pixel-quest',
           thumbnailUrl: 'https://cdn.satuundangan.id/templates/pixel-quest.jpg',
           paletteColors: ['#3B82F6', '#10B981', '#F59E0B'],
           defaultMusic: 'wedding-retro-adventure.mp3',
           isPublished: true,
         },
+        {
+          slug: 'sunda-sabilulungan',
+          componentKey: 'sunda-sabilulungan',
+          name: 'Sabilulungan Sunda',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan bernuansa Priangan dengan palet hijau dan aksen floral kontemporer.',
+          tags: JSON.stringify([
+            'sunda',
+            'priangan',
+            'adat',
+            'nusantara',
+            'hijau',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/sunda-sabilulungan',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/sunda-sabilulungan.png',
+          paletteColors: ['#315B48', '#F5F3E8', '#C98767'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Raka Pratama',
+            brideName: 'Nadia Puspita',
+            parents: {
+              groomParents: 'Bapak Dedi dan Ibu Rina',
+              brideParents: 'Bapak Asep dan Ibu Mira',
+            },
+            quoteText: 'Dua hati, satu langkah baru.',
+            akadLocation: {
+              dateTime: '2027-06-12T08:00:00+07:00',
+              description: 'Gedung Pakuan, Bandung',
+            },
+            resepsiLocation: {
+              dateTime: '2027-06-12T11:00:00+07:00',
+              description: 'Gedung Pakuan, Bandung',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'jawa-truntum',
+          componentKey: 'jawa-truntum',
+          name: 'Truntum Pawiwahan',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Jawa bernuansa sogan dengan aksen motif Truntum yang tumbuh berulang.',
+          tags: JSON.stringify([
+            'jawa',
+            'truntum',
+            'batik',
+            'adat',
+            'nusantara',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/jawa-truntum',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/jawa-truntum.png',
+          paletteColors: ['#61472F', '#EEE7D8', '#A75C45'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Bagas Wicaksono',
+            brideName: 'Sekar Ayuningtyas',
+            parents: {
+              groomParents: 'Bapak Hadi dan Ibu Sari',
+              brideParents: 'Bapak Bimo dan Ibu Ratih',
+            },
+            quoteText: 'Tresna tuwuh, katresnan langgeng.',
+            akadLocation: {
+              dateTime: '2027-08-21T08:00:00+07:00',
+              description: 'Pendopo Agung, Yogyakarta',
+            },
+            resepsiLocation: {
+              dateTime: '2027-08-21T11:00:00+07:00',
+              description: 'Pendopo Agung, Yogyakarta',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'batak-ragi-hotang',
+          componentKey: 'batak-ragi-hotang',
+          name: 'Ragi Hotang Batak Toba',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Batak Toba dengan aksen tenun geometris dan palet marun, emas, serta biru tua.',
+          tags: JSON.stringify([
+            'batak',
+            'toba',
+            'ragi hotang',
+            'ulos',
+            'adat',
+            'nusantara',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/batak-ragi-hotang',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/batak-ragi-hotang.png',
+          paletteColors: ['#7D2D3E', '#17263A', '#D5AA5A'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Andreas Simanjuntak',
+            brideName: 'Maria br. Siregar',
+            parents: {
+              groomParents: 'Bapak J. Simanjuntak dan Ibu R. boru Hutapea',
+              brideParents: 'Bapak T. Siregar dan Ibu M. boru Situmorang',
+            },
+            quoteText:
+              'Horas! Dengan penuh sukacita kami mengundang keluarga dan sahabat.',
+            akadLocation: {
+              dateTime: '2027-09-18T09:00:00+07:00',
+              description: 'Sopo Marpingkir, Medan',
+            },
+            resepsiLocation: {
+              dateTime: '2027-09-18T12:00:00+07:00',
+              description: 'Sopo Marpingkir, Medan',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'dayak-ngaju-benang-bintik',
+          componentKey: 'dayak-ngaju-benang-bintik',
+          name: 'Benang Bintik Dayak Ngaju',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Dayak Ngaju dari Kalimantan Tengah dengan aksen geometris Benang Bintik.',
+          tags: JSON.stringify([
+            'dayak ngaju',
+            'kalimantan tengah',
+            'benang bintik',
+            'adat',
+            'nusantara',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/dayak-ngaju-benang-bintik',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/dayak-ngaju-benang-bintik.png',
+          paletteColors: ['#153F40', '#F3E8D0', '#B94B3E'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Dimas Tumbang',
+            brideName: 'Lestari Bawi',
+            parents: {
+              groomParents: 'Bapak Jaya dan Ibu Rina',
+              brideParents: 'Bapak Rudi dan Ibu Sinta',
+            },
+            quoteText: 'Satu perjalanan, banyak doa.',
+            akadLocation: {
+              dateTime: '2027-10-09T09:00:00+07:00',
+              description: 'Taman Budaya, Palangka Raya',
+            },
+            resepsiLocation: {
+              dateTime: '2027-10-09T12:00:00+07:00',
+              description: 'Taman Budaya, Palangka Raya',
+            },
+          }),
+          isPublished: true,
+        },
       ];
 
       for (const tpl of missingTemplates) {
-        const existing = await this.templateRepo.findOne({ where: { slug: tpl.slug } });
+        const existing = await this.templateRepo.findOne({
+          where: { slug: tpl.slug },
+        });
         if (!existing) {
           const created = this.templateRepo.create(tpl as any);
           await this.templateRepo.save(created);
@@ -62,9 +245,13 @@ export class TemplateDesignService implements OnModuleInit {
       }
 
       // Re-align taxonomy so every filter group has 3+ templates (e.g. Modern Noir in Minimalis & Modern)
-      const modernNoir = await this.templateRepo.findOne({ where: { slug: 'modern-noir' } });
+      const modernNoir = await this.templateRepo.findOne({
+        where: { slug: 'modern-noir' },
+      });
       if (modernNoir && modernNoir.filterGroup !== 'Minimalis & Modern') {
-        await this.templateRepo.update(modernNoir.id, { filterGroup: 'Minimalis & Modern' });
+        await this.templateRepo.update(modernNoir.id, {
+          filterGroup: 'Minimalis & Modern',
+        });
       }
     } catch (err: any) {
       console.warn('Template taxonomy auto-sync warning:', err?.message || err);

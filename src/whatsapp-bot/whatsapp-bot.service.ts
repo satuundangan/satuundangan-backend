@@ -32,6 +32,7 @@ export class WhatsappBotService implements OnModuleInit, OnModuleDestroy {
   private qrCodeDataUrl: string | null = null;
   private connectedPhone: string | null = null;
   private connectedName: string | null = null;
+  private isBotEnabled = true;
   private isAiEnabled = true;
 
   // Anti-spam / Cooldown per contact (JID -> timestamp)
@@ -193,6 +194,12 @@ export class WhatsappBotService implements OnModuleInit, OnModuleDestroy {
     const senderNumber = jid.split('@')[0];
     this.logger.log(`📥 Incoming WA from ${senderNumber}: "${trimmed.slice(0, 50)}..."`);
 
+    // If master bot switch is disabled, do not send any automated responses
+    if (!this.isBotEnabled) {
+      this.logger.debug(`Bot is currently paused/disabled. Skipping reply.`);
+      return;
+    }
+
     // Check if user is currently paused for human agent handover
     const pausedUntil = this.pausedContacts.get(jid) || 0;
     if (Date.now() < pausedUntil) {
@@ -231,9 +238,9 @@ export class WhatsappBotService implements OnModuleInit, OnModuleDestroy {
       const defaultMenu =
         `Halo Kak! Terima kasih sudah menghubungi *SatuUndangan.id* 💍✨\n\n` +
         `Saat ini tim Customer Care kami sedang mempersiapkan pesanan. Ada yang bisa kami bantu?\n\n` +
-        `1️⃣ *Katalog Desain*: https://satuundangan.id/#templates\n` +
+        `1️⃣ *Katalog Tema*: https://satuundangan.id/#templates\n` +
         `2️⃣ *Paket & Harga*: Basic (Rp 49rb), Premium (Rp 79rb), Exclusive (Rp 99rb)\n` +
-        `3️⃣ *Coba Gratis*: https://satuundangan.id/create\n` +
+        `3️⃣ *Buat Undangan*: https://satuundangan.id/create\n` +
         `4️⃣ *Bicara dengan Admin*: Ketik "Admin"\n\n` +
         `Silakan ketik pertanyaan Kakak ya!`;
       await this.sendMessage(jid, defaultMenu);
@@ -378,10 +385,20 @@ Balasan WhatsApp kamu:`;
       phoneNumber: this.connectedPhone,
       botName: this.connectedName,
       qrCodeUrl: this.qrCodeDataUrl,
+      isBotEnabled: this.isBotEnabled,
       isAiEnabled: this.isAiEnabled,
       hasSession: fs.existsSync(path.join(this.sessionDir, 'creds.json')),
       stats: this.stats,
     };
+  }
+
+  /**
+   * Toggle master bot on/off
+   */
+  toggleBot(enabled?: boolean) {
+    this.isBotEnabled = enabled !== undefined ? enabled : !this.isBotEnabled;
+    this.logger.log(`Master Bot state changed: isBotEnabled = ${this.isBotEnabled}`);
+    return { isBotEnabled: this.isBotEnabled };
   }
 
   /**

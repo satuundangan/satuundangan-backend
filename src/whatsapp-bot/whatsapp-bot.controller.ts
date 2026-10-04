@@ -37,6 +37,12 @@ export class WhatsappBotController {
     return this.botService.logout();
   }
 
+  @Post('toggle-bot')
+  @ApiOperation({ summary: 'Toggle Master WhatsApp Bot on/off' })
+  toggleBot(@Body('enabled') enabled?: boolean) {
+    return this.botService.toggleBot(enabled);
+  }
+
   @Post('toggle-ai')
   @ApiOperation({ summary: 'Toggle Gemini AI auto-reply on/off' })
   toggleAi(@Body('enabled') enabled?: boolean) {

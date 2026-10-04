@@ -583,6 +583,7 @@ export class InvitationService {
         parents: invitation.parents,
         turutMengundang: invitation.turutMengundang,
         liveStreamingLink: invitation.liveStreamingLink,
+        dressCode: invitation.dressCode || '',
         footerText: invitation.footerText,
         enableCover: invitation.enableCover,
         enableGuestMessage: invitation.enableGuestMessage,

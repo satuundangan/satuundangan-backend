@@ -411,6 +411,12 @@ export class CreateInvitationDto {
   @StoredUrl()
   liveStreamingLink?: string;
 
+  @ApiPropertyOptional({ example: 'Putih / Batik Modern' })
+  @IsOptional()
+  @IsString()
+  @MaxVarchar()
+  dressCode?: string;
+
   @ApiPropertyOptional({ example: 'Terima kasih...' })
   @IsOptional()
   @IsString()

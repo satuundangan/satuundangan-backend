@@ -18,6 +18,7 @@ import { AffiliateModule } from './affiliate/affiliate.module';
 import { AiModule } from './ai/ai.module';
 import { ArticleModule } from './article/article.module';
 import { SitemapModule } from './sitemap/sitemap.module';
+import { WhatsappBotModule } from './whatsapp-bot/whatsapp-bot.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -54,6 +55,7 @@ import { AppService } from './app.service';
     AiModule,
     ArticleModule,
     SitemapModule,
+    WhatsappBotModule,
   ],
   controllers: [AppController],
   providers: [AppService],

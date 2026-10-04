@@ -49,8 +49,51 @@ export class WhatsappBotService implements OnModuleInit, OnModuleDestroy {
   };
 
   private readonly sessionDir = path.resolve(process.cwd(), 'sessions/whatsapp-bot');
+  private readonly configFile = path.resolve(process.cwd(), 'sessions/whatsapp-bot/bot-config.json');
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    this.loadBotSettings();
+  }
+
+  private loadBotSettings() {
+    try {
+      if (fs.existsSync(this.configFile)) {
+        const raw = fs.readFileSync(this.configFile, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.isBotEnabled === 'boolean') {
+          this.isBotEnabled = parsed.isBotEnabled;
+        }
+        if (typeof parsed.isAiEnabled === 'boolean') {
+          this.isAiEnabled = parsed.isAiEnabled;
+        }
+        this.logger.log(`Loaded persisted bot settings: bot=${this.isBotEnabled}, ai=${this.isAiEnabled}`);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not load bot-config.json: ${err.message}`);
+    }
+  }
+
+  private saveBotSettings() {
+    try {
+      if (!fs.existsSync(this.sessionDir)) {
+        fs.mkdirSync(this.sessionDir, { recursive: true });
+      }
+      fs.writeFileSync(
+        this.configFile,
+        JSON.stringify(
+          {
+            isBotEnabled: this.isBotEnabled,
+            isAiEnabled: this.isAiEnabled,
+            updatedAt: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (err: any) {
+      this.logger.warn(`Could not save bot-config.json: ${err.message}`);
+    }
+  }
 
   async onModuleInit() {
     // Optionally auto-connect on boot if sessions exist or if WA_BOT_AUTOSTART=true
@@ -397,6 +440,7 @@ Balasan WhatsApp kamu:`;
    */
   toggleBot(enabled?: boolean) {
     this.isBotEnabled = enabled !== undefined ? enabled : !this.isBotEnabled;
+    this.saveBotSettings();
     this.logger.log(`Master Bot state changed: isBotEnabled = ${this.isBotEnabled}`);
     return { isBotEnabled: this.isBotEnabled };
   }
@@ -406,6 +450,8 @@ Balasan WhatsApp kamu:`;
    */
   toggleAi(enabled?: boolean) {
     this.isAiEnabled = enabled !== undefined ? enabled : !this.isAiEnabled;
+    this.saveBotSettings();
+    this.logger.log(`AI state changed: isAiEnabled = ${this.isAiEnabled}`);
     return { isAiEnabled: this.isAiEnabled };
   }
 

@@ -44,7 +44,7 @@ export class TemplateDesignService implements OnModuleInit {
           ]),
           previewUrl: 'https://satuundangan.id/demo/meowly-married',
           thumbnailUrl:
-            'https://cdn.satuundangan.id/templates/meowly-married.jpg',
+            'https://satuundangan.id/assets/templates/meowly-married.png',
           paletteColors: ['#FFB5A7', '#FCD5CE', '#F8EDEB'],
           defaultMusic: 'wedding-acoustic-cheerful.mp3',
           isPublished: true,
@@ -65,7 +65,8 @@ export class TemplateDesignService implements OnModuleInit {
             'arcade',
           ]),
           previewUrl: 'https://satuundangan.id/demo/pixel-quest',
-          thumbnailUrl: 'https://cdn.satuundangan.id/templates/pixel-quest.jpg',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/pixel-quest.png',
           paletteColors: ['#3B82F6', '#10B981', '#F59E0B'],
           defaultMusic: 'wedding-retro-adventure.mp3',
           isPublished: true,
@@ -241,7 +242,20 @@ export class TemplateDesignService implements OnModuleInit {
         if (!existing) {
           const created = this.templateRepo.create(tpl as any);
           await this.templateRepo.save(created);
+        } else if (tpl.thumbnailUrl && existing.thumbnailUrl !== tpl.thumbnailUrl) {
+          // Update stale/broken thumbnail URL
+          await this.templateRepo.update(existing.id, {
+            thumbnailUrl: tpl.thumbnailUrl,
+          });
         }
+      }
+
+      // Ensure kimi-no-na-wa has valid thumbnail
+      const kimi = await this.templateRepo.findOne({ where: { slug: 'kimi-no-na-wa' } });
+      if (kimi && !kimi.thumbnailUrl) {
+        await this.templateRepo.update(kimi.id, {
+          thumbnailUrl: 'https://satuundangan.id/assets/templates/kimi-no-na-wa.png',
+        });
       }
 
       // Re-align taxonomy so every filter group has 3+ templates (e.g. Modern Noir in Minimalis & Modern)

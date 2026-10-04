@@ -266,6 +266,9 @@ export class Invitation {
   @Column({ nullable: true })
   liveStreamingLink: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  dressCode: string | null;
+
   @Column({ nullable: true, type: 'text' })
   footerText: string;
 

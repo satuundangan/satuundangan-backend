@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WeddingPlanner } from './wedding-planner.entity';
@@ -31,15 +35,20 @@ export class WeddingPlannerService {
       throw new NotFoundException('User not found');
     }
 
-    user.hasWeddingPlannerAccess = true;
-    if (payload.instagramHandle) {
-      // Normalize handle
-      let handle = payload.instagramHandle.trim();
-      if (!handle.startsWith('@')) {
-        handle = `@${handle}`;
-      }
-      user.instagramHandle = handle;
+    if (!payload.instagramHandle || !payload.instagramHandle.trim()) {
+      throw new BadRequestException('Username Instagram wajib diisi untuk membuka akses Wedding Planner');
     }
+
+    let handle = payload.instagramHandle.trim();
+    if (!handle.startsWith('@')) {
+      handle = `@${handle}`;
+    }
+    if (handle.length < 3) {
+      throw new BadRequestException('Format username Instagram tidak valid (minimal 2 karakter)');
+    }
+
+    user.hasWeddingPlannerAccess = true;
+    user.instagramHandle = handle;
     await this.userRepo.save(user);
 
     // Ensure initial wedding planner record exists

@@ -26,6 +26,8 @@ export class UserService {
         'isApproved',
         'aiCredits',
         'totpEnabled',
+        'hasWeddingPlannerAccess',
+        'instagramHandle',
       ],
     });
     if (!user) {

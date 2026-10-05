@@ -19,6 +19,7 @@ import { AiModule } from './ai/ai.module';
 import { ArticleModule } from './article/article.module';
 import { SitemapModule } from './sitemap/sitemap.module';
 import { WhatsappBotModule } from './whatsapp-bot/whatsapp-bot.module';
+import { WeddingPlannerModule } from './wedding-planner/wedding-planner.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -56,6 +57,7 @@ import { AppService } from './app.service';
     ArticleModule,
     SitemapModule,
     WhatsappBotModule,
+    WeddingPlannerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

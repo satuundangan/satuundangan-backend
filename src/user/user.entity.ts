@@ -59,6 +59,12 @@ export class User {
   @Column({ type: 'bool', default: false })
   totpEnabled: boolean;
 
+  @Column({ type: 'bool', default: false })
+  hasWeddingPlannerAccess: boolean;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  instagramHandle: string | null;
+
   @CreateDateColumn({ type: 'datetime' })
   createdAt: Date;
 

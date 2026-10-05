@@ -1,0 +1,246 @@
+export const DEFAULT_CHECKLISTS = [
+  // Fase H-180 s/d H-120 (6 - 4 Bulan Sebelum Hari H)
+  {
+    id: 'chk-1',
+    phase: 'H-180 s/d H-120',
+    task: 'Pertemuan dua keluarga & penentuan tanggal pernikahan resmi',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-2',
+    phase: 'H-180 s/d H-120',
+    task: 'Menentukan estimasi total anggaran (budget) & pembagian porsi keluarga',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-3',
+    phase: 'H-180 s/d H-120',
+    task: 'Menentukan konsep pernikahan (Adat, Nasional, Modern, Intimate)',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-4',
+    phase: 'H-180 s/d H-120',
+    task: 'Booking Venue / Gedung Akad & Resepsi (kunci tanggal dan DP)',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-5',
+    phase: 'H-180 s/d H-120',
+    task: 'Survey & booking Katering utama (test food katering pilihan)',
+    isCompleted: false,
+  },
+
+  // Fase H-90 s/d H-60 (3 - 2 Bulan Sebelum Hari H)
+  {
+    id: 'chk-6',
+    phase: 'H-90 s/d H-60',
+    task: 'Daftar ke KUA / Catatan Sipil & melengkapi berkas administrasi nikah',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-7',
+    phase: 'H-90 s/d H-60',
+    task: 'Booking MUA, Busana Pengantin (Fitting perdana) & Kebaya Orang Tua',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-8',
+    phase: 'H-90 s/d H-60',
+    task: 'Booking Fotografer & Videografer + jadwal sesi Prewedding',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-9',
+    phase: 'H-90 s/d H-60',
+    task: 'Booking Dekorasi pelaminan, photo booth & pencahayaan (lighting)',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-10',
+    phase: 'H-90 s/d H-60',
+    task: 'Beli / Pesan Cincin Pernikahan & grafir nama',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-11',
+    phase: 'H-90 s/d H-60',
+    task: 'Mulai buat Undangan Digital di SatuUndangan.id & input list tamu',
+    isCompleted: false,
+  },
+
+  // Fase H-30 s/d H-7 (1 Bulan - 1 Minggu Sebelum Hari H)
+  {
+    id: 'chk-12',
+    phase: 'H-30 s/d H-7',
+    task: 'Sebar Undangan Digital via WhatsApp menggunakan fitur SatuUndangan',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-13',
+    phase: 'H-30 s/d H-7',
+    task: 'Final fitting busana pengantin & keluarga inti',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-14',
+    phase: 'H-30 s/d H-7',
+    task: 'Technical Meeting (TM) seluruh vendor & keluarga di lokasi acara',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-15',
+    phase: 'H-30 s/d H-7',
+    task: 'Rekap konfirmasi kehadiran tamu (RSVP) untuk finalisasi porsi katering',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-16',
+    phase: 'H-30 s/d H-7',
+    task: 'Bungkus suvenir & siapkan kotak amplop / standee QRIS meja resepsi',
+    isCompleted: false,
+  },
+
+  // Fase Minggu Terakhir & Hari H
+  {
+    id: 'chk-17',
+    phase: 'Minggu Terakhir & Hari H',
+    task: 'Istirahat & perawatan diri (lulur / spa pengantin), hindari stres',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-18',
+    phase: 'Minggu Terakhir & Hari H',
+    task: 'Siapkan Emergency Bag (jarum pentul, peniti, obat pribadi, touch-up)',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-19',
+    phase: 'Minggu Terakhir & Hari H',
+    task: 'Briefing tim panitia penerima tamu untuk Scanner QR Buku Tamu SatuUndangan',
+    isCompleted: false,
+  },
+  {
+    id: 'chk-20',
+    phase: 'Minggu Terakhir & Hari H',
+    task: 'Pelunasan seluruh vendor sesuai tenggat waktu',
+    isCompleted: false,
+  },
+];
+
+export const DEFAULT_BUDGET_ITEMS = [
+  {
+    id: 'bgt-1',
+    category: 'Venue & Gedung',
+    name: 'Sewa Gedung / Ballroom Resepsi',
+    estimatedCost: 15000000,
+    actualCost: 15000000,
+    paidAmount: 5000000,
+    notes: 'Termasuk listrik & kebersihan',
+  },
+  {
+    id: 'bgt-2',
+    category: 'Katering',
+    name: 'Paket Buffet & Gubukan (500 Porsi)',
+    estimatedCost: 25000000,
+    actualCost: 24000000,
+    paidAmount: 10000000,
+    notes: '5 menu utama + 3 stall gubukan',
+  },
+  {
+    id: 'bgt-3',
+    category: 'Dekorasi',
+    name: 'Dekorasi Pelaminan, Lorong & Photobooth',
+    estimatedCost: 10000000,
+    actualCost: 9500000,
+    paidAmount: 3000000,
+    notes: 'Fresh flower & welcome sign',
+  },
+  {
+    id: 'bgt-4',
+    category: 'MUA & Busana',
+    name: 'MUA Pengantin, Ibu & Besan + Busana',
+    estimatedCost: 7500000,
+    actualCost: 7500000,
+    paidAmount: 2500000,
+    notes: 'Termasuk retouch & hena',
+  },
+  {
+    id: 'bgt-5',
+    category: 'Dokumentasi',
+    name: 'Foto & Video Cinematic (Akad + Resepsi)',
+    estimatedCost: 6000000,
+    actualCost: 6000000,
+    paidAmount: 2000000,
+    notes: '2 fotografer, 1 videografer, all files & album',
+  },
+  {
+    id: 'bgt-6',
+    category: 'Undangan & Digital',
+    name: 'Undangan Digital SatuUndangan.id (Paket Exclusive)',
+    estimatedCost: 99000,
+    actualCost: 99000,
+    paidAmount: 99000,
+    notes: 'Aktif selamanya + QR Check-in',
+  },
+  {
+    id: 'bgt-7',
+    category: 'Suvenir & Mahar',
+    name: 'Suvenir Tamu (300 pcs) + Kotak Mahar & Cincin',
+    estimatedCost: 3500000,
+    actualCost: 3200000,
+    paidAmount: 1500000,
+    notes: 'Suvenir pouch custom',
+  },
+];
+
+export const DEFAULT_RUNDOWN = [
+  {
+    id: 'rdn-1',
+    time: '05:30 - 07:30',
+    activity: 'Make Up & Persiapan Pengantin + Orang Tua',
+    location: 'Ruang Rias Pengantin',
+    pic: 'MUA & Bridesmaid',
+    notes: 'Sarapan ringan sebelum rias',
+  },
+  {
+    id: 'rdn-2',
+    time: '07:30 - 08:00',
+    activity: 'Kedatangan Calon Pengantin Pria & Keluarga',
+    location: 'Lobi Depan Gedung',
+    pic: 'Penerima Tamu Keluarga',
+    notes: 'Penyambutan & penyerahan seserahan',
+  },
+  {
+    id: 'rdn-3',
+    time: '08:00 - 09:30',
+    activity: 'Prosesi Akad Nikah / Pemberkatan',
+    location: 'Area Akad / Altar',
+    pic: 'Penghulu / Pemuka Agama & MC',
+    notes: 'Ijab kabul, penyerahan mahar, buku nikah & foto',
+  },
+  {
+    id: 'rdn-4',
+    time: '09:30 - 10:30',
+    activity: 'Retouch Busana Resepsi & Foto Keluarga Inti',
+    location: 'Ruang Rias / Pelaminan',
+    pic: 'MUA & Tim Dokumentasi',
+    notes: 'Briefing tim resepsi & katering',
+  },
+  {
+    id: 'rdn-5',
+    time: '11:00 - 13:00',
+    activity: 'Resepsi Pernikahan (Kirab Pengantin, Ramah Tamah & Hiburan)',
+    location: 'Main Ballroom',
+    pic: 'WO / MC & Koordinator Katering',
+    notes: 'Check-in tamu via QR SatuUndangan di meja resepsi',
+  },
+  {
+    id: 'rdn-6',
+    time: '13:00 - 13:30',
+    activity: 'Foto Bersama Vendor & Penutupan Acara',
+    location: 'Pelaminan',
+    pic: 'MC & WO',
+    notes: 'Rekap amplop & serah terima barang',
+  },
+];

@@ -48,6 +48,11 @@ jobs:
               else
                 echo -e "\nGEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
               fi
+              if grep -q "^RESEND_API_KEY=" .env; then
+                sed -i 's|^RESEND_API_KEY=.*|RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}|' .env
+              else
+                echo -e "\nRESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" >> .env
+              fi
             fi
             docker compose pull
             docker compose up -d

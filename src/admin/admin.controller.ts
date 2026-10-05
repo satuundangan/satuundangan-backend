@@ -73,6 +73,11 @@ export class AdminController {
     return this.service.updateUser(id, dto);
   }
 
+  @Post('users/:id/verify-email')
+  verifyUserEmail(@Param('id') id: number) {
+    return this.service.verifyUserEmail(id);
+  }
+
   @Delete('users/:id')
   deleteUser(@Param('id') id: number) {
     return this.service.deleteUser(id);

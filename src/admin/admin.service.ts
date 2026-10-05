@@ -154,6 +154,15 @@ export class AdminService {
     return { success: true };
   }
 
+  async verifyUserEmail(id: number) {
+    const user = await this.getUser(id);
+    user.emailVerifiedAt = new Date();
+    user.emailVerificationTokenHash = null;
+    user.emailVerificationTokenExpiresAt = null;
+    await this.userRepo.save(user);
+    return { success: true, message: `Email ${user.email} berhasil diverifikasi.` };
+  }
+
   // Invitations
   async listInvitations(
     page = 1,

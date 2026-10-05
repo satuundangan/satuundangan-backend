@@ -122,7 +122,15 @@ export class AdminService {
       payload.password = await bcrypt.hash(payload.password, 10);
       payload.provider = payload.provider || 'local';
     }
-    Object.assign(user, payload);
+    const { isEmailVerified, ...rest } = payload as any;
+    if (typeof isEmailVerified === 'boolean') {
+      user.emailVerifiedAt = isEmailVerified ? (user.emailVerifiedAt || new Date()) : null;
+      if (isEmailVerified) {
+        user.emailVerificationTokenHash = null;
+        user.emailVerificationTokenExpiresAt = null;
+      }
+    }
+    Object.assign(user, rest);
     return this.userRepo.save(user);
   }
 

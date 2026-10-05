@@ -42,10 +42,10 @@ export class UpdateAdminUserDto {
   password?: string;
 
   @IsOptional()
-  @IsString()
-  provider?: string;
+  @IsBoolean()
+  isAdmin?: boolean;
 
   @IsOptional()
   @IsBoolean()
-  isAdmin?: boolean;
+  isEmailVerified?: boolean;
 }

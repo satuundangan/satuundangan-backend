@@ -8,6 +8,7 @@ const SITEMAP_ORIGIN =
 
 const STATIC_ROUTES = [
   { path: '/', priority: '1.0', changefreq: 'weekly' },
+  { path: '/wedding-planner', priority: '0.9', changefreq: 'weekly' },
   { path: '/blog', priority: '0.8', changefreq: 'daily' },
   { path: '/templates', priority: '0.8', changefreq: 'weekly' },
   { path: '/create', priority: '0.7', changefreq: 'monthly' },

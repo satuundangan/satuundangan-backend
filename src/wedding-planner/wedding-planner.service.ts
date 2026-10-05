@@ -114,6 +114,9 @@ export class WeddingPlannerService {
     }
 
     if (payload.budgetTotal !== undefined) planner.budgetTotal = payload.budgetTotal;
+    if (payload.weddingDate !== undefined) planner.weddingDate = payload.weddingDate;
+    if (payload.weddingConcept !== undefined) planner.weddingConcept = payload.weddingConcept;
+    if (payload.estimatedGuests !== undefined) planner.estimatedGuests = payload.estimatedGuests;
     if (payload.budgetItems !== undefined) planner.budgetItems = payload.budgetItems;
     if (payload.checklists !== undefined) planner.checklists = payload.checklists;
     if (payload.vendors !== undefined) planner.vendors = payload.vendors;

@@ -24,6 +24,15 @@ export class WeddingPlanner {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   budgetTotal: number;
 
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  weddingDate: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  weddingConcept: string | null; // Adat Jawa, Sunda, Modern, Intimate, etc.
+
+  @Column({ type: 'int', default: 300 })
+  estimatedGuests: number;
+
   @Column({ type: 'json', nullable: true })
   budgetItems: Array<{
     id: string;

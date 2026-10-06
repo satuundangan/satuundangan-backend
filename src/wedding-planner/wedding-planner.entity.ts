@@ -52,6 +52,10 @@ export class WeddingPlanner {
     isCompleted: boolean;
     dueDate?: string;
     notes?: string;
+    assignee?: string;
+    isUrgent?: boolean;
+    category?: string;
+    priority?: string;
   }>;
 
   @Column({ type: 'json', nullable: true })

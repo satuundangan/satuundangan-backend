@@ -233,6 +233,50 @@ export class TemplateDesignService implements OnModuleInit {
           }),
           isPublished: true,
         },
+        {
+          slug: 'strawberry-matcha',
+          componentKey: 'strawberry-matcha',
+          name: 'Strawberry Matcha',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Romantis & Dreamy',
+          description:
+            'Harmoni manis strawberry blush dan ketenangan matcha cream dengan estetika cafe Korea kontemporer.',
+          tags: JSON.stringify([
+            'strawberry matcha',
+            'korean aesthetic',
+            'pastel',
+            'green',
+            'pink',
+            'garden',
+            'intimate',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/strawberry-matcha',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/strawberry-matcha.png',
+          paletteColors: ['#3E5142', '#FAF7F2', '#D96B7D'],
+          defaultMusic: 'romantic_music1.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Romeo Monty',
+            brideName: 'Juliet Capulet',
+            parents: {
+              groomParents: 'Bapak Monty & Ibu Monty',
+              brideParents: 'Bapak Capulet & Ibu Capulet',
+            },
+            quoteText:
+              'Dan di antara tanda-tanda kekuasaan-Nya ialah Dia menciptakan untukmu pasangan hidup dari jenismu sendiri...',
+            quoteSource: 'Ar-Rum: 21',
+            akadLocation: {
+              dateTime: '2026-10-24T08:00:00+07:00',
+              description: 'Masjid Agung Al-Barkah, Bandung',
+            },
+            resepsiLocation: {
+              dateTime: '2026-10-24T11:00:00+07:00',
+              description: 'The Glass House Garden, Bandung',
+            },
+          }),
+          isPublished: true,
+        },
       ];
 
       for (const tpl of missingTemplates) {

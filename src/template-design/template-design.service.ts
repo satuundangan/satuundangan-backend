@@ -394,7 +394,7 @@ export class TemplateDesignService implements OnModuleInit {
           price: 79000,
           filterGroup: 'Adat & Budaya',
           description:
-            'Undangan Pawiwahan Adat Bali dengan ukiran Kori Agung, motif Patra Samblung, kelopak Bunga Jepun, dan palet terracotta emas sakral.',
+            'Undangan Pawiwahan Adat Bali nan sakral dan agung. Memadukan ukiran Kori Agung Candi Bentar, kemewahan prada emas Patra Samblung, dan harum Bunga Jepun Kamboja.',
           tags: JSON.stringify([
             'bali',
             'payas agung',
@@ -404,6 +404,7 @@ export class TemplateDesignService implements OnModuleInit {
             'nusantara',
             'hindu',
             'bunga jepun',
+            'candi bentar',
           ]),
           previewUrl: 'https://satuundangan.id/demo/bali-payas-agung',
           thumbnailUrl:
@@ -427,6 +428,186 @@ export class TemplateDesignService implements OnModuleInit {
             resepsiLocation: {
               dateTime: '2027-06-20T12:00:00+08:00',
               description: 'Taman Bhagawan Beachfront, Nusa Dua, Bali',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'palembang-aesan-gede',
+          componentKey: 'palembang-aesan-gede',
+          name: 'Aesan Gede Palembang',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Pernikahan Adat Palembang bercita rasa kemegahan Kerajaan Sriwijaya. Mahkota Aesan Gede berkilau kencana, ornamen atap Rumah Limas, dan tenun Songket Lepus marun kencana.',
+          tags: JSON.stringify([
+            'palembang',
+            'sriwijaya',
+            'aesan gede',
+            'rumah limas',
+            'songket lepus',
+            'adat',
+            'nusantara',
+            'marun',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/palembang-aesan-gede',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/palembang-aesan-gede.png',
+          paletteColors: ['#430A13', '#D4AF37', '#140205'],
+          defaultMusic: 'wedding-sacred-ceremony.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'M. Fadhil Ramadhan',
+            brideName: 'Nyimas Annisa Larasati',
+            parents: {
+              groomParents: 'Kgs. H. Ramadhan & Nyayu Hj. Maryam',
+              brideParents: 'Kemas H. Syukri & Nyimas Hj. Rohana',
+            },
+            quoteText:
+              'Bukan keno pantun berlayang, keno budi bahaso nan elok. Maut buek janji satio, untung bungo kambang serumpun.',
+            quoteSource: 'Petatah Petitih Palembang / QS. Ar-Rum: 21',
+            akadLocation: {
+              dateTime: '2027-07-17T08:30:00+07:00',
+              description: 'Masjid Agung Sultan Mahmud Badaruddin I, Palembang',
+            },
+            resepsiLocation: {
+              dateTime: '2027-07-17T11:00:00+07:00',
+              description: 'The Sultan Convention Center, Palembang',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'betawi-palang-pintu',
+          componentKey: 'betawi-palang-pintu',
+          name: 'Palang Pintu Betawi',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Adat Betawi Klasik penuh keceriaan tradisi Palang Pintu Batavia tempo doeloe. Dihiasi ukiran Gigi Balang, kembang kelapa, siluet sepasang roti buaya kencana, dan ronce melati.',
+          tags: JSON.stringify([
+            'betawi',
+            'jakarta',
+            'palang pintu',
+            'gigi balang',
+            'ondel-ondel',
+            'roti buaya',
+            'adat',
+            'nusantara',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/betawi-palang-pintu',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/betawi-palang-pintu.png',
+          paletteColors: ['#D99B26', '#1A3C2B', '#9C4126'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Muhammad Zaelani',
+            brideName: 'Siti Nurhaliza',
+            parents: {
+              groomParents: 'Babeh H. Romli & Enyak Hj. Zaenab',
+              brideParents: 'Babeh H. Marzuki & Enyak Hj. Fatimah',
+            },
+            quoteText:
+              'Kalo jalan lewat Kwitang, jangan lupe beli semanggi. Kalo Abang udah datang, akad nikah kite langsung jadi.',
+            quoteSource: 'Pantun Palang Pintu Betawi / QS. Ar-Rum: 21',
+            akadLocation: {
+              dateTime: '2027-08-08T08:00:00+07:00',
+              description: 'Masjid Ramlie Musofa, Sunter, Jakarta Utara',
+            },
+            resepsiLocation: {
+              dateTime: '2027-08-08T11:00:00+07:00',
+              description: 'Sasana Kriya Grand Ballroom, TMII, Jakarta Timur',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'moroccan-marrakech-gold',
+          componentKey: 'moroccan-marrakech-gold',
+          name: 'Moroccan Marrakech Gold',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Elegan & Mewah',
+          description:
+            'Undangan Walimatul Ursy bergaya Timur Tengah Modern ala Riad Marrakech. Menghadirkan lengkungan Moresque Horseshoe Arch, mozaik bintang 8 Zellige, dan lentera Fanous gantung.',
+          tags: JSON.stringify([
+            'moroccan',
+            'marrakech',
+            'islami modern',
+            'arabian',
+            'zellige',
+            'horseshoe arch',
+            'fanous',
+            'mewah',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/moroccan-marrakech-gold',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/moroccan-marrakech-gold.png',
+          paletteColors: ['#8B4513', '#D4AF37', '#0D1B2A'],
+          defaultMusic: 'wedding-sacred-ceremony.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Ahmad Rayhan Al-Fayeed',
+            brideName: 'Yasmin Zahra Al-Attas',
+            parents: {
+              groomParents: 'Habib Faruq Al-Fayeed & Syarifah Maryam',
+              brideParents: 'Habib Ali Al-Attas & Syarifah Fatimah',
+            },
+            quoteText:
+              'Dan di antara tanda-tanda kebesaran-Nya ialah Dia menciptakan pasangan-pasangan untukmu dari jenismu sendiri, agar kamu cenderung dan merasa tenteram kepadanya...',
+            quoteSource: 'QS. Ar-Rum: 21 / Walimatul Ursy',
+            akadLocation: {
+              dateTime: '2027-09-05T08:30:00+07:00',
+              description: 'Masjid Agung At-Tin, TMII, Jakarta Timur',
+            },
+            resepsiLocation: {
+              dateTime: '2027-09-05T19:00:00+07:00',
+              description: 'The Tribrata Grand Ballroom Darmawangsa, Jakarta',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'old-money-monogram',
+          componentKey: 'old-money-monogram',
+          name: 'Old Money Monogram',
+          category: exclusiveCat,
+          price: 99000,
+          filterGroup: 'Minimalis & Modern',
+          description:
+            'Estetika kemewahan klasik Western Quiet Luxury. Mengusung segel lilin Wax Seal Stamp interaktif, monogram crest bunga laurel kencana, serif editorial ala Vogue, dan double hairline borders.',
+          tags: JSON.stringify([
+            'old money',
+            'quiet luxury',
+            'wax seal',
+            'monogram',
+            'editorial',
+            'minimalis',
+            'exclusive',
+            'black tie',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/old-money-monogram',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/old-money-monogram.png',
+          paletteColors: ['#1A1614', '#BFA15F', '#FCFBF7'],
+          defaultMusic: 'wedding-classical-harmony.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Julian Sterling',
+            brideName: 'Claire Kensington',
+            parents: {
+              groomParents: 'Mr. & Mrs. Edward Sterling',
+              brideParents: 'Mr. & Mrs. Harrison Kensington',
+            },
+            quoteText:
+              'Love is not love which alters when it alteration finds, or bends with the remover to remove. It is an ever-fixed mark.',
+            quoteSource: 'William Shakespeare — Sonnet 116',
+            akadLocation: {
+              dateTime: '2027-10-16T15:00:00+07:00',
+              description: 'The Glass Pavilion Estate, Ubud, Bali',
+            },
+            resepsiLocation: {
+              dateTime: '2027-10-16T18:30:00+07:00',
+              description: 'The Manor Lawn & Orangery, Ubud, Bali',
             },
           }),
           isPublished: true,

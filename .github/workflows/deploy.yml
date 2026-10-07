@@ -55,5 +55,5 @@ jobs:
               fi
             fi
             docker compose pull
-            docker compose up -d --force-recreate satu-undangan-api
+            docker compose up -d --force-recreate
             docker image prune -f || true

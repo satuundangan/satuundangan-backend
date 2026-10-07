@@ -294,12 +294,38 @@ export class TemplateDesignService implements OnModuleInit {
         }
       }
 
-      // Ensure kimi-no-na-wa has valid thumbnail
-      const kimi = await this.templateRepo.findOne({ where: { slug: 'kimi-no-na-wa' } });
-      if (kimi && !kimi.thumbnailUrl) {
-        await this.templateRepo.update(kimi.id, {
-          thumbnailUrl: 'https://satuundangan.id/assets/templates/kimi-no-na-wa.png',
-        });
+      // Sync official template screenshots to database rows
+      const OFFICIAL_THUMBNAILS: Record<string, string> = {
+        'azure-shores': 'https://satuundangan.id/assets/templates/azure-shores.png',
+        'batak-ragi-hotang': 'https://satuundangan.id/assets/templates/batak-ragi-hotang.png',
+        'botanical-watercolor': 'https://satuundangan.id/assets/templates/botanical-watercolor.png',
+        'celestial-sparkle': 'https://satuundangan.id/assets/templates/celestial-sparkle.png',
+        'cyberpunk-neon': 'https://satuundangan.id/assets/templates/cyberpunk-neon.png',
+        'dark-elegant': 'https://satuundangan.id/assets/templates/dark-elegant.png',
+        'dayak-ngaju-benang-bintik': 'https://satuundangan.id/assets/templates/dayak-ngaju-benang-bintik.png',
+        'editorial-magazine': 'https://satuundangan.id/assets/templates/editorial-magazine.png',
+        'jawa-truntum': 'https://satuundangan.id/assets/templates/jawa-truntum.png',
+        'kimi-no-na-wa': 'https://satuundangan.id/assets/templates/kimi-no-na-wa.png',
+        'light-modern': 'https://satuundangan.id/assets/templates/light-modern.png',
+        'meowly-married': 'https://satuundangan.id/assets/templates/meowly-married.png',
+        'minimalist-terra': 'https://satuundangan.id/assets/templates/minimalist-terra.png',
+        'modern-noir': 'https://satuundangan.id/assets/templates/modern-noir.png',
+        'naruto': 'https://satuundangan.id/assets/templates/naruto.png',
+        'one-piece': 'https://satuundangan.id/assets/templates/one-piece.png',
+        'pixel-quest': 'https://satuundangan.id/assets/templates/pixel-quest.png',
+        'retro-nostalgia': 'https://satuundangan.id/assets/templates/retro-nostalgia.png',
+        'royal-emerald': 'https://satuundangan.id/assets/templates/royal-emerald.png',
+        'royal-gold': 'https://satuundangan.id/assets/templates/royal-gold.png',
+        'sakura-blossom': 'https://satuundangan.id/assets/templates/sakura-blossom.png',
+        'strawberry-matcha': 'https://satuundangan.id/assets/templates/strawberry-matcha.png',
+        'sunda-sabilulungan': 'https://satuundangan.id/assets/templates/sunda-sabilulungan.png',
+      };
+
+      for (const [slug, url] of Object.entries(OFFICIAL_THUMBNAILS)) {
+        const item = await this.templateRepo.findOne({ where: { slug } });
+        if (item && item.thumbnailUrl !== url) {
+          await this.templateRepo.update(item.id, { thumbnailUrl: url });
+        }
       }
 
       // Re-align taxonomy so every filter group has 3+ templates (e.g. Modern Noir in Minimalis & Modern)

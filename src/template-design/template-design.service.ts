@@ -658,6 +658,53 @@ export class TemplateDesignService implements OnModuleInit {
           }),
           isPublished: true,
         },
+        {
+          slug: 'purrfect-match',
+          componentKey: 'purrfect-match',
+          name: 'Purrfect Match Cat Lovers',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Bold & Unik',
+          description:
+            'Undangan pernikahan super menggemaskan bertema kucing lucu untuk pasangan cat lovers. Dihiasi ilustrasi SVG kucing mempelai, jejak kaki paw melayang, audio dengkuran meow interaktif, dan palet pastel manis peach & biscuit cream.',
+          tags: JSON.stringify([
+            'cat lovers',
+            'kucing',
+            'meow',
+            'paw prints',
+            'lucu',
+            'cute',
+            'kawaii',
+            'pastel',
+            'peach',
+            'playful',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/purrfect-match',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/purrfect-match.png',
+          paletteColors: ['#FFFDF9', '#E76F51', '#2B2D42'],
+          defaultMusic: 'wedding-acoustic-morning.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Dimas Anggara',
+            brideName: 'Nabila Safira',
+            parents: {
+              groomParents: 'Bapak Bambang & Ibu Ratna',
+              brideParents: 'Bapak Hendra & Ibu Maya',
+            },
+            quoteText:
+              'Dua insan, satu cinta. Saling melengkapi bagai dengkuran hangat kucing di malam berhujan yang menenangkan hati.',
+            quoteSource: 'Kisah Manis Pecinta Kucing / QS. Ar-Rum: 21',
+            akadLocation: {
+              dateTime: '2027-08-08T08:30:00+07:00',
+              description: 'Masjid Agung Al-Azhar, Kebayoran Baru, Jakarta Selatan',
+            },
+            resepsiLocation: {
+              dateTime: '2027-08-08T11:00:00+07:00',
+              description: 'The Forest Cat Garden & Pavilion, Jakarta Selatan',
+            },
+          }),
+          isPublished: true,
+        },
       ];
 
       for (const tpl of missingTemplates) {

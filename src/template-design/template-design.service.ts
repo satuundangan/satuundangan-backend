@@ -612,6 +612,52 @@ export class TemplateDesignService implements OnModuleInit {
           }),
           isPublished: true,
         },
+        {
+          slug: 'demon-slayer',
+          componentKey: 'demon-slayer',
+          name: 'Demon Slayer Hinokami & Wisteria',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Anime & Pop Culture',
+          description:
+            'Undangan Pernikahan Anime Demon Slayer (Kimetsu no Yaiba) bertema Tarian Api Hinokami Kagura dan bunga Wisteria suci. Dilengkapi partikel api & bunga melayang, tebasan Nichirin interaktif, dan pola haori Tanjiro.',
+          tags: JSON.stringify([
+            'demon slayer',
+            'kimetsu no yaiba',
+            'tanjiro',
+            'nezuko',
+            'anime',
+            'hinokami kagura',
+            'wisteria',
+            'nichirin',
+            'wibu',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/demon-slayer',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/demon-slayer.png',
+          paletteColors: ['#1A4731', '#C93B2B', '#9B5DE5'],
+          defaultMusic: 'wedding-retro-adventure.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Tanjiro Kamado',
+            brideName: 'Kanao Tsuyuri',
+            parents: {
+              groomParents: 'Tanjuro Kamado & Kie Kamado',
+              brideParents: 'Kanae Kocho & Shinobu Kocho',
+            },
+            quoteText:
+              'Meski badai menghadang dan malam begitu kelam, ikatan hati kita akan terus berkobar bagai api abadi yang takkan pernah padam.',
+            quoteSource: 'Sumpah Cinta Pendekar / QS. Ar-Rum: 21',
+            akadLocation: {
+              dateTime: '2027-11-20T08:30:00+07:00',
+              description: 'Kuil Gunung Sagiri, Kyoto Pavilion',
+            },
+            resepsiLocation: {
+              dateTime: '2027-11-20T11:00:00+07:00',
+              description: 'Taman Bunga Wisteria Fujikasane, Kyoto Grand Hall',
+            },
+          }),
+          isPublished: true,
+        },
       ];
 
       for (const tpl of missingTemplates) {

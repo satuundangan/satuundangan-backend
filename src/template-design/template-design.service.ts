@@ -40,13 +40,15 @@ export class TemplateDesignService implements OnModuleInit {
           price: 79000,
           filterGroup: 'Bold & Unik',
           description:
-            'Tema ceria dan menggemaskan untuk pasangan pecinta kucing',
+            'Tema pastel manis bertema feline playful dengan ilustrasi kucing menggemaskan. Pilihan tepat bagi pasangan cat lovers yang menginginkan suasana hangat, santai, dan penuh keceriaan.',
           tags: JSON.stringify([
             'kucing',
             'cat',
             'cute',
             'pet lovers',
             'playful',
+            'pastel',
+            'intimate',
           ]),
           previewUrl: 'https://satuundangan.id/demo/meowly-married',
           thumbnailUrl:
@@ -61,7 +63,8 @@ export class TemplateDesignService implements OnModuleInit {
           category: exclusiveCat,
           price: 99000,
           filterGroup: 'Anime & Pop Culture',
-          description: 'Tema retro game 8-bit RPG petualangan cinta sejati',
+          description:
+            'Konsep retro arcade 8-bit RPG pixel art yang interaktif dan unik. Dirancang khusus bagi pasangan gamer yang merayakan petualangan cinta sejati layaknya misi epik seumur hidup.',
           tags: JSON.stringify([
             'pixel',
             'retro',
@@ -69,6 +72,7 @@ export class TemplateDesignService implements OnModuleInit {
             'rpg',
             '8-bit',
             'arcade',
+            'gamer',
           ]),
           previewUrl: 'https://satuundangan.id/demo/pixel-quest',
           thumbnailUrl:
@@ -85,13 +89,15 @@ export class TemplateDesignService implements OnModuleInit {
           price: 79000,
           filterGroup: 'Adat & Budaya',
           description:
-            'Undangan bernuansa Priangan dengan palet hijau dan aksen floral kontemporer.',
+            'Undangan Adat Sunda bernuansa Parahyangan agung dengan mahkota Siger kencana, ronce melati, serta palet hijau zamrud botol dan emas priangan yang anggun.',
           tags: JSON.stringify([
             'sunda',
             'priangan',
+            'siger',
             'adat',
             'nusantara',
-            'hijau',
+            'hijau botol',
+            'melati',
           ]),
           previewUrl: 'https://satuundangan.id/demo/sunda-sabilulungan',
           thumbnailUrl:
@@ -125,13 +131,16 @@ export class TemplateDesignService implements OnModuleInit {
           price: 79000,
           filterGroup: 'Adat & Budaya',
           description:
-            'Undangan Jawa bernuansa sogan dengan aksen motif Truntum yang tumbuh berulang.',
+            'Undangan Adat Jawa klasik bernuansa keraton dengan filosofi Batik Truntum (cinta yang selalu bersemi kembali), siluet Gunungan Wayang kencana, dan palet cokelat sogan hangat.',
           tags: JSON.stringify([
             'jawa',
             'truntum',
             'batik',
+            'gunungan',
+            'wayang',
             'adat',
             'nusantara',
+            'sogan',
           ]),
           previewUrl: 'https://satuundangan.id/demo/jawa-truntum',
           thumbnailUrl:
@@ -165,14 +174,16 @@ export class TemplateDesignService implements OnModuleInit {
           price: 79000,
           filterGroup: 'Adat & Budaya',
           description:
-            'Undangan Batak Toba dengan aksen tenun geometris dan palet marun, emas, serta biru tua.',
+            'Undangan Adat Batak Toba megah berhias ukiran Gorga Batak dan filosofi tenun Ulos Ragi Hotang (ikatan tali kasih tak terputus) dalam balutan merah marun, emas, dan midnight blue.',
           tags: JSON.stringify([
             'batak',
             'toba',
             'ragi hotang',
             'ulos',
+            'gorga',
             'adat',
             'nusantara',
+            'marun',
           ]),
           previewUrl: 'https://satuundangan.id/demo/batak-ragi-hotang',
           thumbnailUrl:
@@ -207,11 +218,13 @@ export class TemplateDesignService implements OnModuleInit {
           price: 79000,
           filterGroup: 'Adat & Budaya',
           description:
-            'Undangan Dayak Ngaju dari Kalimantan Tengah dengan aksen geometris Benang Bintik.',
+            'Undangan Adat Dayak Ngaju khas Kalimantan Tengah dengan motif sakral Benang Bintik Batang Garing (Pohon Kehidupan) dan perisai Talawang dalam keindahan zamrud hutan hujan serta emas.',
           tags: JSON.stringify([
             'dayak ngaju',
             'kalimantan tengah',
             'benang bintik',
+            'talawang',
+            'batang garing',
             'adat',
             'nusantara',
           ]),
@@ -247,7 +260,7 @@ export class TemplateDesignService implements OnModuleInit {
           price: 79000,
           filterGroup: 'Romantis & Dreamy',
           description:
-            'Harmoni manis strawberry blush dan ketenangan matcha cream dengan estetika cafe Korea kontemporer.',
+            'Harmoni manis strawberry blush dan ketenangan matcha cream berestetika cafe Korea modern. Dipercantik kelopak bunga strawberry & daun teh melayang yang aesthetic.',
           tags: JSON.stringify([
             'strawberry matcha',
             'korean aesthetic',
@@ -427,11 +440,20 @@ export class TemplateDesignService implements OnModuleInit {
         if (!existing) {
           const created = this.templateRepo.create(tpl as any);
           await this.templateRepo.save(created);
-        } else if (tpl.thumbnailUrl && existing.thumbnailUrl !== tpl.thumbnailUrl) {
-          // Update stale/broken thumbnail URL
-          await this.templateRepo.update(existing.id, {
-            thumbnailUrl: tpl.thumbnailUrl,
-          });
+        } else {
+          const updates: Partial<TemplateDesign> = {};
+          if (tpl.description && existing.description !== tpl.description) {
+            updates.description = tpl.description;
+          }
+          if (tpl.tags && existing.tags !== tpl.tags) {
+            updates.tags = tpl.tags;
+          }
+          if (tpl.thumbnailUrl && existing.thumbnailUrl !== tpl.thumbnailUrl) {
+            updates.thumbnailUrl = tpl.thumbnailUrl;
+          }
+          if (Object.keys(updates).length > 0) {
+            await this.templateRepo.update(existing.id, updates);
+          }
         }
       }
 

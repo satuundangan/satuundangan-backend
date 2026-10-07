@@ -8,10 +8,17 @@ import { User } from '../user/user.entity';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
 import { Category } from '../category/category.entity';
+import { Section } from '../admin/entities/section.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TemplateDesign, TemplateDesignSection, User, Category]),
+    TypeOrmModule.forFeature([
+      TemplateDesign,
+      TemplateDesignSection,
+      User,
+      Category,
+      Section,
+    ]),
   ],
   controllers: [TemplateDesignController],
   providers: [TemplateDesignService, AdminGuard],

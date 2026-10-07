@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TemplateDesign } from './template-design.entity';
+import { TemplateDesignSection } from './template-design-section.entity';
+import { Section } from '../admin/entities/section.entity';
 import { Category } from '../category/category.entity';
 
 @Injectable()
@@ -11,6 +13,10 @@ export class TemplateDesignService implements OnModuleInit {
     private readonly templateRepo: Repository<TemplateDesign>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(TemplateDesignSection)
+    private readonly templateSectionRepo: Repository<TemplateDesignSection>,
+    @InjectRepository(Section)
+    private readonly sectionRepo: Repository<Section>,
   ) {}
 
   async onModuleInit() {
@@ -426,6 +432,30 @@ export class TemplateDesignService implements OnModuleInit {
           await this.templateRepo.update(existing.id, {
             thumbnailUrl: tpl.thumbnailUrl,
           });
+        }
+      }
+
+      // Auto-populate default sections for templates that have 0 sections
+      const allMasterSections = await this.sectionRepo.find({
+        where: { is_active: true },
+      });
+      if (allMasterSections.length > 0) {
+        const allTemplates = await this.templateRepo.find({
+          relations: ['sections'],
+        });
+        for (const tpl of allTemplates) {
+          if (!tpl.sections || tpl.sections.length === 0) {
+            let order = 1;
+            const newSections = allMasterSections.map((sec) =>
+              this.templateSectionRepo.create({
+                templateDesign: tpl,
+                section: sec,
+                is_enabled: true,
+                order: order++,
+              }),
+            );
+            await this.templateSectionRepo.save(newSections);
+          }
         }
       }
 

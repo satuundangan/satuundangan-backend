@@ -277,6 +277,141 @@ export class TemplateDesignService implements OnModuleInit {
           }),
           isPublished: true,
         },
+        {
+          slug: 'minang-suntiang-emas',
+          componentKey: 'minang-suntiang-emas',
+          name: 'Suntiang Emas Minangkabau',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Adat Minangkabau dengan siluet atap gonjong Rumah Gadang, ornamen mahkota Suntiang Emas, dan motif songket Pandai Sikek.',
+          tags: JSON.stringify([
+            'minangkabau',
+            'padang',
+            'suntiang',
+            'rumah gadang',
+            'adat',
+            'nusantara',
+            'marapulai',
+            'anak daro',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/minang-suntiang-emas',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/minang-suntiang-emas.png',
+          paletteColors: ['#4A0E17', '#D4AF37', '#1A0508'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Rian Syahputra',
+            brideName: 'Aisyah Putri Minang',
+            parents: {
+              groomParents: 'Bpk. H. Syahputra & Ibu Hj. Ratna',
+              brideParents: 'Bpk. Dt. Bandaro Basa & Ibu Hj. Nurhayati',
+            },
+            quoteText:
+              'Anak urang koto anau, pai ka pakan mambawo lado. Hati sanang badan marasai, kasiah tibo kasio tando.',
+            quoteSource: 'Petatah Petitih Minang / QS. Ar-Rum: 21',
+            akadLocation: {
+              dateTime: '2027-04-10T08:30:00+07:00',
+              description: 'Masjid Raya Sumatera Barat, Padang',
+            },
+            resepsiLocation: {
+              dateTime: '2027-04-10T11:00:00+07:00',
+              description: 'Grand Basko Hotel & Convention Hall, Padang',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'bugis-saoraja',
+          componentKey: 'bugis-saoraja',
+          name: 'Saoraja Bugis Makassar',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Adat Bugis-Makassar bernuansa kemegahan Saoraja Balla Lompoa dengan tenun sutra Sarung Sabbe dan palet hijau zamrud emas.',
+          tags: JSON.stringify([
+            'bugis',
+            'makassar',
+            'saoraja',
+            'baju bodo',
+            'adat',
+            'nusantara',
+            'sulawesi',
+            'sarung sabbe',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/bugis-saoraja',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/bugis-saoraja.png',
+          paletteColors: ['#0F291E', '#D4AF37', '#681423'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Andi Muhammad Fajar',
+            brideName: 'Andi Tenri Bau',
+            parents: {
+              groomParents: 'Andi Fajar Bau & Andi Fatimah',
+              brideParents: 'Andi Mallombassi & Andi Ratnawati',
+            },
+            quoteText:
+              'Sipakatau, Sipakalebbi, Sipakainge. Menjaga harkat, memuliakan cinta dalam ikatan suci pernikahan.',
+            quoteSource: 'Falsafah Bugis / QS. Ar-Rum: 21',
+            akadLocation: {
+              dateTime: '2027-05-15T09:00:00+08:00',
+              description: 'Masjid 99 Kubah Asmaul Husna, Makassar',
+            },
+            resepsiLocation: {
+              dateTime: '2027-05-15T12:00:00+08:00',
+              description: 'Upperhills Convention Hall, Makassar',
+            },
+          }),
+          isPublished: true,
+        },
+        {
+          slug: 'bali-payas-agung',
+          componentKey: 'bali-payas-agung',
+          name: 'Payas Agung Bali Heritage',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Adat & Budaya',
+          description:
+            'Undangan Pawiwahan Adat Bali dengan ukiran Kori Agung, motif Patra Samblung, kelopak Bunga Jepun, dan palet terracotta emas sakral.',
+          tags: JSON.stringify([
+            'bali',
+            'payas agung',
+            'pawiwahan',
+            'kori agung',
+            'adat',
+            'nusantara',
+            'hindu',
+            'bunga jepun',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/bali-payas-agung',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/bali-payas-agung.png',
+          paletteColors: ['#2C1810', '#DFB15B', '#180E0A'],
+          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'I Putu Arya Danendra',
+            brideName: 'Ni Kadek Ayu Saraswati',
+            parents: {
+              groomParents: 'I Wayan Danendra & Ni Made Murni',
+              brideParents: 'I Ketut Saraswati & Ni Nyoman Sukarni',
+            },
+            quoteText:
+              'Ihaiva stam ma vi yaustam visvam ayur vyasnutam kridantau putrair naptrbhih modamanau sve grhe.',
+            quoteSource: 'Rgveda X.85.42 / Pawiwahan Yadnya',
+            akadLocation: {
+              dateTime: '2027-06-20T09:00:00+08:00',
+              description: 'Griya Agung Sanur, Denpasar, Bali',
+            },
+            resepsiLocation: {
+              dateTime: '2027-06-20T12:00:00+08:00',
+              description: 'Taman Bhagawan Beachfront, Nusa Dua, Bali',
+            },
+          }),
+          isPublished: true,
+        },
       ];
 
       for (const tpl of missingTemplates) {
@@ -316,7 +451,9 @@ export class TemplateDesignService implements OnModuleInit {
         'retro-nostalgia': 'https://satuundangan.id/assets/templates/retro-nostalgia.png',
         'royal-emerald': 'https://satuundangan.id/assets/templates/royal-emerald.png',
         'royal-gold': 'https://satuundangan.id/assets/templates/royal-gold.png',
-        'sakura-blossom': 'https://satuundangan.id/assets/templates/sakura-blossom.png',
+        'bali-payas-agung': 'https://satuundangan.id/assets/templates/bali-payas-agung.png',
+        'bugis-saoraja': 'https://satuundangan.id/assets/templates/bugis-saoraja.png',
+        'minang-suntiang-emas': 'https://satuundangan.id/assets/templates/minang-suntiang-emas.png',
         'strawberry-matcha': 'https://satuundangan.id/assets/templates/strawberry-matcha.png',
         'sunda-sabilulungan': 'https://satuundangan.id/assets/templates/sunda-sabilulungan.png',
       };

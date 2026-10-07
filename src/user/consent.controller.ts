@@ -5,6 +5,8 @@ import { ConsentService } from './consent.service';
 import { RecordConsentDto } from './dto/record-consent.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
+import { extractClientIp } from '../common/utils/ip.util';
+
 @ApiTags('Consent')
 @Controller('consent')
 export class ConsentController {
@@ -19,14 +21,14 @@ export class ConsentController {
     @Body() dto: RecordConsentDto,
     @Req() req: any,
   ) {
-    // Get IP address reliably
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // Get real visitor IP address reliably
+    const ip = extractClientIp(req);
     const userAgent = req.headers['user-agent'];
 
     return this.consentService.recordConsent(
       user.id || user.sub,
       dto,
-      Array.isArray(ip) ? ip[0] : ip,
+      ip,
       userAgent,
     );
   }

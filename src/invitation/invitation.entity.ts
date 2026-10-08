@@ -167,6 +167,14 @@ export class Invitation {
   @Column({ nullable: true })
   videoPrewedding: string;
 
+  @Column({ type: 'json', nullable: true })
+  designSettings: {
+    fontFamily?: string;
+    titleScale?: number;
+    backgroundType?: 'image' | 'video';
+    backgroundUrl?: string;
+  } | null;
+
   @Column({ default: 'default' })
   quoteType: string;
 

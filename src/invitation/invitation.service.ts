@@ -588,6 +588,7 @@ export class InvitationService {
         groomPhotoUrl: invitation.groomPhotoUrl,
         photoCoupleUrl: invitation.photoCoupleUrl,
         videoPrewedding: invitation.videoPrewedding,
+        designSettings: invitation.designSettings || {},
         dateTime: invitation.dateTime,
         akadLocation: invitation.akadLocation,
         resepsiLocation: invitation.resepsiLocation,

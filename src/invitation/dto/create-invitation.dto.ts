@@ -7,6 +7,9 @@ import {
   ValidateNested,
   IsNumber,
   IsEnum,
+  IsObject,
+  Min,
+  Max,
   Matches,
   MaxLength,
 } from 'class-validator';
@@ -22,6 +25,11 @@ export enum Religion {
   HINDU = 'hindu',
   BUDHA = 'budha',
   UMUM = 'umum',
+}
+
+export enum InvitationBackgroundType {
+  IMAGE = 'image',
+  VIDEO = 'video',
 }
 
 // varchar(255) columns: reject over-long values with 400 instead of a DB 500.
@@ -178,6 +186,31 @@ export class LocationDetail {
   dateTime: string;
 }
 
+export class InvitationDesignSettingsDto {
+  @ApiPropertyOptional({ example: 'Cormorant Garamond' })
+  @IsOptional()
+  @IsString()
+  fontFamily?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.8)
+  @Max(1.2)
+  titleScale?: number;
+
+  @ApiPropertyOptional({ enum: InvitationBackgroundType, example: 'image' })
+  @IsOptional()
+  @IsEnum(InvitationBackgroundType)
+  backgroundType?: 'image' | 'video';
+
+  @ApiPropertyOptional({ example: 'https://cdn.satuundangan.id/cover.webp' })
+  @IsOptional()
+  @IsString()
+  @NotDataUrl()
+  backgroundUrl?: string;
+}
+
 export class CreateInvitationDto {
   @ApiProperty({ example: 'Undangan Tes Postman' })
   @IsString()
@@ -306,6 +339,13 @@ export class CreateInvitationDto {
   @IsString()
   @StoredUrl()
   photoCoupleUrl?: string;
+
+  @ApiPropertyOptional({ type: InvitationDesignSettingsDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => InvitationDesignSettingsDto)
+  designSettings?: InvitationDesignSettingsDto;
 
   @ApiPropertyOptional({ example: 'https://youtube.com/prewedding' })
   @IsOptional()

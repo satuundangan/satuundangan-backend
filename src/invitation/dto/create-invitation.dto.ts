@@ -15,7 +15,7 @@ import {
 } from 'class-validator';
 import { applyDecorators } from '@nestjs/common';
 import { InvitationPackage } from '../invitation.entity';
-import { Type, Expose } from 'class-transformer';
+import { Type, Expose, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum Religion {
@@ -209,6 +209,47 @@ export class InvitationDesignSettingsDto {
   @IsString()
   @NotDataUrl()
   backgroundUrl?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'Dengan memohon rahmat dan ridha Allah SWT, kami bermaksud mengundang Anda untuk hadir dalam hari bahagia kami.',
+    maxLength: 400,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(400)
+  @NotDataUrl()
+  heroCopy?: string;
+
+  @ApiPropertyOptional({
+    example: '08:00',
+    description: 'HH:mm 24 jam (WIB). String kosong = pakai default template.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(?:(?:[01]\d|2[0-3]):[0-5]\d)?$/, {
+    message: 'eventStartTime harus berformat HH:mm (24 jam)',
+  })
+  eventStartTime?: string;
+
+  @ApiPropertyOptional({
+    example: '12:30',
+    description: 'HH:mm 24 jam (WIB). String kosong = pakai default template.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(?:(?:[01]\d|2[0-3]):[0-5]\d)?$/, {
+    message: 'eventEndTime harus berformat HH:mm (24 jam)',
+  })
+  eventEndTime?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  hideRundown?: boolean;
 }
 
 export class CreateInvitationDto {

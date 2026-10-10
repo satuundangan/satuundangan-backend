@@ -173,6 +173,10 @@ export class Invitation {
     titleScale?: number;
     backgroundType?: 'image' | 'video';
     backgroundUrl?: string;
+    heroCopy?: string;
+    eventStartTime?: string;
+    eventEndTime?: string;
+    hideRundown?: boolean;
   } | null;
 
   @Column({ default: 'default' })

@@ -75,3 +75,102 @@ describe('CreateInvitationDto - religion field', () => {
     expect(Object.values(Religion)).not.toContain('bebas');
   });
 });
+
+// ---------------------------------------------------------------------------
+// designSettings noir fields (heroCopy, eventStartTime, eventEndTime, hideRundown)
+// ---------------------------------------------------------------------------
+
+function designSettingsResult(designSettings: Record<string, unknown>) {
+  const instance = plainToInstance(
+    CreateInvitationDto,
+    validPayload({ designSettings }),
+  );
+  const errors = validateSync(instance, { whitelist: true });
+  const dsErrors = errors.filter((e) => e.property === 'designSettings');
+  const childProps = dsErrors.flatMap((e) =>
+    (e.children ?? []).map((c) => c.property),
+  );
+  return { instance, dsErrors, childProps, errors };
+}
+
+describe('CreateInvitationDto - designSettings noir fields', () => {
+  it('accepts all four new keys and keeps them after whitelist validation', () => {
+    const { instance, dsErrors } = designSettingsResult({
+      heroCopy: 'Contoh teks sambutan',
+      eventStartTime: '08:00',
+      eventEndTime: '12:30',
+      hideRundown: true,
+    });
+    expect(dsErrors).toHaveLength(0);
+    expect(instance.designSettings).toMatchObject({
+      heroCopy: 'Contoh teks sambutan',
+      eventStartTime: '08:00',
+      eventEndTime: '12:30',
+      hideRundown: true,
+    });
+  });
+
+  it('trims heroCopy', () => {
+    const { instance, dsErrors } = designSettingsResult({
+      heroCopy: '  Contoh teks sambutan  ',
+    });
+    expect(dsErrors).toHaveLength(0);
+    expect(instance.designSettings?.heroCopy).toBe('Contoh teks sambutan');
+  });
+
+  it('accepts empty strings for heroCopy and both times', () => {
+    const { dsErrors } = designSettingsResult({
+      heroCopy: '',
+      eventStartTime: '',
+      eventEndTime: '',
+    });
+    expect(dsErrors).toHaveLength(0);
+  });
+
+  it.each(['00:00', '23:59', '08:00', '12:30'])('accepts time %s', (t) => {
+    expect(
+      designSettingsResult({ eventStartTime: t, eventEndTime: t }).dsErrors,
+    ).toHaveLength(0);
+  });
+
+  it.each(['24:00', '25:00', '8:00', '08:0', '08:00:00', 'abc', '12:60'])(
+    'rejects time %s',
+    (t) => {
+      expect(designSettingsResult({ eventStartTime: t }).childProps).toContain(
+        'eventStartTime',
+      );
+      expect(designSettingsResult({ eventEndTime: t }).childProps).toContain(
+        'eventEndTime',
+      );
+    },
+  );
+
+  it('rejects heroCopy longer than 400 chars and accepts exactly 400', () => {
+    const tooLong = designSettingsResult({ heroCopy: 'a'.repeat(401) });
+    expect(tooLong.childProps).toContain('heroCopy');
+    const ok = designSettingsResult({ heroCopy: 'a'.repeat(400) });
+    expect(ok.dsErrors).toHaveLength(0);
+  });
+
+  it('rejects non-boolean hideRundown', () => {
+    expect(designSettingsResult({ hideRundown: 'yes' }).childProps).toContain(
+      'hideRundown',
+    );
+  });
+
+  it('allows all new fields to be omitted', () => {
+    expect(designSettingsResult({}).dsErrors).toHaveLength(0);
+  });
+
+  it('still accepts the pre-existing designSettings shape', () => {
+    const { instance, dsErrors } = designSettingsResult({
+      fontFamily: 'DM Sans',
+      titleScale: 1,
+    });
+    expect(dsErrors).toHaveLength(0);
+    expect(instance.designSettings).toMatchObject({
+      fontFamily: 'DM Sans',
+      titleScale: 1,
+    });
+  });
+});

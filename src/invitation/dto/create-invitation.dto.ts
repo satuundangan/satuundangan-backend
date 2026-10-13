@@ -209,7 +209,6 @@ export class InvitationDesignSettingsDto {
   @IsString()
   @NotDataUrl()
   backgroundUrl?: string;
-
   @ApiPropertyOptional({
     example:
       'Dengan memohon rahmat dan ridha Allah SWT, kami bermaksud mengundang Anda untuk hadir dalam hari bahagia kami.',

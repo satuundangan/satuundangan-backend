@@ -54,7 +54,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/meowly-married.png',
           paletteColors: ['#FFB5A7', '#FCD5CE', '#F8EDEB'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'wedding-acoustic-morning.mp3',
           isPublished: true,
         },
         {
@@ -78,7 +78,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/pixel-quest.png',
           paletteColors: ['#3B82F6', '#10B981', '#F59E0B'],
-          defaultMusic: 'wedding-retro-adventure.mp3',
+          defaultMusic: 'gaming-8bit-chiptune.mp3',
           isPublished: true,
         },
         {
@@ -103,7 +103,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/sunda-sabilulungan.png',
           paletteColors: ['#315B48', '#F5F3E8', '#C98767'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'traditional-degung-sunda.wav',
           sampleContent: JSON.stringify({
             groomName: 'Raka Pratama',
             brideName: 'Nadia Puspita',
@@ -146,7 +146,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/jawa-truntum.png',
           paletteColors: ['#61472F', '#EEE7D8', '#A75C45'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'traditional-gamelan-jawa.ogg',
           sampleContent: JSON.stringify({
             groomName: 'Bagas Wicaksono',
             brideName: 'Sekar Ayuningtyas',
@@ -189,7 +189,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/batak-ragi-hotang.png',
           paletteColors: ['#7D2D3E', '#17263A', '#D5AA5A'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'wedding-warm-reception.mp3',
           sampleContent: JSON.stringify({
             groomName: 'Andreas Simanjuntak',
             brideName: 'Maria br. Siregar',
@@ -232,7 +232,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/dayak-ngaju-benang-bintik.png',
           paletteColors: ['#153F40', '#F3E8D0', '#B94B3E'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'wedding-instrumental-garden.mp3',
           sampleContent: JSON.stringify({
             groomName: 'Dimas Tumbang',
             brideName: 'Lestari Bawi',
@@ -319,7 +319,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/minang-suntiang-emas.png',
           paletteColors: ['#4A0E17', '#D4AF37', '#1A0508'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'wedding-sacred-ceremony.mp3',
           sampleContent: JSON.stringify({
             groomName: 'Rian Syahputra',
             brideName: 'Aisyah Putri Minang',
@@ -364,7 +364,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/bugis-saoraja.png',
           paletteColors: ['#0F291E', '#D4AF37', '#681423'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'wedding-warm-reception.mp3',
           sampleContent: JSON.stringify({
             groomName: 'Andi Muhammad Fajar',
             brideName: 'Andi Tenri Bau',
@@ -410,7 +410,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/bali-payas-agung.png',
           paletteColors: ['#2C1810', '#DFB15B', '#180E0A'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'traditional-gamelan-bali.ogg',
           sampleContent: JSON.stringify({
             groomName: 'I Putu Arya Danendra',
             brideName: 'Ni Kadek Ayu Saraswati',
@@ -500,7 +500,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/betawi-palang-pintu.png',
           paletteColors: ['#D99B26', '#1A3C2B', '#9C4126'],
-          defaultMusic: 'wedding-acoustic-cheerful.mp3',
+          defaultMusic: 'wedding-warm-reception.mp3',
           sampleContent: JSON.stringify({
             groomName: 'Muhammad Zaelani',
             brideName: 'Siti Nurhaliza',
@@ -590,7 +590,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/old-money-monogram.png',
           paletteColors: ['#1A1614', '#BFA15F', '#FCFBF7'],
-          defaultMusic: 'wedding-classical-harmony.mp3',
+          defaultMusic: 'classical-canon-in-d.mp3',
           sampleContent: JSON.stringify({
             groomName: 'Julian Sterling',
             brideName: 'Claire Kensington',
@@ -636,7 +636,7 @@ export class TemplateDesignService implements OnModuleInit {
           thumbnailUrl:
             'https://satuundangan.id/assets/templates/demon-slayer.png',
           paletteColors: ['#1A4731', '#C93B2B', '#9B5DE5'],
-          defaultMusic: 'wedding-retro-adventure.mp3',
+          defaultMusic: 'wedding-instrumental-garden.mp3',
           sampleContent: JSON.stringify({
             groomName: 'Tanjiro Kamado',
             brideName: 'Kanao Tsuyuri',
@@ -705,6 +705,49 @@ export class TemplateDesignService implements OnModuleInit {
           }),
           isPublished: true,
         },
+        {
+          slug: 'elysian-parallax',
+          componentKey: 'elysian-parallax',
+          name: 'Elysian Parallax',
+          category: exclusiveCat,
+          price: 99000,
+          filterGroup: 'Elegan & Mewah',
+          description:
+            'Undangan mewah modern dengan multi-layer parallax scrolling interaktif, transisi sinematik, botanical champagne aesthetic, dan alunan klasik Pachelbel Canon in D.',
+          tags: JSON.stringify([
+            'parallax',
+            'luxury',
+            'botanical',
+            'cinematic',
+            'champagne',
+            'exclusive',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/elysian-parallax',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/elysian-parallax.png',
+          paletteColors: ['#1C241E', '#D4AF37', '#F7F5EE'],
+          defaultMusic: 'classical-canon-in-d.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Julian Edward Vane',
+            brideName: 'Seraphina Eleanor Vance',
+            parents: {
+              groomParents: 'Mr. Charles Edward Vane & Mrs. Diana Vane',
+              brideParents: 'Mr. Marcus Vance & Mrs. Helena Vance',
+            },
+            quoteText:
+              'In all the world, there is no heart for me like yours. In all the world, there is no love for you like mine.',
+            quoteSource: 'Maya Angelou',
+            akadLocation: {
+              dateTime: '2027-09-18T15:30:00+07:00',
+              description: 'The Glasshouse at Plataran Dharmawangsa, Jakarta Selatan',
+            },
+            resepsiLocation: {
+              dateTime: '2027-09-18T18:30:00+07:00',
+              description: 'Elysian Botanical Lawn & Ballroom, Jakarta Selatan',
+            },
+          }),
+          isPublished: true,
+        },
       ];
 
       for (const tpl of missingTemplates) {
@@ -724,6 +767,9 @@ export class TemplateDesignService implements OnModuleInit {
           }
           if (tpl.thumbnailUrl && existing.thumbnailUrl !== tpl.thumbnailUrl) {
             updates.thumbnailUrl = tpl.thumbnailUrl;
+          }
+          if (tpl.defaultMusic && existing.defaultMusic !== tpl.defaultMusic) {
+            updates.defaultMusic = tpl.defaultMusic;
           }
           if (Object.keys(updates).length > 0) {
             await this.templateRepo.update(existing.id, updates);

@@ -20,6 +20,7 @@ import { ArticleModule } from './article/article.module';
 import { SitemapModule } from './sitemap/sitemap.module';
 import { WhatsappBotModule } from './whatsapp-bot/whatsapp-bot.module';
 import { WeddingPlannerModule } from './wedding-planner/wedding-planner.module';
+import { SmokeStudioModule } from './smoke-studio/smoke-studio.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -58,6 +59,7 @@ import { AppService } from './app.service';
     SitemapModule,
     WhatsappBotModule,
     WeddingPlannerModule,
+    SmokeStudioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

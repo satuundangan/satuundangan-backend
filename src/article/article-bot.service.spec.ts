@@ -104,5 +104,41 @@ describe('ArticleBotService', () => {
 
     // Japanese / Anime
     expect(resolveContextualCover('Konsep Undangan Tema Anime Jepang')).toContain('photo-1519882189396-71f93cb4714b');
+
+    // Batak / Ulos
+    expect(resolveContextualCover('Pernikahan Adat Batak Toba Ulos')).toContain('photo-1583939003579-730e3918a45a');
+
+    // Minang / Suntiang
+    expect(resolveContextualCover('Tata Cara Malam Bainai Suntiang Minang')).toContain('photo-1544717305-2782549b5136');
+
+    // KUA / SIMKAH
+    expect(resolveContextualCover('Syarat Nikah di KUA dan Daftar SIMKAH')).toContain('photo-1450133064473-71024230f91b');
+
+    // Rings / Cincin
+    expect(resolveContextualCover('Cincin Kawin Emas Putih vs Palladium')).toContain('photo-1605100804763-247f67b3557e');
+  });
+
+  it('keyword bank contains more than 80 curated keywords with no duplicate keywords', () => {
+    expect(WEDDING_KEYWORDS_BANK.length).toBeGreaterThanOrEqual(80);
+    const keywords = WEDDING_KEYWORDS_BANK.map((k) => k.keyword.toLowerCase().trim());
+    const uniqueKeywords = new Set(keywords);
+    expect(uniqueKeywords.size).toBe(WEDDING_KEYWORDS_BANK.length);
+  });
+
+  it('getNextUnpublishedKeyword produces unique dynamic topic when all bank keywords are exhausted', async () => {
+    // Mock all bank keywords as already written
+    const allWrittenArticles = WEDDING_KEYWORDS_BANK.map((k) => ({
+      title: k.keyword,
+      slug: k.keyword.replace(/\s+/g, '-'),
+      focusKeyword: k.keyword,
+    }));
+    mockArticleRepo.find.mockResolvedValueOnce(allWrittenArticles);
+
+    const dynamicTopic = await service.getNextUnpublishedKeyword();
+    expect(dynamicTopic).toBeDefined();
+    expect(dynamicTopic.keyword.length).toBeGreaterThan(15);
+    // Ensure the dynamic topic is not one of the raw bank keywords
+    const isExactBankItem = WEDDING_KEYWORDS_BANK.some((k) => k.keyword === dynamicTopic.keyword);
+    expect(isExactBankItem).toBe(false);
   });
 });

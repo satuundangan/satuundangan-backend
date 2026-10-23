@@ -27,8 +27,8 @@ const STATIC_ROUTES = [
   { path: '/privacy', priority: '0.3', changefreq: 'yearly' },
 ];
 
-const ARTICLE_PRIORITY = '0.6';
-const ARTICLE_CHANGEFREQ = 'monthly';
+const ARTICLE_PRIORITY = '0.7';
+const ARTICLE_CHANGEFREQ = 'weekly';
 
 @Injectable()
 export class SitemapService {

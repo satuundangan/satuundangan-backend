@@ -11,6 +11,8 @@ describe('ArticleBotService', () => {
   const mockArticleRepo = {
     find: jest.fn(),
     count: jest.fn(),
+    delete: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
 
   const mockArticleService = {
@@ -140,5 +142,44 @@ describe('ArticleBotService', () => {
     // Ensure the dynamic topic is not one of the raw bank keywords
     const isExactBankItem = WEDDING_KEYWORDS_BANK.some((k) => k.keyword === dynamicTopic.keyword);
     expect(isExactBankItem).toBe(false);
+  });
+
+  it('cleanupDuplicateLegacyArticles deletes articles matching terbaru-2026 pattern with id >= 18', async () => {
+    const mockDuplicates = [
+      { id: 18, slug: 'urutan-prosesi-pernikahan-adat-jawa-terbaru-2026' },
+      { id: 19, slug: 'urutan-prosesi-pernikahan-adat-jawa-terbaru-2026-2' },
+      { id: 21, slug: 'urutan-prosesi-pernikahan-adat-jawa-terbaru-2026-3' },
+    ];
+
+    const mockQueryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(mockDuplicates),
+    };
+    mockArticleRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+    mockArticleRepo.delete.mockResolvedValue({ affected: 3 });
+
+    const result = await service.cleanupDuplicateLegacyArticles();
+    expect(result.deletedCount).toBe(3);
+    expect(result.deletedSlugs).toEqual([
+      'urutan-prosesi-pernikahan-adat-jawa-terbaru-2026',
+      'urutan-prosesi-pernikahan-adat-jawa-terbaru-2026-2',
+      'urutan-prosesi-pernikahan-adat-jawa-terbaru-2026-3',
+    ]);
+    expect(mockArticleRepo.delete).toHaveBeenCalledWith([18, 19, 21]);
+  });
+
+  it('cleanupDuplicateLegacyArticles returns 0 when no duplicates found', async () => {
+    const mockQueryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    mockArticleRepo.createQueryBuilder.mockReturnValue(mockQueryBuilder);
+
+    const result = await service.cleanupDuplicateLegacyArticles();
+    expect(result.deletedCount).toBe(0);
+    expect(result.deletedSlugs).toEqual([]);
+    expect(mockArticleRepo.delete).not.toHaveBeenCalled();
   });
 });

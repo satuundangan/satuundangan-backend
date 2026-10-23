@@ -35,6 +35,12 @@ export class ArticleController {
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @Post('admin/articles/cleanup-duplicates')
+  cleanupDuplicates() {
+    return this.articleBotService.cleanupDuplicateLegacyArticles();
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('admin/articles/auto-generate')
   autoGenerateArticle(
     @Body() body: { topic?: string; status?: 'published' | 'draft' },

@@ -347,7 +347,7 @@ export const DEFAULT_BUDGET_ITEMS = [
     estimatedCost: 99000,
     actualCost: 99000,
     paidAmount: 99000,
-    notes: 'Aktif 1 tahun + QR Check-in Meja Resepsi',
+    notes: 'Aktif Selamanya + QR Check-in Meja Resepsi',
   },
   {
     id: 'bgt-7',

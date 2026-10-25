@@ -2,6 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { TemplateDesignService } from './template-design.service';
 import { TemplateDesign } from './template-design.entity';
+import { TemplateDesignSection } from './template-design-section.entity';
+import { Section } from '../admin/entities/section.entity';
+import { Category } from '../category/category.entity';
 
 describe('TemplateDesignService', () => {
   let service: TemplateDesignService;
@@ -11,6 +14,26 @@ describe('TemplateDesignService', () => {
     findOne: jest.fn(),
     create: jest.fn((x) => x),
     save: jest.fn(async (x) => x),
+    update: jest.fn(async () => ({})),
+    remove: jest.fn(async () => ({})),
+  };
+
+  const mockCategoryRepo = {
+    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const mockTemplateSectionRepo = {
+    find: jest.fn().mockResolvedValue([]),
+    findOne: jest.fn().mockResolvedValue(null),
+    create: jest.fn((x) => x),
+    save: jest.fn(async (x) => x),
+    delete: jest.fn().mockResolvedValue({ affected: 1 }),
+  };
+
+  const mockSectionRepo = {
+    find: jest.fn().mockResolvedValue([]),
+    findOne: jest.fn().mockResolvedValue(null),
   };
 
   beforeEach(async () => {
@@ -30,8 +53,16 @@ describe('TemplateDesignService', () => {
           useValue: mockTemplateRepo,
         },
         {
-          provide: getRepositoryToken(require('../category/category.entity').Category),
-          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+          provide: getRepositoryToken(Category),
+          useValue: mockCategoryRepo,
+        },
+        {
+          provide: getRepositoryToken(TemplateDesignSection),
+          useValue: mockTemplateSectionRepo,
+        },
+        {
+          provide: getRepositoryToken(Section),
+          useValue: mockSectionRepo,
         },
       ],
     }).compile();
@@ -43,36 +74,65 @@ describe('TemplateDesignService', () => {
     expect(service).toBeDefined();
   });
 
-  it('findAll() filters isPublished: true', async () => {
+  it('findAll() filters isPublished: true and defaults to newest first (id: DESC)', async () => {
     await service.findAll();
 
     expect(mockTemplateRepo.find.mock.calls[0][0].where).toEqual({
       isPublished: true,
     });
+    expect(mockTemplateRepo.find.mock.calls[0][0].order).toEqual({
+      id: 'DESC',
+    });
   });
 
-  it("findByCategory('romantis') filters isPublished: true and category", async () => {
+  it('findAll(sort) supports custom sort options like name or oldest', async () => {
+    await service.findAll('name');
+    expect(mockTemplateRepo.find.mock.calls[0][0].order).toEqual({
+      name: 'ASC',
+    });
+
+    await service.findAll('oldest');
+    expect(mockTemplateRepo.find.mock.calls[1][0].order).toEqual({
+      id: 'ASC',
+    });
+
+    await service.findAll('price_desc');
+    expect(mockTemplateRepo.find.mock.calls[2][0].order).toEqual({
+      price: 'DESC',
+    });
+  });
+
+  it("findByCategory('romantis') filters isPublished: true, category and defaults to id: DESC", async () => {
     await service.findByCategory('romantis');
 
     expect(mockTemplateRepo.find.mock.calls[0][0].where).toEqual({
       isPublished: true,
       category: { name: 'romantis' },
     });
+    expect(mockTemplateRepo.find.mock.calls[0][0].order).toEqual({
+      id: 'DESC',
+    });
   });
 
-  it("findByCategory('semua') filters isPublished: true with no category constraint", async () => {
+  it("findByCategory('semua') filters isPublished: true with no category constraint and id: DESC", async () => {
     await service.findByCategory('semua');
 
     expect(mockTemplateRepo.find.mock.calls[0][0].where).toEqual({
       isPublished: true,
     });
+    expect(mockTemplateRepo.find.mock.calls[0][0].order).toEqual({
+      id: 'DESC',
+    });
   });
 
-  it('findByCategory(undefined) filters isPublished: true with no category constraint', async () => {
+  it('findByCategory(undefined) filters isPublished: true with no category constraint and id: DESC', async () => {
     await service.findByCategory(undefined);
 
     expect(mockTemplateRepo.find.mock.calls[0][0].where).toEqual({
       isPublished: true,
+    });
+    expect(mockTemplateRepo.find.mock.calls[0][0].order).toEqual({
+      id: 'DESC',
     });
   });
 

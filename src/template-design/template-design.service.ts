@@ -967,10 +967,30 @@ export class TemplateDesignService implements OnModuleInit {
     return this.transformPalette(saved);
   }
 
-  async findAll(): Promise<TemplateDesign[]> {
+  private getSortOrder(sort?: string): Record<string, 'ASC' | 'DESC'> {
+    switch (sort) {
+      case 'oldest':
+        return { id: 'ASC' };
+      case 'name':
+      case 'name_asc':
+        return { name: 'ASC' };
+      case 'name_desc':
+        return { name: 'DESC' };
+      case 'price_asc':
+        return { price: 'ASC' };
+      case 'price_desc':
+        return { price: 'DESC' };
+      case 'newest':
+      default:
+        // Default: newest templates first
+        return { id: 'DESC' };
+    }
+  }
+
+  async findAll(sort?: string): Promise<TemplateDesign[]> {
     const templates = await this.templateRepo.find({
       where: { isPublished: true },
-      order: { name: 'ASC' },
+      order: this.getSortOrder(sort),
       relations: ['category', 'palette', 'sections', 'sections.section'],
     });
     return templates.map((t) => this.transformPalette(t));
@@ -1039,13 +1059,14 @@ export class TemplateDesignService implements OnModuleInit {
     await this.templateRepo.remove(template);
   }
 
-  async findByCategory(category?: string): Promise<TemplateDesign[]> {
+  async findByCategory(category?: string, sort?: string): Promise<TemplateDesign[]> {
     const where: any = { isPublished: true };
     if (category && category !== 'semua') {
       where.category = { name: category };
     }
     const templates = await this.templateRepo.find({
       where,
+      order: this.getSortOrder(sort),
       relations: ['category', 'palette', 'sections', 'sections.section'],
     });
 
@@ -1111,7 +1132,9 @@ export class TemplateDesignService implements OnModuleInit {
   }
 
   private async getAllTemplateDesigns(): Promise<TemplateDesign[]> {
-    const templates = await this.templateRepo.find();
+    const templates = await this.templateRepo.find({
+      order: { id: 'DESC' },
+    });
     return templates.map((t) => this.transformPalette(t));
   }
 }

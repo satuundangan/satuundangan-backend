@@ -32,12 +32,15 @@ export class TemplateDesignController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Find all template designs' })
-  findAll(@Query('category') category?: string) {
+  @ApiOperation({ summary: 'Find all template designs (newest first by default)' })
+  findAll(
+    @Query('category') category?: string,
+    @Query('sort') sort?: string,
+  ) {
     if (category) {
-      return this.templateService.findByCategory(category);
+      return this.templateService.findByCategory(category, sort);
     }
-    return this.templateService.findAll();
+    return this.templateService.findAll(sort);
   }
 
   @Get('slug/:slug')

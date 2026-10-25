@@ -152,6 +152,25 @@ export class TemplateDesignService implements OnModuleInit {
             'https://satuundangan.id/assets/templates/love-line.png',
           paletteColors: ['#1B1B1B', '#F5F2EC', '#C8242C'],
           defaultMusic: 'wedding-acoustic-morning.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Elang Prakoso',
+            brideName: 'Laila Anindita',
+            parents: {
+              groomParents: 'Bapak Bambang Prakoso & Ibu Sri Lestari',
+              brideParents: 'Bapak Dedi Supriyadi & Ibu Endang Rahayu',
+            },
+            quoteText:
+              'Dengan memohon rahmat Tuhan, kami bermaksud menikah. Kehadiran dan doamu akan membuat hari itu jauh lebih bahagia.',
+            quoteSource: 'Elang & Laila Wedding Celebration',
+            akadLocation: {
+              dateTime: '2028-02-28T15:00:00+07:00',
+              description: 'Villa Mawar, Jl. Bukit Indah No. 8, Megamendung, Bogor',
+            },
+            resepsiLocation: {
+              dateTime: '2028-02-28T18:00:00+07:00',
+              description: 'Villa Mawar, Jl. Bukit Indah No. 8, Megamendung, Bogor',
+            },
+          }),
           isPublished: true,
         },
         {

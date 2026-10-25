@@ -34,6 +34,52 @@ export class TemplateDesignService implements OnModuleInit {
 
       const missingTemplates = [
         {
+          slug: 'doodle-sage-love',
+          componentKey: 'doodle-sage-love',
+          name: 'Doodle Sage Love',
+          category: premiumCat,
+          price: 79000,
+          filterGroup: 'Romantis & Dreamy',
+          description:
+            'Undangan pernikahan doodle ilustratif bernuansa sage green & rose pink aesthetic. Dilengkapi sampul airmail interaktif, segel lilin, kalender memo pad, tiket acara boarding pass, dan papan buletin doa restu.',
+          tags: JSON.stringify([
+            'doodle',
+            'sage green',
+            'cute',
+            'hand drawn',
+            'pastel',
+            'aesthetic',
+            'airmail',
+            'love letter',
+            'intimate',
+          ]),
+          previewUrl: 'https://satuundangan.id/demo/doodle-sage-love',
+          thumbnailUrl:
+            'https://satuundangan.id/assets/templates/doodle-sage-love.png',
+          paletteColors: ['#5B7A58', '#E87A90', '#FAF7F2'],
+          defaultMusic: 'wedding-acoustic-morning.mp3',
+          sampleContent: JSON.stringify({
+            groomName: 'Riyandi Alfriansyah',
+            brideName: 'Dewi Anggraeni',
+            parents: {
+              groomParents: 'Putra Ke-6 dari Bpk. Eko dan Ibu Linda',
+              brideParents: 'Putri Pertama dari Bpk. Dudi dan Ibu Meylani',
+            },
+            quoteText:
+              'Dan di antara tanda-tanda kebesaran-Nya ialah Dia menciptakan pasangan-pasangan untukmu dari jenismu sendiri, agar kamu cenderung dan merasa tenteram kepadanya dan Dia menjadikan antaramu rasa kasih dan sayang.',
+            quoteSource: 'Q.S. Ar-Rum Ayat 21',
+            akadLocation: {
+              dateTime: '2026-11-29T08:00:00+07:00',
+              description: 'Love Garden Resto & Cafe, Jl. Veteran No.66, Bogor Tengah, Kota Bogor',
+            },
+            resepsiLocation: {
+              dateTime: '2026-11-29T11:00:00+07:00',
+              description: 'Love Garden Resto & Cafe, Jl. Veteran No.66, Bogor Tengah, Kota Bogor',
+            },
+          }),
+          isPublished: true,
+        },
+        {
           slug: 'meowly-married',
           name: 'Meowly Married',
           category: premiumCat,
@@ -852,6 +898,7 @@ export class TemplateDesignService implements OnModuleInit {
         'bali-payas-agung': 'https://satuundangan.id/assets/templates/bali-payas-agung.png',
         'bugis-saoraja': 'https://satuundangan.id/assets/templates/bugis-saoraja.png',
         'minang-suntiang-emas': 'https://satuundangan.id/assets/templates/minang-suntiang-emas.png',
+        'doodle-sage-love': 'https://satuundangan.id/assets/templates/doodle-sage-love.png',
         'strawberry-matcha': 'https://satuundangan.id/assets/templates/strawberry-matcha.png',
         'sunda-sabilulungan': 'https://satuundangan.id/assets/templates/sunda-sabilulungan.png',
       };

@@ -9,7 +9,6 @@ export class CreateGuestMessageDto {
   @IsString()
   guestName: string;
 
-  @IsNotEmpty()
   @IsString()
   message: string;
 

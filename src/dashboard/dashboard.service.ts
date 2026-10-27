@@ -57,6 +57,7 @@ export class DashboardService {
       .createQueryBuilder('guest')
       .select('guest.rsvpStatus', 'status')
       .addSelect('COUNT(guest.id)', 'count')
+      .addSelect('SUM(guest.pax)', 'paxSum')
       .leftJoin('guest.invitation', 'invitation')
       .where('invitation.userId = :userId', { userId })
       .groupBy('guest.rsvpStatus')
@@ -64,6 +65,7 @@ export class DashboardService {
 
     const rsvpBreakdown = {
       attending: 0,
+      attending_pax: 0,
       not_attending: 0,
       pending: 0,
     };
@@ -76,6 +78,7 @@ export class DashboardService {
 
       if (['hadir', 'attending', 'ya'].includes(s)) {
         rsvpBreakdown.attending += c;
+        rsvpBreakdown.attending_pax += parseInt(stat.paxSum || '0');
       } else if (
         ['tidak', 'tidak_hadir', 'not_attending', 'batal'].includes(s)
       ) {

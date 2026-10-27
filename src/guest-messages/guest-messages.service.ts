@@ -54,7 +54,10 @@ export class GuestMessagesService {
       });
     } else if (dto.guestSlug) {
       guest = await this.guestRepo.findOne({
-        where: { slug: dto.guestSlug, invitation: { id: dto.invitationId } },
+        where: [
+          { accessToken: dto.guestSlug, invitation: { id: dto.invitationId } },
+          { slug: dto.guestSlug, invitation: { id: dto.invitationId } },
+        ],
       });
     }
 
@@ -72,6 +75,7 @@ export class GuestMessagesService {
     // sync RSVP status on guest if linked
     if (guest) {
       guest.rsvpStatus = dto.rsvpStatus;
+      guest.pax = dto.totalGuests || 1;
       await this.guestRepo.save(guest);
     }
 

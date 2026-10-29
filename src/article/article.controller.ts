@@ -19,6 +19,7 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 import { ApiTags } from '@nestjs/swagger';
+import { RestoreArticleRevisionDto } from './dto/restore-article-revision.dto';
 
 @ApiTags('Articles')
 @Controller()
@@ -44,10 +45,13 @@ export class ArticleController {
   @Post('admin/articles/auto-generate')
   autoGenerateArticle(
     @Body() body: { topic?: string; status?: 'published' | 'draft' },
+    @CurrentUser() user: { id: number },
   ) {
     return this.articleBotService.generateAndPublishNextArticle(
       body?.topic,
-      body?.status || 'published',
+      'draft',
+      'manual',
+      user.id,
     );
   }
 
@@ -60,6 +64,7 @@ export class ArticleController {
       query.q,
       query.sortBy,
       query.sortOrder,
+      query.filters,
     );
   }
 
@@ -83,8 +88,27 @@ export class ArticleController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateArticleDto: UpdateArticleDto,
+    @CurrentUser() user: { id: number },
   ) {
-    return this.articleService.update(id, updateArticleDto);
+    return this.articleService.update(id, updateArticleDto, user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Get('admin/articles/:id/revisions')
+  listRevisions(@Param('id', ParseIntPipe) id: number) {
+    return this.articleService.listRevisions(id);
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Get('admin/articles/:id/revisions/:revisionId')
+  getRevision(@Param('id', ParseIntPipe) id: number, @Param('revisionId') revisionId: string) {
+    return this.articleService.getRevision(id, revisionId);
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Post('admin/articles/:id/revisions/:revisionId/restore')
+  restoreRevision(@Param('id', ParseIntPipe) id: number, @Param('revisionId') revisionId: string, @Body() dto: RestoreArticleRevisionDto, @CurrentUser() user: { id: number }) {
+    return this.articleService.restoreRevision(id, revisionId, dto, user.id);
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)

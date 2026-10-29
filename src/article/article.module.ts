@@ -7,9 +7,10 @@ import { ArticleService } from './article.service';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
 import { ArticleBotService } from './article-bot.service';
+import { ActivityLog } from '../admin/entities/activity-log.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Article, User])],
+  imports: [TypeOrmModule.forFeature([Article, User, ActivityLog])],
   controllers: [ArticleController],
   providers: [ArticleService, ArticleBotService, AdminGuard],
   exports: [ArticleService, ArticleBotService],

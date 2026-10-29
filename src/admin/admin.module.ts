@@ -21,6 +21,10 @@ import { ActivityLog } from './entities/activity-log.entity';
 import { TelemetryController } from './telemetry.controller';
 import { PromoModule } from '../promo/promo.module';
 import { UploadModule } from '../modules/upload/upload.module';
+import { AdminDashboardController } from './admin-dashboard.controller';
+import { AdminDashboardService } from './admin-dashboard.service';
+import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
+import { WithdrawRequest } from '../affiliate/entities/withdraw-request.entity';
 
 @Module({
   imports: [
@@ -38,13 +42,16 @@ import { UploadModule } from '../modules/upload/upload.module';
       Bank,
       PaletteColor,
       ActivityLog,
+      AffiliateProfile,
+      WithdrawRequest,
     ]),
     PromoModule,
     UploadModule,
   ],
-  providers: [AdminService, AdminGuard],
+  providers: [AdminService, AdminDashboardService, AdminGuard],
   controllers: [
     AdminController,
+    AdminDashboardController,
     PublicSectionController,
     PublicAudioController,
     TelemetryController,

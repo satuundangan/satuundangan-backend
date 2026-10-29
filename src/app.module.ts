@@ -11,6 +11,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AdminModule } from './admin/admin.module';
+import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CategoryModule } from './category/category.module';
 import { PromoModule } from './promo/promo.module';
@@ -50,6 +51,7 @@ import { AppService } from './app.service';
     GuestMessagesModule,
     GuestModule,
     AdminModule,
+    AdminAnalyticsModule,
     DashboardModule,
     CategoryModule,
     PromoModule,

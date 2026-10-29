@@ -142,6 +142,7 @@ export class AdminController {
     @Query('package') packageType?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('kind') kind?: string,
   ) {
     const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
     return this.service.listPayments(
@@ -155,6 +156,7 @@ export class AdminController {
       endDate,
       sortBy,
       sortOrder,
+      kind,
     );
   }
 
@@ -176,6 +178,7 @@ export class AdminController {
     @Query('package') packageType?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('kind') kind?: string,
   ) {
     return this.service.exportPayments(
       q,
@@ -184,6 +187,7 @@ export class AdminController {
       packageType,
       startDate,
       endDate,
+      kind,
     );
   }
 

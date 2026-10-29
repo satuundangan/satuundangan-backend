@@ -60,6 +60,7 @@ export class ArticleController {
       query.q,
       query.sortBy,
       query.sortOrder,
+      query.filters,
     );
   }
 

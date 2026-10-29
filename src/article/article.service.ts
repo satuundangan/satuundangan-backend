@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Article } from './article.entity';
@@ -22,21 +26,70 @@ export class ArticleService {
     q?: string,
     sortBy: string = 'createdAt',
     sortOrder: 'ASC' | 'DESC' = 'DESC',
+    filters?: string,
   ) {
+    page =
+      Number.isInteger(Number(page)) && Number(page) > 0 ? Number(page) : 1;
+    limit =
+      Number.isInteger(Number(limit)) && Number(limit) > 0
+        ? Math.min(Number(limit), 100)
+        : 20;
     const skip = (page - 1) * limit;
-
-    const where: any = {};
-    if (q) {
-      where.title = ILike(`%${q}%`);
+    const searchWhere: any = {};
+    if (q?.trim()) {
+      searchWhere.title = ILike(`%${q.trim()}%`);
     }
+
+    let status: string | undefined;
+    if (filters) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(filters);
+      } catch {
+        throw new BadRequestException('Filter artikel tidak valid.');
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new BadRequestException('Filter artikel harus berupa objek.');
+      }
+      const requestedStatus = (parsed as { status?: unknown }).status;
+      if (requestedStatus !== undefined && requestedStatus !== 'all') {
+        if (requestedStatus !== 'published' && requestedStatus !== 'draft') {
+          throw new BadRequestException('Status artikel tidak valid.');
+        }
+        status = requestedStatus;
+      }
+    }
+
+    const allowedSortFields = [
+      'id',
+      'title',
+      'status',
+      'createdAt',
+      'updatedAt',
+      'publishedAt',
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : 'createdAt';
+    const where = status ? { ...searchWhere, status } : searchWhere;
 
     const [items, total] = await this.articleRepository.findAndCount({
       where,
-      order: { [sortBy]: sortOrder },
+      order: { [safeSortBy]: sortOrder === 'ASC' ? 'ASC' : 'DESC' },
       skip,
       take: limit,
       relations: ['author'],
     });
+
+    const [all, published, draft] = await Promise.all([
+      this.articleRepository.count({ where: searchWhere }),
+      this.articleRepository.count({
+        where: { ...searchWhere, status: 'published' },
+      }),
+      this.articleRepository.count({
+        where: { ...searchWhere, status: 'draft' },
+      }),
+    ]);
 
     return {
       items,
@@ -44,6 +97,7 @@ export class ArticleService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      statusCounts: { all, published, draft },
     };
   }
 
@@ -144,9 +198,7 @@ export class ArticleService {
       );
     }
 
-    qb.orderBy('article.publishedAt', 'DESC')
-      .skip(skip)
-      .take(limit);
+    qb.orderBy('article.publishedAt', 'DESC').skip(skip).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
 

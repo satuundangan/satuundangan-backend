@@ -7,6 +7,8 @@ import { Article } from './article.entity';
 import { ArticleService } from './article.service';
 import axios from 'axios';
 import slugify from 'slugify';
+import { randomUUID } from 'node:crypto';
+import { ActivityLog, LogLevel } from '../admin/entities/activity-log.entity';
 
 // Curated high-intent wedding keyword bank for Indonesian couples (100+ keywords across 10 clusters)
 export const WEDDING_KEYWORDS_BANK = [
@@ -683,12 +685,15 @@ export function resolveContextualCover(text: string, fallback?: string): string 
 @Injectable()
 export class ArticleBotService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ArticleBotService.name);
+  private historyWriteFailed = false;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly articleService: ArticleService,
     @InjectRepository(Article)
     private readonly articleRepository: Repository<Article>,
+    @InjectRepository(ActivityLog)
+    private readonly activityLogRepository: Repository<ActivityLog>,
   ) {}
 
   /**
@@ -749,7 +754,7 @@ export class ArticleBotService implements OnApplicationBootstrap {
     }
 
     try {
-      const result = await this.generateAndPublishNextArticle();
+      const result = await this.generateAndPublishNextArticle(undefined, 'published', 'scheduled');
       this.logger.log(`✅ Successfully published article via Auto-Blogger: "${result.title}" (ID: ${result.id})`);
     } catch (error) {
       this.logger.error(`❌ Failed daily automated blog generation: ${error.message}`, error.stack);
@@ -760,35 +765,51 @@ export class ArticleBotService implements OnApplicationBootstrap {
    * Finds the next topic from the curated bank that hasn't been written yet.
    * If all 100+ keywords are exhausted, dynamically synthesizes a completely new unique topic.
    */
-  async getNextUnpublishedKeyword(): Promise<{ keyword: string; category: string; defaultCover: string }> {
+  async getNextUnpublishedKeyword(): Promise<{
+    keyword: string;
+    category: string;
+    defaultCover: string;
+  }> {
     const existingArticles = await this.articleRepository.find({
       select: ['title', 'slug', 'focusKeyword'],
     });
 
+    const unused = this.getUnusedCuratedTopics(existingArticles);
+    if (unused.length) return unused[0];
+
+    return this.generateDynamicUnpublishedTopic(existingArticles);
+  }
+
+  private getUnusedCuratedTopics(existingArticles: Partial<Article>[]) {
     const isMatch = (field: string | null | undefined, target: string) => {
       if (!field || !target) return false;
-      const f = field.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-      const t = target.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
-      return f.includes(t) || t.includes(f);
+      const f = field
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .trim();
+      const t = target
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .trim();
+      return Boolean(f && t) && (f.includes(t) || t.includes(f));
     };
 
-    for (const item of WEDDING_KEYWORDS_BANK) {
-      const itemSlugPrefix = slugify(item.keyword, { lower: true, strict: true }).slice(0, 30);
+    return WEDDING_KEYWORDS_BANK.filter((item) => {
+      const itemSlugPrefix = slugify(item.keyword, {
+        lower: true,
+        strict: true,
+      }).slice(0, 30);
       const isAlreadyWritten = existingArticles.some(
         (art) =>
           isMatch(art.focusKeyword, item.keyword) ||
           isMatch(art.title, item.keyword) ||
-          (art.slug && (art.slug.includes(itemSlugPrefix) || isMatch(art.slug, itemSlugPrefix))),
+          (art.slug &&
+            (art.slug.includes(itemSlugPrefix) ||
+              isMatch(art.slug, itemSlugPrefix))),
       );
 
-      if (!isAlreadyWritten) {
-        return item;
-      }
-    }
-
-    // Dynamic Topic Generator (Infinite Uniqueness Fallback):
-    // Synthesizes a completely unwritten topic using combinations of Angles x Subjects x Contexts
-    return this.generateDynamicUnpublishedTopic(existingArticles);
+      return !isAlreadyWritten;
+    });
   }
 
   /**
@@ -881,7 +902,59 @@ export class ArticleBotService implements OnApplicationBootstrap {
   /**
    * Generates and publishes an article (used by Cron or manual Admin call)
    */
-  async generateAndPublishNextArticle(customTopic?: string, targetStatus: 'published' | 'draft' = 'published') {
+  async generateAndPublishNextArticle(
+    customTopic?: string,
+    targetStatus: 'published' | 'draft' = 'published',
+    source: 'manual' | 'scheduled' = 'manual',
+  ) {
+    const runId = randomUUID();
+    const context = { runId, source, targetStatus };
+    await this.recordRun('ARTICLE_BOT_RUN_STARTED', context);
+    try {
+      const article = await this.generateArticle(customTopic, targetStatus);
+      await this.recordRun('ARTICLE_BOT_RUN_SUCCEEDED', {
+        ...context,
+        articleId: article.id,
+      });
+      return article;
+    } catch (error) {
+      const key =
+        this.configService.get<string>('GEMINI_API_KEY') ||
+        this.configService.get<string>('GOOGLE_API_KEY');
+      let message =
+        error instanceof Error
+          ? error.message
+          : 'Proses pembuatan artikel gagal.';
+      if (key) message = message.split(key).join('[redacted]');
+      await this.recordRun('ARTICLE_BOT_RUN_FAILED', {
+        ...context,
+        message: message.slice(0, 500),
+      });
+      throw error;
+    }
+  }
+
+  private async recordRun(action: string, details: Record<string, unknown>) {
+    try {
+      await this.activityLogRepository.save(
+        this.activityLogRepository.create({
+          action,
+          level:
+            action === 'ARTICLE_BOT_RUN_FAILED'
+              ? LogLevel.ERROR
+              : LogLevel.INFO,
+          path: '/admin/articles/auto-generate',
+          method: details.source === 'scheduled' ? 'CRON' : 'POST',
+          details,
+        }),
+      );
+    } catch {
+      this.historyWriteFailed = true;
+      this.logger.warn('Riwayat eksekusi Auto-Blogger gagal disimpan.');
+    }
+  }
+
+  private async generateArticle(customTopic?: string, targetStatus: 'published' | 'draft' = 'published') {
     const apiKey =
       this.configService.get<string>('GEMINI_API_KEY') ||
       this.configService.get<string>('GOOGLE_API_KEY');
@@ -1079,20 +1152,80 @@ Balas HANYA dalam format JSON valid dengan struktur:
    * Retrieves bot status and remaining topics for admin dashboard
    */
   async getStatus() {
-    const totalPublished = await this.articleRepository.count();
-    const remainingKeywordCount = WEDDING_KEYWORDS_BANK.length;
+    const [totalArticles, existingArticles] = await Promise.all([
+      this.articleRepository.count(),
+      this.articleRepository.find({
+        select: ['title', 'slug', 'focusKeyword'],
+      }),
+    ]);
+    const enabled =
+      this.configService.get<string>('AUTO_BLOG_ENABLED', 'true') !== 'false';
     const isConfigured = Boolean(
       this.configService.get<string>('GEMINI_API_KEY') ||
-      this.configService.get<string>('GOOGLE_API_KEY'),
+        this.configService.get<string>('GOOGLE_API_KEY'),
     );
 
+    let historyAvailable = !this.historyWriteFailed;
+    let attempt: ActivityLog | null = null;
+    let success: ActivityLog | null = null;
+    let failure: ActivityLog | null = null;
+    try {
+      [attempt, success, failure] = await Promise.all(
+        [
+          'ARTICLE_BOT_RUN_STARTED',
+          'ARTICLE_BOT_RUN_SUCCEEDED',
+          'ARTICLE_BOT_RUN_FAILED',
+        ].map((action) =>
+          this.activityLogRepository.findOne({
+            where: { action },
+            order: { id: 'DESC' },
+          }),
+        ),
+      );
+    } catch {
+      historyAvailable = false;
+    }
+    const latest = [attempt, success, failure]
+      .filter((item): item is ActivityLog => Boolean(item))
+      .sort((a, b) => b.id - a.id)[0];
+    const nextRun = new Date();
+    nextRun.setUTCHours(1, 0, 0, 0);
+    if (nextRun.getTime() <= Date.now())
+      nextRun.setUTCDate(nextRun.getUTCDate() + 1);
+
     return {
-      autoBlogEnabled: this.configService.get<string>('AUTO_BLOG_ENABLED', 'true') !== 'false',
+      autoBlogEnabled: enabled,
       scheduleTime: '08:00 WIB (Setiap Hari)',
+      scheduleTimezone: 'Asia/Jakarta',
       geminiConfigured: isConfigured,
-      totalArticlesInDb: totalPublished,
-      curatedKeywordsTotal: remainingKeywordCount,
-      nextScheduledRun: 'Setiap hari pukul 08:00 WIB',
+      totalArticlesInDb: totalArticles,
+      curatedKeywordsTotal: WEDDING_KEYWORDS_BANK.length,
+      curatedKeywordsRemaining:
+        this.getUnusedCuratedTopics(existingArticles).length,
+      nextScheduledRun: enabled ? 'Setiap hari pukul 08:00 WIB' : null,
+      nextScheduledRunAt: enabled ? nextRun.toISOString() : null,
+      historyScope: 'persistent',
+      historyAvailable,
+      historyWarning: historyAvailable
+        ? null
+        : 'Riwayat eksekusi belum dapat diverifikasi.',
+      lastAttemptAt: historyAvailable ? (attempt?.createdAt ?? null) : null,
+      lastSuccessAt: historyAvailable ? (success?.createdAt ?? null) : null,
+      lastError:
+        historyAvailable && failure
+          ? {
+              occurredAt: failure.createdAt,
+              message: failure.details?.message || 'Pembuatan artikel gagal.',
+            }
+          : null,
+      runState:
+        !historyAvailable || !latest
+          ? 'unknown'
+          : latest.action === 'ARTICLE_BOT_RUN_SUCCEEDED'
+            ? 'succeeded'
+            : latest.action === 'ARTICLE_BOT_RUN_FAILED'
+              ? 'failed'
+              : 'incomplete',
     };
   }
 }

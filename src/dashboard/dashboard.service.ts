@@ -28,11 +28,13 @@ export class DashboardService {
       where: { user: { id: userId }, isPublished: true },
     });
 
-    // Total responses
+    // Total wishes: RSVP-only submissions have an empty message and are not
+    // shown in the guestbook's "Ucapan & Doa" list, so don't count them here.
     const totalResponses = await this.guestMessageRepo
       .createQueryBuilder('gm')
       .leftJoin('gm.invitation', 'invitation')
       .where('invitation.userId = :userId', { userId })
+      .andWhere("TRIM(COALESCE(gm.message, '')) <> ''")
       .getCount();
 
     // Total Views

@@ -82,6 +82,7 @@ describe('dashboard overview sources', () => {
       templates as any,
       affiliates as any,
       withdrawals as any,
+      {} as any,
     );
     const result = await service.getOverview({ days: 7 });
     expect(result.totals.guests).toBeNull();
@@ -110,6 +111,7 @@ describe('dashboard overview sources', () => {
       other as any,
       other as any,
       other as any,
+      {} as any,
     );
     await expect(service.getOverview({ days: 7 })).rejects.toThrow(
       'payments offline',
@@ -222,5 +224,49 @@ describe('dashboard financial units', () => {
     );
     expect(result.metrics.revenue).toBe(0);
     expect(result.metrics.unverifiedSuccesses).toBe(1);
+  });
+});
+
+import { buildActionQueue } from './admin-action-queue';
+
+describe('action queue', () => {
+  const now = new Date('2026-10-29T10:00:00Z');
+  const reconciliation = {
+    countsByType: { successNotPublished: 1, publishedUnpaid: 1, commissionPending: 0, pendingAging: 1 },
+    items: [
+      { type: 'PENDING_AGING', title: 'Menunggu Pembayaran > 24 Jam', description: 'Order A pending 30 jam', paymentId: 3, createdAt: '2026-10-28T04:00:00Z' },
+      { type: 'PUBLISHED_UNPAID', title: 'Undangan Terbit Tanpa Bukti Lunas', description: 'Undangan X', invitationId: 9, createdAt: '2026-10-20T00:00:00Z' },
+      { type: 'SUCCESS_NOT_PUBLISHED', title: 'Lunas Belum Terbit', description: 'Order B lunas', paymentId: 1, amount: 99000, createdAt: '2026-10-29T08:00:00Z' },
+    ],
+  };
+
+  it('gives every row a reason, age, priority and a link, most urgent first', () => {
+    const queue = buildActionQueue(reconciliation, { count: 0, oldestAt: null, totalAmount: 0 }, now);
+    expect(queue.items.map((i) => i.type)).toEqual(['SUCCESS_NOT_PUBLISHED', 'PUBLISHED_UNPAID', 'PENDING_AGING']);
+    for (const item of queue.items) {
+      expect(item.reason).toBeTruthy();
+      expect(item.ageHours).not.toBeNull();
+      expect(item.link).toMatch(/^\/admin\//);
+    }
+    expect(queue.items[0]).toMatchObject({ priority: 1, priorityLabel: 'Tinggi', ageHours: 2 });
+    expect(queue.items[1].link).toBe('/admin/invitations/9/edit');
+  });
+
+  it('keeps totals equal to the source page counts', () => {
+    const queue = buildActionQueue(reconciliation, { count: 2, oldestAt: '2026-10-25T00:00:00Z', totalAmount: 150000 }, now);
+    expect(queue.countsBySource).toEqual({ transaksi: 2, undangan: 1, payout: 2 });
+    expect(queue.count).toBe(4);
+  });
+
+  it('shows pending payouts as one row without a dead link, escalating when old', () => {
+    const queue = buildActionQueue({ items: [], countsByType: {} }, { count: 3, oldestAt: '2026-10-25T00:00:00Z', totalAmount: 450000 }, now);
+    expect(queue.items[0]).toMatchObject({ domain: 'payout', priority: 1, link: null, amount: 450000 });
+    expect(queue.items[0].linkNote).toBeTruthy();
+  });
+
+  it('says plainly which source does not exist yet instead of showing an empty one', () => {
+    const queue = buildActionQueue({ items: [], countsByType: {} }, { count: 0, oldestAt: null, totalAmount: 0 }, now);
+    expect(queue.unavailableSources[0].source).toBe('bantuan');
+    expect(queue.items).toEqual([]);
   });
 });

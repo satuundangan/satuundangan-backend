@@ -7,6 +7,7 @@ import { resolveDashboardPeriod } from '../admin/admin-dashboard-period';
 
 const OAUTH_URL = 'https://oauth2.googleapis.com/token';
 const READONLY_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
+const SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
 const CACHE_MS = 5 * 60 * 1000;
 const MARKETING_PATH = '^(/|/blog(/.*)?|/templates|/tema(/.*)?|/tools/love-calculator|/wedding-planner|/tentang-kami|/terms|/privacy|/syarat-ketentuan|/kebijakan-privasi)$';
 const METRICS = ['activeUsers', 'sessions', 'screenPageViews', 'engagedSessions', 'engagementRate'];
@@ -111,14 +112,15 @@ export class AdminAnalyticsService {
     }
   }
 
-  private async accessToken(email: string, privateKey: string, key: string) {
-    if (this.token?.key === key && this.token.expiresAt > Date.now() + 60_000) return this.token.value;
+  private async accessToken(email: string, privateKey: string, key: string, scope = READONLY_SCOPE) {
+    const tokenKey = key + scope;
+    if (this.token?.key === tokenKey && this.token.expiresAt > Date.now() + 60_000) return this.token.value;
     // Direct OAuth JWT exchange, following Google's documented service-account
     // flow. Scope is read-only; endpoints cannot be supplied by the caller.
     // https://developers.google.com/identity/protocols/oauth2/service-account
     const now = Math.floor(Date.now() / 1000);
     const encoded = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
-    const unsigned = encoded({ alg: 'RS256', typ: 'JWT' }) + '.' + encoded({ iss: email, scope: READONLY_SCOPE, aud: OAUTH_URL, iat: now, exp: now + 3600 });
+    const unsigned = encoded({ alg: 'RS256', typ: 'JWT' }) + '.' + encoded({ iss: email, scope, aud: OAUTH_URL, iat: now, exp: now + 3600 });
     const signer = createSign('RSA-SHA256');
     signer.update(unsigned);
     const assertion = unsigned + '.' + signer.sign(privateKey, 'base64url');
@@ -126,7 +128,7 @@ export class AdminAnalyticsService {
     const response = await axios.post(OAUTH_URL, body, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15_000, maxRedirects: 0 });
     if (typeof response.data.access_token !== 'string' || !response.data.access_token) throw new Error('Missing token');
     const expiresIn = Math.max(60, Math.min(Number(response.data.expires_in) || 3600, 3600));
-    this.token = { key, value: response.data.access_token, expiresAt: Date.now() + expiresIn * 1000 };
+    this.token = { key: tokenKey, value: response.data.access_token, expiresAt: Date.now() + expiresIn * 1000 };
     return this.token.value;
   }
 
@@ -159,6 +161,37 @@ export class AdminAnalyticsService {
     ];
     const key = createHash('sha256').update(propertyId + email + privateKey).digest('hex');
     return { missing, propertyId, email, privateKey, key };
+  }
+
+  /**
+   * Search Console performance by page for /blog/ URLs. Needs GSC_SITE_URL and
+   * the same service account added as a user of that Search Console property.
+   */
+  async searchConsolePages(options: { startDate: string; endDate: string }) {
+    const siteUrl = this.config.get<string>('GSC_SITE_URL')?.trim();
+    const connection = this.connection();
+    const missing = [...connection.missing.filter((name) => name !== 'GA4_PROPERTY_ID'), ...(siteUrl ? [] : ['GSC_SITE_URL'])];
+    if (missing.length) return { status: 'not_connected' as const, missing };
+    const token = await this.accessToken(connection.email, connection.privateKey, connection.key, SEARCH_CONSOLE_SCOPE);
+    const response = await axios.post(
+      `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl!)}/searchAnalytics/query`,
+      {
+        startDate: options.startDate,
+        endDate: options.endDate,
+        dimensions: ['page'],
+        rowLimit: 200,
+        dimensionFilterGroups: [{ filters: [{ dimension: 'page', operator: 'contains', expression: '/blog/' }] }],
+      },
+      { headers: { Authorization: 'Bearer ' + token }, timeout: 15_000, maxRedirects: 0 },
+    );
+    const rows = (response.data?.rows || []).map((row: any) => ({
+      page: String(row.keys?.[0] ?? ''),
+      clicks: Number(row.clicks) || 0,
+      impressions: Number(row.impressions) || 0,
+      ctr: Number(row.ctr) || 0,
+      position: Number(row.position) || 0,
+    }));
+    return { status: 'ready' as const, rows };
   }
 
   /**

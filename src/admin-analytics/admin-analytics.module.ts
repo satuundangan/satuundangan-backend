@@ -13,5 +13,6 @@ import { AnalyticsAnnotation, AnalyticsInsight } from './analytics-insight.entit
   imports: [TypeOrmModule.forFeature([User, Invitation, Payment, AnalyticsInsight, AnalyticsAnnotation])],
   providers: [AdminAnalyticsService, AnalyticsReportsService, AdminGuard],
   controllers: [AdminAnalyticsController],
+  exports: [AdminAnalyticsService],
 })
 export class AdminAnalyticsModule {}

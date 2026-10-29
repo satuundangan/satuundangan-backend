@@ -13,6 +13,8 @@ import {
   WithdrawStatus,
 } from '../affiliate/types/affiliate.type';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
+import { AdminService } from './admin.service';
+import { buildActionQueue } from './admin-action-queue';
 import { resolveDashboardPeriod } from './admin-dashboard-period';
 import {
   aggregateDashboardPeriod,
@@ -35,7 +37,25 @@ export class AdminDashboardService {
     private readonly affiliates: Repository<AffiliateProfile>,
     @InjectRepository(WithdrawRequest)
     private readonly withdrawals: Repository<WithdrawRequest>,
+    private readonly admin: AdminService,
   ) {}
+
+  /** One prioritised list across payments, invitations and payouts. */
+  async getActionQueue() {
+    const [reconciliation, pending] = await Promise.all([
+      this.admin.getReconciliationQueue(),
+      this.withdrawals.find({
+        where: { status: WithdrawStatus.PENDING },
+        order: { createdAt: 'ASC' },
+        select: { id: true, requestedAmount: true, createdAt: true },
+      }),
+    ]);
+    return buildActionQueue(reconciliation as any, {
+      count: pending.length,
+      oldestAt: pending[0]?.createdAt ?? null,
+      totalAmount: pending.reduce((sum, row) => sum + Number(row.requestedAmount || 0), 0),
+    });
+  }
 
   async getOverview(query: DashboardQueryDto) {
     const period = resolveDashboardPeriod(query);

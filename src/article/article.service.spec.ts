@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ArticleService } from './article.service';
 import { Article } from './article.entity';
 import { User } from '../user/user.entity';
@@ -25,6 +25,7 @@ describe('ArticleService', () => {
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
+    update: jest.fn(),
     remove: jest.fn(),
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
   };
@@ -136,6 +137,47 @@ describe('ArticleService', () => {
     });
   });
 
+  describe('versioned editorial updates', () => {
+    const article = () => ({ id: 1, title: 'Judul lama', slug: 'judul-lama', content: '<p>Lama</p>', status: 'draft', editVersion: 4, authorId: 1, sourceUrls: [], generatedByAi: false, revisionHistory: [], reviewedAt: null, reviewedByUserId: null });
+
+    it('saves a prior snapshot and conditionally increments the edit version', async () => {
+      mockArticleRepository.findOne.mockResolvedValue(article());
+      mockArticleRepository.update.mockResolvedValueOnce({ affected: 1 });
+      await service.update(1, { content: '<p>Baru</p>', expectedVersion: 4 }, 9);
+      expect(mockArticleRepository.update).toHaveBeenCalledWith({ id: 1, editVersion: 4 }, expect.objectContaining({ content: '<p>Baru</p>', editVersion: 5, revisionHistory: [expect.objectContaining({ savedByUserId: 9, snapshot: expect.objectContaining({ content: '<p>Lama</p>' }) })] }));
+    });
+
+    it('rejects stale edits and a lost atomic update instead of overwriting newer content', async () => {
+      mockArticleRepository.findOne.mockResolvedValue(article());
+      await expect(service.update(1, { title: 'Judul baru', expectedVersion: 3 }, 9)).rejects.toThrow(ConflictException);
+      mockArticleRepository.update.mockResolvedValueOnce({ affected: 0 });
+      await expect(service.update(1, { content: 'baru', expectedVersion: 4 }, 9)).rejects.toThrow(ConflictException);
+    });
+
+    it('requires accountable review and a source before publishing AI content', async () => {
+      mockArticleRepository.findOne.mockResolvedValue({ ...article(), generatedByAi: true });
+      await expect(service.update(1, { status: 'published', expectedVersion: 4 }, 9)).rejects.toThrow(BadRequestException);
+      mockArticleRepository.update.mockResolvedValueOnce({ affected: 1 });
+      await service.update(1, { status: 'published', editorialReviewed: true, sourceUrls: ['https://example.com/source'], expectedVersion: 4 }, 9);
+      expect(mockArticleRepository.update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ reviewedByUserId: 9, reviewedAt: expect.any(Date), status: 'published' }));
+    });
+
+    it('restores a prior saved version as a draft and preserves an additional history snapshot', async () => {
+      const current = article();
+      current.revisionHistory = [{ id: 'older', savedAt: new Date().toISOString(), savedByUserId: 2, snapshot: { title: 'Judul sebelumnya', content: '<p>Sebelumnya</p>' } }] as any;
+      mockArticleRepository.findOne.mockResolvedValue(current);
+      mockArticleRepository.update.mockResolvedValueOnce({ affected: 1 });
+      await service.restoreRevision(1, 'older', { expectedVersion: 4 }, 9);
+      expect(mockArticleRepository.update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ title: 'Judul sebelumnya', status: 'draft', reviewedAt: null, reviewedByUserId: null }));
+    });
+
+    it('rejects schedules without an explicit timezone or with a past date', async () => {
+      mockArticleRepository.findOne.mockResolvedValue(article());
+      await expect(service.update(1, { status: 'scheduled', scheduledPublishAt: '2026-10-30T08:00', expectedVersion: 4 }, 9)).rejects.toThrow(BadRequestException);
+      await expect(service.update(1, { status: 'scheduled', scheduledPublishAt: '2020-01-01T01:00:00Z', expectedVersion: 4 }, 9)).rejects.toThrow(BadRequestException);
+    });
+  });
+
   describe('findAllPublished', () => {
     it('should query published articles with default pagination and relations', async () => {
       const mockArticles = [
@@ -231,7 +273,7 @@ describe('ArticleService', () => {
       mockArticleRepository.findOne.mockResolvedValueOnce(article);
 
       const result = await service.findBySlug('test-slug');
-      expect(result).toBe(article);
+      expect(result).toEqual(article);
       expect(mockArticleRepository.findOne).toHaveBeenCalledWith({
         where: { slug: 'test-slug', status: 'published' },
         relations: ['author'],

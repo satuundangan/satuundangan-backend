@@ -754,10 +754,20 @@ export class ArticleBotService implements OnApplicationBootstrap {
     }
 
     try {
-      const result = await this.generateAndPublishNextArticle(undefined, 'published', 'scheduled');
-      this.logger.log(`✅ Successfully published article via Auto-Blogger: "${result.title}" (ID: ${result.id})`);
+      const result = await this.generateAndPublishNextArticle(undefined, 'draft', 'scheduled');
+      this.logger.log(`Draft artikel AI tersimpan: "${result.title}" (ID: ${result.id})`);
     } catch (error) {
       this.logger.error(`❌ Failed daily automated blog generation: ${error.message}`, error.stack);
+    }
+  }
+
+  @Cron('* * * * *', { name: 'article_scheduled_publisher', timeZone: 'Asia/Jakarta' })
+  async handleScheduledPublication() {
+    try {
+      const result = await this.articleService.publishScheduledArticles();
+      if (result.considered) await this.recordRun('ARTICLE_SCHEDULED_PUBLISH_RESULT', { source: 'scheduled-publication', ...result });
+    } catch {
+      await this.recordRun('ARTICLE_SCHEDULED_PUBLISH_FAILED', { source: 'scheduled-publication', message: 'Pemeriksaan jadwal artikel gagal.' });
     }
   }
 
@@ -904,14 +914,15 @@ export class ArticleBotService implements OnApplicationBootstrap {
    */
   async generateAndPublishNextArticle(
     customTopic?: string,
-    targetStatus: 'published' | 'draft' = 'published',
+    targetStatus: 'published' | 'draft' = 'draft',
     source: 'manual' | 'scheduled' = 'manual',
+    authorId?: number,
   ) {
     const runId = randomUUID();
     const context = { runId, source, targetStatus };
     await this.recordRun('ARTICLE_BOT_RUN_STARTED', context);
     try {
-      const article = await this.generateArticle(customTopic, targetStatus);
+      const article = await this.generateArticle(customTopic, targetStatus, authorId);
       await this.recordRun('ARTICLE_BOT_RUN_SUCCEEDED', {
         ...context,
         articleId: article.id,
@@ -944,7 +955,7 @@ export class ArticleBotService implements OnApplicationBootstrap {
               ? LogLevel.ERROR
               : LogLevel.INFO,
           path: '/admin/articles/auto-generate',
-          method: details.source === 'scheduled' ? 'CRON' : 'POST',
+        method: String(details.source).startsWith('scheduled') ? 'CRON' : 'POST',
           details,
         }),
       );
@@ -954,7 +965,7 @@ export class ArticleBotService implements OnApplicationBootstrap {
     }
   }
 
-  private async generateArticle(customTopic?: string, targetStatus: 'published' | 'draft' = 'published') {
+  private async generateArticle(customTopic?: string, targetStatus: 'published' | 'draft' = 'draft', actorId?: number) {
     const apiKey =
       this.configService.get<string>('GEMINI_API_KEY') ||
       this.configService.get<string>('GOOGLE_API_KEY');
@@ -1018,8 +1029,9 @@ export class ArticleBotService implements OnApplicationBootstrap {
         metaDescription: generated.metaDescription || generated.excerpt,
         focusKeyword: generated.focusKeyword || topicItem.keyword,
         status: targetStatus,
+        generatedByAi: true,
       },
-      1, // Author: Admin (ID 1)
+      await this.articleService.resolveAuthorId(actorId || Number(this.configService.get<string>('AUTO_BLOG_AUTHOR_ID')) || undefined),
     );
 
     return newArticle;

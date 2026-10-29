@@ -4,6 +4,13 @@ import {
   IsOptional,
   IsIn,
   MaxLength,
+  IsBoolean,
+  IsArray,
+  ArrayMaxSize,
+  IsUrl,
+  IsISO8601,
+  IsInt,
+  Min,
 } from 'class-validator';
 
 export class CreateArticleDto {
@@ -52,6 +59,39 @@ export class CreateArticleDto {
   canonicalUrl?: string;
 
   @IsOptional()
-  @IsIn(['draft', 'published'])
+  @IsIn(['draft', 'published', 'scheduled'])
   status?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  generatedByAi?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true }, { each: true })
+  sourceUrls?: string[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reviewNotes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  editorialReviewed?: boolean;
+
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  scheduledPublishAt?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  expectedVersion?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  revisionReason?: string;
 }

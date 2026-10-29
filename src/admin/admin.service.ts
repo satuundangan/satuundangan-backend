@@ -12,11 +12,12 @@ import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { TemplateDesignSection } from '../template-design/template-design-section.entity';
 import { Category } from '../category/category.entity';
+import { Payment } from '../payment/payment.entity';
 import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
-import { ActivityLog } from './entities/activity-log.entity';
+import { ActivityLog, LogLevel } from './entities/activity-log.entity';
 import {
   CreateTemplateDesignDto,
   UpdateTemplateDesignDto,
@@ -43,6 +44,8 @@ export class AdminService {
     private readonly templateDesignSectionRepo: Repository<TemplateDesignSection>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(Payment)
+    private readonly paymentRepo: Repository<Payment>,
     @InjectRepository(Section)
     private readonly sectionRepo: Repository<Section>,
     @InjectRepository(Audio) private readonly audioRepo: Repository<Audio>,
@@ -164,33 +167,243 @@ export class AdminService {
   }
 
   // Invitations
+  public transformInvitationSummary(inv: Invitation) {
+    const payments = (inv.payments || []).slice().sort((a, b) => b.id - a.id);
+    const successPayment = payments.find(
+      (p) => String(p.status).toLowerCase() === 'success',
+    );
+
+    let paymentStatusCode = 'unpaid';
+    let paymentStatusLabel = 'Belum Checkout';
+    let paymentStatusVariant = 'neutral';
+
+    if (successPayment) {
+      if (
+        Number(successPayment.amount) > 0 &&
+        successPayment.paymentMethod !== 'FREE_ACTIVATION'
+      ) {
+        paymentStatusCode = 'paid';
+        paymentStatusLabel = 'Lunas Berbayar';
+        paymentStatusVariant = 'success';
+      } else {
+        paymentStatusCode = 'free';
+        paymentStatusLabel = 'Gratis / Promo';
+        paymentStatusVariant = 'info';
+      }
+    } else if (payments.length === 0) {
+      if (inv.isPublished) {
+        paymentStatusCode = 'reconcile';
+        paymentStatusLabel = 'Perlu Rekonsiliasi';
+        paymentStatusVariant = 'danger';
+      } else {
+        paymentStatusCode = 'unpaid';
+        paymentStatusLabel = 'Belum Checkout';
+        paymentStatusVariant = 'neutral';
+      }
+    } else {
+      const latest = payments[0];
+      const st = String(latest.status).toLowerCase();
+      if (st === 'pending') {
+        paymentStatusCode = 'pending';
+        paymentStatusLabel = 'Menunggu Pembayaran';
+        paymentStatusVariant = 'warning';
+      } else if (st === 'expired') {
+        paymentStatusCode = 'expired';
+        paymentStatusLabel = 'Expired';
+        paymentStatusVariant = 'danger';
+      } else if (st === 'failure' || st === 'failed') {
+        paymentStatusCode = 'failed';
+        paymentStatusLabel = 'Gagal';
+        paymentStatusVariant = 'danger';
+      } else if (inv.isPublished) {
+        paymentStatusCode = 'reconcile';
+        paymentStatusLabel = 'Perlu Rekonsiliasi';
+        paymentStatusVariant = 'danger';
+      } else {
+        paymentStatusCode = 'unpaid';
+        paymentStatusLabel = 'Belum Checkout';
+        paymentStatusVariant = 'neutral';
+      }
+    }
+
+    let isExpired = false;
+    let daysRemaining: number | null = null;
+    let expiryLabel = '-';
+
+    if (inv.expiredAt) {
+      const now = Date.now();
+      const expTime = new Date(inv.expiredAt).getTime();
+      const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) {
+        isExpired = true;
+        daysRemaining = 0;
+        expiryLabel = 'Kadaluarsa';
+      } else {
+        isExpired = false;
+        daysRemaining = diffDays;
+        expiryLabel = `${diffDays} hari lagi`;
+      }
+    }
+
+    const targetTx = successPayment || payments[0] || null;
+    const latestTransaction = targetTx
+      ? {
+          id: targetTx.id,
+          orderId: targetTx.orderId,
+          amount: Number(targetTx.amount || 0),
+          status: targetTx.status,
+          paymentMethod: targetTx.paymentMethod || null,
+          paymentType: targetTx.paymentType || null,
+          settlementTime: targetTx.settlementTime || null,
+          discountAmount: Number(targetTx.discountAmount || 0),
+          createdAt: targetTx.createdAt,
+        }
+      : null;
+
+    return {
+      id: inv.id,
+      title: inv.title,
+      slug: inv.slug,
+      coupleName: inv.coupleName,
+      package: inv.package || 'basic',
+      isPublished: Boolean(inv.isPublished),
+      expiredAt: inv.expiredAt,
+      createdAt: inv.createdAt,
+      updatedAt: inv.updatedAt,
+      category: inv.templateDesign?.category?.name || null,
+      templateDesign: inv.templateDesign
+        ? {
+            id: inv.templateDesign.id,
+            name: inv.templateDesign.name,
+            slug: inv.templateDesign.slug,
+            thumbnailUrl: inv.templateDesign.thumbnailUrl,
+          }
+        : null,
+      user: inv.user
+        ? {
+            id: inv.user.id,
+            name: inv.user.name,
+            email: inv.user.email,
+            phoneNumber: (inv.user as any).phoneNumber || null,
+          }
+        : null,
+      paymentStatus: {
+        code: paymentStatusCode,
+        label: paymentStatusLabel,
+        variant: paymentStatusVariant,
+      },
+      expiry: {
+        isExpired,
+        daysRemaining,
+        label: expiryLabel,
+      },
+      latestTransaction,
+      paymentsCount: payments.length,
+    };
+  }
+
   async listInvitations(
     page = 1,
     limit = 20,
     q?: string,
     sortBy = 'id',
     sortOrder: 'ASC' | 'DESC' = 'DESC',
+    paymentStatus?: string,
+    isPublished?: string,
+    packageType?: string,
+    startDate?: string,
+    endDate?: string,
   ) {
-    const where = q
-      ? [
-          { title: ILike(`%${q}%`) },
-          { coupleName: ILike(`%${q}%`) },
-          { slug: ILike(`%${q}%`) },
-        ]
-      : undefined;
-    const [data, total] = await this.invitationRepo.findAndCount({
-      where,
-      order: { [sortBy]: sortOrder },
-      relations: ['user', 'templateDesign', 'templateDesign.category'],
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const qb = this.invitationRepo
+      .createQueryBuilder('inv')
+      .leftJoinAndSelect('inv.user', 'user')
+      .leftJoinAndSelect('inv.templateDesign', 'templateDesign')
+      .leftJoinAndSelect('templateDesign.category', 'category')
+      .leftJoinAndSelect('inv.payments', 'payment');
 
-    const mappedData = data.map((inv) => {
-      const mapped = { ...inv } as any;
-      mapped.category = inv.templateDesign?.category?.name || null;
-      return mapped;
-    });
+    if (q && q.trim()) {
+      const term = `%${q.trim()}%`;
+      qb.andWhere(
+        '(inv.title LIKE :term OR inv.slug LIKE :term OR inv.coupleName LIKE :term OR user.name LIKE :term OR user.email LIKE :term OR payment.orderId LIKE :term)',
+        { term },
+      );
+    }
+
+    if (
+      isPublished !== undefined &&
+      isPublished !== null &&
+      isPublished !== '' &&
+      isPublished !== 'all'
+    ) {
+      const pubBool =
+        isPublished === 'true' ||
+        isPublished === '1' ||
+        isPublished === 'published';
+      qb.andWhere('inv.isPublished = :pubBool', { pubBool });
+    }
+
+    if (packageType && packageType !== 'all') {
+      qb.andWhere('inv.package = :packageType', { packageType });
+    }
+
+    if (startDate) {
+      qb.andWhere('inv.createdAt >= :startDate', {
+        startDate: new Date(startDate),
+      });
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      qb.andWhere('inv.createdAt <= :endDate', { endDate: end });
+    }
+
+    if (paymentStatus && paymentStatus !== 'all') {
+      if (paymentStatus === 'paid') {
+        qb.andWhere(
+          `EXISTS (SELECT 1 FROM payment p WHERE p.invitationId = inv.id AND p.status = 'success' AND p.amount > 0 AND (p.paymentMethod IS NULL OR p.paymentMethod != 'FREE_ACTIVATION'))`,
+        );
+      } else if (paymentStatus === 'free') {
+        qb.andWhere(
+          `EXISTS (SELECT 1 FROM payment p WHERE p.invitationId = inv.id AND p.status = 'success' AND (p.amount = 0 OR p.paymentMethod = 'FREE_ACTIVATION'))`,
+        );
+      } else if (paymentStatus === 'reconcile') {
+        qb.andWhere(
+          `inv.isPublished = true AND NOT EXISTS (SELECT 1 FROM payment p WHERE p.invitationId = inv.id AND p.status = 'success')`,
+        );
+      } else if (paymentStatus === 'unpaid') {
+        qb.andWhere(
+          `NOT EXISTS (SELECT 1 FROM payment p WHERE p.invitationId = inv.id)`,
+        );
+      } else if (paymentStatus === 'pending') {
+        qb.andWhere(
+          `NOT EXISTS (SELECT 1 FROM payment p WHERE p.invitationId = inv.id AND p.status = 'success') AND (SELECT p.status FROM payment p WHERE p.invitationId = inv.id ORDER BY p.id DESC LIMIT 1) = 'pending'`,
+        );
+      } else if (paymentStatus === 'failed') {
+        qb.andWhere(
+          `NOT EXISTS (SELECT 1 FROM payment p WHERE p.invitationId = inv.id AND p.status = 'success') AND (SELECT p.status FROM payment p WHERE p.invitationId = inv.id ORDER BY p.id DESC LIMIT 1) IN ('failure', 'failed')`,
+        );
+      } else if (paymentStatus === 'expired') {
+        qb.andWhere(
+          `NOT EXISTS (SELECT 1 FROM payment p WHERE p.invitationId = inv.id AND p.status = 'success') AND (SELECT p.status FROM payment p WHERE p.invitationId = inv.id ORDER BY p.id DESC LIMIT 1) = 'expired'`,
+        );
+      }
+    }
+
+    if (sortBy === 'createdAt') {
+      qb.orderBy('inv.createdAt', sortOrder);
+    } else if (sortBy === 'title') {
+      qb.orderBy('inv.title', sortOrder);
+    } else if (sortBy === 'expiredAt') {
+      qb.orderBy('inv.expiredAt', sortOrder);
+    } else {
+      qb.orderBy('inv.id', sortOrder);
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    const mappedData = data.map((inv) => this.transformInvitationSummary(inv));
 
     return { data: mappedData, total, page, limit };
   }
@@ -198,16 +411,136 @@ export class AdminService {
   async getInvitation(id: number) {
     const found = await this.invitationRepo.findOne({
       where: { id },
-      relations: ['user'],
+      relations: ['user', 'templateDesign', 'payments'],
     });
     if (!found) throw new NotFoundException('Invitation not found');
     return found;
   }
 
-  async updateInvitation(id: number, payload: Partial<Invitation>) {
+  async getInvitationDetail(id: number) {
+    const inv = await this.invitationRepo.findOne({
+      where: { id },
+      relations: [
+        'user',
+        'templateDesign',
+        'templateDesign.category',
+        'payments',
+      ],
+    });
+    if (!inv) throw new NotFoundException('Invitation not found');
+
+    const [
+      totalGuests,
+      totalMessages,
+      attendingCount,
+      notAttendingCount,
+      uncertainCount,
+    ] = await Promise.all([
+      this.guestRepo.count({ where: { invitation: { id } } }),
+      this.guestMessageRepo.count({ where: { invitation: { id } } }),
+      this.guestMessageRepo.count({
+        where: { invitation: { id }, rsvpStatus: 'attending' },
+      }),
+      this.guestMessageRepo.count({
+        where: { invitation: { id }, rsvpStatus: 'not_attending' },
+      }),
+      this.guestMessageRepo.count({
+        where: { invitation: { id }, rsvpStatus: 'uncertain' },
+      }),
+    ]);
+
+    let activities: ActivityLog[] = [];
+    try {
+      activities = await this.activityLogRepo.find({
+        where: [{ path: ILike(`%/invitations/${id}%`) }],
+        order: { id: 'DESC' },
+        take: 10,
+      });
+    } catch {
+      activities = [];
+    }
+
+    const summary = this.transformInvitationSummary(inv);
+
+    return {
+      ...summary,
+      akadLocation: inv.akadLocation,
+      resepsiLocation: inv.resepsiLocation,
+      dateTime: inv.dateTime,
+      stats: {
+        totalGuests,
+        totalMessages,
+        attendingCount,
+        notAttendingCount,
+        uncertainCount,
+      },
+      allPayments: (inv.payments || []).slice().sort((a, b) => b.id - a.id),
+      recentActivities: activities,
+    };
+  }
+
+  async updateInvitation(
+    id: number,
+    payload: Partial<Invitation> & { reason?: string },
+    adminUser?: any,
+  ) {
     const inv = await this.getInvitation(id);
-    Object.assign(inv, payload);
-    return this.invitationRepo.save(inv);
+    const oldSlug = inv.slug;
+    const oldPublished = inv.isPublished;
+
+    // Filter out dummy or invalid payload properties
+    const dataToUpdate = { ...payload };
+    delete (dataToUpdate as any).status;
+    const reason = dataToUpdate.reason || 'Admin manual update';
+    delete dataToUpdate.reason;
+
+    Object.assign(inv, dataToUpdate);
+    const saved = await this.invitationRepo.save(inv);
+
+    // Audit logs for critical changes
+    try {
+      if (dataToUpdate.slug && dataToUpdate.slug !== oldSlug) {
+        await this.activityLogRepo.save(
+          this.activityLogRepo.create({
+            userId: adminUser?.id || null,
+            userEmail: adminUser?.email || 'admin',
+            action: 'ADMIN_INVITATION_SLUG_CHANGE',
+            level: LogLevel.WARN,
+            path: `/admin/invitations/${id}`,
+            details: {
+              invitationId: id,
+              oldSlug,
+              newSlug: dataToUpdate.slug,
+              reason,
+            },
+          }),
+        );
+      }
+      if (
+        dataToUpdate.isPublished !== undefined &&
+        dataToUpdate.isPublished !== oldPublished
+      ) {
+        await this.activityLogRepo.save(
+          this.activityLogRepo.create({
+            userId: adminUser?.id || null,
+            userEmail: adminUser?.email || 'admin',
+            action: 'ADMIN_INVITATION_PUBLISH_CHANGE',
+            level: LogLevel.ACTION,
+            path: `/admin/invitations/${id}`,
+            details: {
+              invitationId: id,
+              oldPublished,
+              newPublished: dataToUpdate.isPublished,
+              reason,
+            },
+          }),
+        );
+      }
+    } catch {
+      // Continue even if log saving fails
+    }
+
+    return saved;
   }
 
   async deleteInvitation(id: number) {

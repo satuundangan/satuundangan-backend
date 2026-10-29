@@ -8,6 +8,7 @@ import {
   Body,
   Patch,
   Delete,
+  Req,
   ParseIntPipe,
   UploadedFile,
   UseInterceptors,
@@ -85,24 +86,51 @@ export class AdminController {
 
   // Invitations
   @Get('invitations')
-  listInvitations(@Query() q: PaginationQueryDto) {
+  listInvitations(
+    @Query() q: PaginationQueryDto,
+    @Query('paymentStatus') paymentStatus?: string,
+    @Query('isPublished') isPublished?: string,
+    @Query('package') packageType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
     const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
-    return this.service.listInvitations(page, limit, search, sortBy, sortOrder);
+    return this.service.listInvitations(
+      page,
+      limit,
+      search,
+      sortBy,
+      sortOrder,
+      paymentStatus,
+      isPublished,
+      packageType,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Get('invitations/:id/detail')
+  getInvitationDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getInvitationDetail(id);
   }
 
   @Get('invitations/:id')
-  getInvitation(@Param('id') id: number) {
+  getInvitation(@Param('id', ParseIntPipe) id: number) {
     return this.service.getInvitation(id);
   }
 
   @Delete('invitations/:id')
-  deleteInvitation(@Param('id') id: number) {
+  deleteInvitation(@Param('id', ParseIntPipe) id: number) {
     return this.service.deleteInvitation(id);
   }
 
   @Patch('invitations/:id')
-  updateInvitation(@Param('id') id: number, @Body() body: any) {
-    return this.service.updateInvitation(id, body);
+  updateInvitation(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+    @Req() req?: any,
+  ) {
+    return this.service.updateInvitation(id, body, req?.user);
   }
 
   // Guests

@@ -133,6 +133,82 @@ export class AdminController {
     return this.service.updateInvitation(id, body, req?.user);
   }
 
+  // Payments & Transactions (PKG-02: ADM-009 s/d ADM-015)
+  @Get('payments')
+  listPayments(
+    @Query() q: PaginationQueryDto,
+    @Query('status') status?: string,
+    @Query('purpose') purpose?: string,
+    @Query('package') packageType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
+    return this.service.listPayments(
+      page,
+      limit,
+      search,
+      status,
+      purpose,
+      packageType,
+      startDate,
+      endDate,
+      sortBy,
+      sortOrder,
+    );
+  }
+
+  @Get('payments/stats')
+  getPaymentStats() {
+    return this.service.getPaymentStats();
+  }
+
+  @Get('payments/reconciliation-queue')
+  getPaymentReconciliationQueue() {
+    return this.service.getReconciliationQueue();
+  }
+
+  @Get('payments/export')
+  exportPayments(
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('purpose') purpose?: string,
+    @Query('package') packageType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.service.exportPayments(
+      q,
+      status,
+      purpose,
+      packageType,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Get('payments/:id')
+  getPaymentDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getPaymentDetail(id);
+  }
+
+  @Post('payments/:id/reconcile-publish')
+  reconcilePaymentPublish(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('reason') reason?: string,
+    @Req() req?: any,
+  ) {
+    return this.service.reconcilePaymentPublish(id, reason, req?.user);
+  }
+
+  @Post('payments/:id/sync-gateway')
+  syncPaymentGateway(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req?: any,
+  ) {
+    return this.service.syncPaymentGateway(id, req?.user);
+  }
+
   // Guests
   @Get('guests')
   listGuests(@Query() q: PaginationQueryDto) {

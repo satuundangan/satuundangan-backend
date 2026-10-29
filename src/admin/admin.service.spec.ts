@@ -212,4 +212,105 @@ describe('AdminService - getDashboardStats', () => {
       expect(res.expiry.label).toBe('Kadaluarsa');
     });
   });
+
+  describe('Payments & Reconciliation', () => {
+    let mockPaymentRepo: any;
+    let mockInvRepo: any;
+    let mockActivityRepo: any;
+    let paymentAdminService: AdminService;
+
+    beforeEach(async () => {
+      mockPaymentRepo = {
+        findOne: jest.fn(),
+        save: jest.fn((p) => Promise.resolve(p)),
+        createQueryBuilder: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
+      };
+
+      mockInvRepo = {
+        save: jest.fn((i) => Promise.resolve(i)),
+        createQueryBuilder: jest.fn(),
+      };
+
+      mockActivityRepo = {
+        create: jest.fn((a) => a),
+        save: jest.fn().mockResolvedValue(true),
+        find: jest.fn().mockResolvedValue([]),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AdminService,
+          { provide: getRepositoryToken(User), useValue: {} },
+          { provide: getRepositoryToken(Invitation), useValue: mockInvRepo },
+          { provide: getRepositoryToken(Guest), useValue: {} },
+          { provide: getRepositoryToken(GuestMessage), useValue: {} },
+          { provide: getRepositoryToken(TemplateDesign), useValue: {} },
+          { provide: getRepositoryToken(TemplateDesignSection), useValue: {} },
+          { provide: getRepositoryToken(Category), useValue: {} },
+          { provide: getRepositoryToken(Payment), useValue: mockPaymentRepo },
+          { provide: getRepositoryToken(Section), useValue: {} },
+          { provide: getRepositoryToken(Audio), useValue: {} },
+          { provide: getRepositoryToken(Bank), useValue: {} },
+          { provide: getRepositoryToken(PaletteColor), useValue: {} },
+          { provide: getRepositoryToken(ActivityLog), useValue: mockActivityRepo },
+          { provide: UploadService, useValue: {} },
+        ],
+      }).compile();
+
+      paymentAdminService = module.get<AdminService>(AdminService);
+    });
+
+    it('reconcilePaymentPublish successfully sets isPublished to true and saves invitation', async () => {
+      const mockPayment = {
+        id: 101,
+        orderId: 'INV-101',
+        status: 'success',
+        package: 'premium',
+        invitation: {
+          id: 55,
+          title: 'Wedding Test',
+          slug: 'wedding-test',
+          isPublished: false,
+          package: 'basic',
+        },
+      };
+
+      mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+
+      const res = await paymentAdminService.reconcilePaymentPublish(101, 'Testing reason', { id: 1, email: 'admin@test.com' });
+
+      expect(res.success).toBe(true);
+      expect(mockPayment.invitation.isPublished).toBe(true);
+      expect(mockPayment.invitation.package).toBe('premium');
+      expect(mockInvRepo.save).toHaveBeenCalledWith(mockPayment.invitation);
+      expect(mockActivityRepo.save).toHaveBeenCalled();
+    });
+
+    it('reconcilePaymentPublish throws BadRequestException if payment status is not success', async () => {
+      mockPaymentRepo.findOne.mockResolvedValue({
+        id: 102,
+        orderId: 'INV-102',
+        status: 'pending',
+        invitation: { id: 56, isPublished: false },
+      });
+
+      await expect(
+        paymentAdminService.reconcilePaymentPublish(102, 'test'),
+      ).rejects.toThrow();
+    });
+
+    it('reconcilePaymentPublish throws BadRequestException if payment has no linked invitation', async () => {
+      mockPaymentRepo.findOne.mockResolvedValue({
+        id: 103,
+        orderId: 'AI-CREDIT-1',
+        status: 'success',
+        invitation: null,
+      });
+
+      await expect(
+        paymentAdminService.reconcilePaymentPublish(103, 'test'),
+      ).rejects.toThrow();
+    });
+  });
 });

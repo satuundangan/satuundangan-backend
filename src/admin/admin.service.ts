@@ -305,6 +305,18 @@ export class AdminService {
     };
   }
 
+  private wibDayBoundary(value: string, edge: 'start' | 'end'): Date {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const parsed = new Date(
+        edge === 'start' ? `${value}T00:00:00+07:00` : `${value}T23:59:59.999+07:00`,
+      );
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    const fallback = new Date(value);
+    if (edge === 'end') fallback.setHours(23, 59, 59, 999);
+    return fallback;
+  }
+
   async listInvitations(
     page = 1,
     limit = 20,
@@ -316,6 +328,7 @@ export class AdminService {
     packageType?: string,
     startDate?: string,
     endDate?: string,
+    category?: string,
   ) {
     const qb = this.invitationRepo
       .createQueryBuilder('inv')
@@ -349,15 +362,19 @@ export class AdminService {
       qb.andWhere('inv.package = :packageType', { packageType });
     }
 
+    // YYYY-MM-DD is read as a calendar day in WIB, the same convention as the dashboard.
     if (startDate) {
       qb.andWhere('inv.createdAt >= :startDate', {
-        startDate: new Date(startDate),
+        startDate: this.wibDayBoundary(startDate, 'start'),
       });
     }
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      qb.andWhere('inv.createdAt <= :endDate', { endDate: end });
+      qb.andWhere('inv.createdAt <= :endDate', {
+        endDate: this.wibDayBoundary(endDate, 'end'),
+      });
+    }
+    if (category && category !== 'all') {
+      qb.andWhere('category.name = :categoryName', { categoryName: category });
     }
 
     if (paymentStatus && paymentStatus !== 'all') {

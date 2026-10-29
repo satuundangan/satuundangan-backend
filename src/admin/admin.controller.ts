@@ -98,6 +98,7 @@ export class AdminController {
     @Query('package') packageType?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('category') category?: string,
   ) {
     const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
     return this.service.listInvitations(
@@ -111,6 +112,7 @@ export class AdminController {
       packageType,
       startDate,
       endDate,
+      category,
     );
   }
 

@@ -276,4 +276,33 @@ describe('InvitationService', () => {
       expect(guestRepo.save).toHaveBeenCalled();
     });
   });
+
+  describe('create', () => {
+    it('sets expiredAt to 366 days (365 + 1 hari / 1 tahun) in the future', async () => {
+      const mockUser = { id: 1, email: 'test@example.com' } as User;
+      const dto: any = {
+        title: 'Budi & Ani',
+        coupleName: 'Budi & Ani',
+        slug: 'budi-ani',
+        package: InvitationPackage.BASIC,
+        mergeEvents: true,
+      };
+
+      invitationRepo.findOne.mockResolvedValue(null);
+      invitationRepo.create.mockImplementation((data: any) => ({ ...data, id: 99 }));
+      invitationRepo.save.mockImplementation(async (inv: any) => inv);
+
+      const before = new Date();
+      await service.create(dto, mockUser);
+
+      expect(invitationRepo.create).toHaveBeenCalled();
+      const createArgs = invitationRepo.create.mock.calls[0][0];
+      expect(createArgs.expiredAt).toBeDefined();
+
+      const diffDays = Math.round(
+        (createArgs.expiredAt.getTime() - before.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      expect(diffDays).toBe(366);
+    });
+  });
 });

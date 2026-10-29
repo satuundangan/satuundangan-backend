@@ -9,6 +9,14 @@ import {
 } from 'typeorm';
 import { User } from '../user/user.entity';
 
+export interface ArticleRevision {
+  id: string;
+  savedAt: string;
+  savedByUserId: number | null;
+  reason: string | null;
+  snapshot: Record<string, any>;
+}
+
 @Entity('articles')
 export class Article {
   @PrimaryGeneratedColumn()
@@ -57,6 +65,30 @@ export class Article {
 
   @Column({ nullable: true })
   authorId: number;
+
+  @Column({ type: 'int', default: 1 })
+  editVersion: number;
+
+  @Column({ type: 'json', nullable: true, select: false })
+  revisionHistory: ArticleRevision[] | null;
+
+  @Column({ type: 'bool', default: false })
+  generatedByAi: boolean;
+
+  @Column({ type: 'json', nullable: true })
+  sourceUrls: string[] | null;
+
+  @Column({ type: 'text', nullable: true })
+  reviewNotes: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  reviewedByUserId: number | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  reviewedAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  scheduledPublishAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

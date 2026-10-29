@@ -29,6 +29,7 @@ import {
 } from './dto/palette-color.dto';
 import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
+import { resolveDashboardPeriod } from './admin-dashboard-period';
 
 @Injectable()
 export class AdminService {
@@ -565,7 +566,11 @@ export class AdminService {
     endDate?: string,
     sortBy = 'createdAt',
     sortOrder: 'ASC' | 'DESC' = 'DESC',
+    kind?: string,
   ) {
+    if (kind && !['paid', 'free', 'pending'].includes(kind)) {
+      throw new BadRequestException('Jenis transaksi tidak valid.');
+    }
     const qb = this.paymentRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.invitation', 'inv')
@@ -596,15 +601,36 @@ export class AdminService {
       qb.andWhere('p.package = :packageType', { packageType });
     }
 
-    if (startDate) {
-      qb.andWhere('p.createdAt >= :startDate', {
-        startDate: new Date(startDate),
+    if (kind) {
+      qb.andWhere("(p.paymentType IS NULL OR p.paymentType <> 'simulation')");
+      qb.andWhere('p.status = :kindStatus', {
+        kindStatus: kind === 'pending' ? 'pending' : 'success',
       });
+      if (kind === 'paid') {
+        qb.andWhere('p.amount > 0');
+        qb.andWhere("p.paymentMethod = 'midtrans'");
+        qb.andWhere('p.settlementTime IS NOT NULL');
+      } else if (kind === 'free') {
+        qb.andWhere('p.amount = 0');
+        qb.andWhere("(p.paymentMethod = 'FREE_ACTIVATION' OR p.paymentType = 'free')");
+        qb.andWhere('p.settlementTime IS NOT NULL');
+      }
     }
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      qb.andWhere('p.createdAt <= :endDate', { endDate: end });
+
+    if (startDate || endDate) {
+      const dateColumn = kind === 'paid' || kind === 'free' ? 'p.settlementTime' : 'p.createdAt';
+      if (kind || (startDate && endDate)) {
+        const range = resolveDashboardPeriod({ startDate, endDate });
+        qb.andWhere(`${dateColumn} >= :rangeStart AND ${dateColumn} < :rangeEnd`, {
+          rangeStart: range.start, rangeEnd: range.effectiveEnd,
+        });
+      } else if (startDate) {
+        const range = resolveDashboardPeriod({ startDate, endDate: startDate });
+        qb.andWhere(`${dateColumn} >= :rangeStart`, { rangeStart: range.start });
+      } else if (endDate) {
+        const range = resolveDashboardPeriod({ startDate: endDate, endDate });
+        qb.andWhere(`${dateColumn} < :rangeEnd`, { rangeEnd: range.effectiveEnd });
+      }
     }
 
     if (sortBy === 'amount') {
@@ -616,6 +642,7 @@ export class AdminService {
     } else {
       qb.orderBy('p.createdAt', sortOrder);
     }
+    qb.addOrderBy('p.id', sortOrder);
 
     qb.skip((page - 1) * limit).take(limit);
 
@@ -1115,19 +1142,20 @@ export class AdminService {
     packageType?: string,
     startDate?: string,
     endDate?: string,
+    kind?: string,
   ) {
-    const result = await this.listPayments(
-      1,
-      10000,
-      q,
-      status,
-      purpose,
-      packageType,
-      startDate,
-      endDate,
-      'createdAt',
-      'DESC',
-    );
+    const data: any[] = [];
+    const batchSize = 1000;
+    let page = 1;
+    while (true) {
+      const result = await this.listPayments(
+        page, batchSize, q, status, purpose, packageType, startDate, endDate,
+        'createdAt', 'DESC', kind,
+      );
+      data.push(...result.data);
+      if (result.data.length < batchSize || data.length >= result.total) break;
+      page++;
+    }
 
     const headers = [
       'Order ID',
@@ -1152,7 +1180,7 @@ export class AdminService {
       return `"${str}"`;
     };
 
-    const rows = result.data.map((p: any) => [
+    const rows = data.map((p: any) => [
       escapeCsv(p.orderId),
       escapeCsv(p.createdAt ? new Date(p.createdAt).toISOString() : ''),
       escapeCsv(p.name),
@@ -1177,7 +1205,7 @@ export class AdminService {
     return {
       csv,
       filename: `transaksi-satuundangan-${dateStr}.csv`,
-      total: result.total,
+      total: data.length,
     };
   }
 

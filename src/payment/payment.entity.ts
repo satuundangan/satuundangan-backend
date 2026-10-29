@@ -96,6 +96,27 @@ export class Payment {
   @Column({ type: 'int', nullable: true })
   userId: number | null;
 
+  // GA client id and first-touch campaign sent by the browser at checkout. Used
+  // only to attribute a server-verified purchase; absent for non-browser flows.
+  @Column({ type: 'varchar', length: 40, nullable: true })
+  gaClientId: string | null;
+
+  @Column({ type: 'json', nullable: true })
+  acquisition: { source?: string; medium?: string; campaign?: string } | null;
+
+  // Outbox state for the server-side GA4 purchase event (one event per order).
+  @Column({ type: 'datetime', nullable: true })
+  ga4PurchaseSentAt: Date | null;
+
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  ga4PurchaseStatus: 'sent' | 'failed' | 'skipped' | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  ga4PurchaseError: string | null;
+
+  @Column({ type: 'int', default: 0 })
+  ga4PurchaseAttempts: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

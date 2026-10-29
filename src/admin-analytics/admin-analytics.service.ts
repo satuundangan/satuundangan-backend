@@ -11,8 +11,8 @@ const CACHE_MS = 5 * 60 * 1000;
 const MARKETING_PATH = '^(/|/blog(/.*)?|/templates|/tema(/.*)?|/tools/love-calculator|/wedding-planner|/tentang-kami|/terms|/privacy|/syarat-ketentuan|/kebijakan-privasi)$';
 const METRICS = ['activeUsers', 'sessions', 'screenPageViews', 'engagedSessions', 'engagementRate'];
 
-interface GaRow { dimensions: Record<string, string>; metrics: Record<string, number | null> }
-interface GaReport { rows: GaRow[]; rowCount: number; metadata: Record<string, any> }
+export interface GaRow { dimensions: Record<string, string>; metrics: Record<string, number | null> }
+export interface GaReport { rows: GaRow[]; rowCount: number; metadata: Record<string, any> }
 
 @Injectable()
 export class AdminAnalyticsService {
@@ -144,18 +144,67 @@ export class AdminAnalyticsService {
       ...(dimensions.includes('date') ? { orderBys: [{ dimension: { dimensionName: 'date' } }] } : dimensions.length ? { orderBys: [{ metric: { metricName: 'sessions' }, desc: true }] } : {}),
     };
     const response = await axios.post('https://analyticsdata.googleapis.com/v1beta/properties/' + propertyId + ':runReport', body, { headers: { Authorization: 'Bearer ' + token }, timeout: 15_000, maxRedirects: 0 });
-    const report = response.data || {};
-    const headers = report.dimensionHeaders || [];
-    const metrics = report.metricHeaders || [];
-    const rows: GaRow[] = (report.rows || []).map((row: any) => ({
-      dimensions: Object.fromEntries(headers.map((header: any, index: number) => [header.name, safeDimension(row.dimensionValues?.[index]?.value)])),
-      metrics: Object.fromEntries(metrics.map((header: any, index: number) => {
-        const raw = row.metricValues?.[index]?.value;
-        return [header.name, raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null];
-      })),
-    }));
-    return { rows, rowCount: Number(report.rowCount) || rows.length, metadata: report.metadata || {} };
+    return parseReport(response.data);
   }
+
+  /** Whether GA4 credentials are complete, shared by every GA4-backed report. */
+  connection() {
+    const propertyId = this.config.get<string>('GA4_PROPERTY_ID')?.trim() || '';
+    const email = this.config.get<string>('GA4_SERVICE_ACCOUNT_EMAIL')?.trim() || '';
+    const privateKey = (this.config.get<string>('GA4_PRIVATE_KEY') || '').replace(/\\n/g, '\n');
+    const missing = [
+      ...(!/^[1-9]\d{0,19}$/.test(propertyId) ? ['GA4_PROPERTY_ID'] : []),
+      ...(!/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(email) ? ['GA4_SERVICE_ACCOUNT_EMAIL'] : []),
+      ...(!privateKey.includes('PRIVATE KEY') ? ['GA4_PRIVATE_KEY'] : []),
+    ];
+    const key = createHash('sha256').update(propertyId + email + privateKey).digest('hex');
+    return { missing, propertyId, email, privateKey, key };
+  }
+
+  /**
+   * Read-only report with caller-chosen dimensions/metrics. Callers pass their
+   * own filters; nothing here is user-supplied beyond validated dates.
+   */
+  async customReport(options: {
+    startDate: string;
+    endDate: string;
+    dimensions: string[];
+    metrics: string[];
+    filters?: any[];
+    limit?: number;
+    orderMetric?: string;
+  }): Promise<GaReport> {
+    const connection = this.connection();
+    if (connection.missing.length) throw new Error('GA4 belum tersambung');
+    const token = await this.accessToken(connection.email, connection.privateKey, connection.key);
+    const body: Record<string, any> = {
+      dateRanges: [{ startDate: options.startDate, endDate: options.endDate }],
+      dimensions: options.dimensions.map((name) => ({ name })),
+      metrics: options.metrics.map((name) => ({ name })),
+      limit: options.limit ?? 50,
+    };
+    if (options.filters?.length) body.dimensionFilter = { andGroup: { expressions: options.filters } };
+    if (options.orderMetric) body.orderBys = [{ metric: { metricName: options.orderMetric }, desc: true }];
+    const response = await axios.post(
+      'https://analyticsdata.googleapis.com/v1beta/properties/' + connection.propertyId + ':runReport',
+      body,
+      { headers: { Authorization: 'Bearer ' + token }, timeout: 15_000, maxRedirects: 0 },
+    );
+    return parseReport(response.data);
+  }
+}
+
+function parseReport(report: any = {}): GaReport {
+  const headers = report.dimensionHeaders || [];
+  const metrics = report.metricHeaders || [];
+  const rows: GaRow[] = (report.rows || []).map((row: any) => ({
+    dimensions: Object.fromEntries(headers.map((header: any, index: number) => [header.name, safeDimension(row.dimensionValues?.[index]?.value)])),
+    metrics: Object.fromEntries(metrics.map((header: any, index: number) => {
+      const raw = row.metricValues?.[index]?.value;
+      return [header.name, raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null];
+    })),
+  }));
+  return { rows, rowCount: Number(report.rowCount) || rows.length, metadata: report.metadata || {} };
 }
 
 function safeDimension(value: unknown): string {

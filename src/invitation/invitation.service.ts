@@ -122,7 +122,7 @@ export class InvitationService {
     );
 
     const expiredAt = new Date();
-    expiredAt.setDate(expiredAt.getDate() + 60);
+    expiredAt.setDate(expiredAt.getDate() + 366); // 365 + 1 hari (1 tahun penuh)
 
     const invitation = this.invitationRepo.create({
       ...invitationData,

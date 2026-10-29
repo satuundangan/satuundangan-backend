@@ -7,6 +7,7 @@ import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { TemplateDesignSection } from '../template-design/template-design-section.entity';
 import { Category } from '../category/category.entity';
+import { Payment } from '../payment/payment.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { PublicSectionController } from './public-section.controller';
@@ -31,6 +32,7 @@ import { UploadModule } from '../modules/upload/upload.module';
       TemplateDesign,
       TemplateDesignSection,
       Category,
+      Payment,
       Section,
       Audio,
       Bank,

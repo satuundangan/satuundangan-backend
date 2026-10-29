@@ -27,6 +27,7 @@ import {
   CreatePaletteColorDto,
   UpdatePaletteColorDto,
 } from './dto/palette-color.dto';
+import { DashboardStatsQueryDto } from './dto/dashboard-stats-query.dto';
 import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
 import { resolveDashboardPeriod } from './admin-dashboard-period';
@@ -1877,8 +1878,122 @@ export class AdminService {
     return results;
   }
 
-  async getDashboardStats() {
-    // 1. Get Category Distribution over all invitations in database
+  private resolveDashboardDateRange(
+    range = '7d',
+    customStart?: string,
+    customEnd?: string,
+  ) {
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const nowUtcMs = Date.now();
+    const nowWib = new Date(nowUtcMs + WIB_OFFSET_MS);
+
+    const year = nowWib.getUTCFullYear();
+    const month = nowWib.getUTCMonth();
+    const date = nowWib.getUTCDate();
+
+    // End of today in WIB (23:59:59.999 WIB -> UTC)
+    const todayEndWibUtc = new Date(
+      Date.UTC(year, month, date, 23, 59, 59, 999) - WIB_OFFSET_MS,
+    );
+
+    let startDate: Date;
+    let endDate: Date = todayEndWibUtc;
+    let previousStartDate: Date | null = null;
+    let previousEndDate: Date | null = null;
+    let rangeKey = (range || '7d').toLowerCase();
+    let rangeLabel = '7 Hari Terakhir';
+    let daysCount = 7;
+
+    if (customStart && customEnd) {
+      rangeKey = 'custom';
+      rangeLabel = `${customStart} s/d ${customEnd}`;
+      const [sy, sm, sd] = customStart.split('-').map(Number);
+      const [ey, em, ed] = customEnd.split('-').map(Number);
+      startDate = new Date(Date.UTC(sy, sm - 1, sd, 0, 0, 0, 0) - WIB_OFFSET_MS);
+      endDate = new Date(
+        Date.UTC(ey, em - 1, ed, 23, 59, 59, 999) - WIB_OFFSET_MS,
+      );
+      daysCount = Math.max(
+        1,
+        Math.round(
+          (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
+        ),
+      );
+      previousEndDate = new Date(startDate.getTime() - 1);
+      previousStartDate = new Date(
+        previousEndDate.getTime() - daysCount * 24 * 60 * 60 * 1000 + 1,
+      );
+    } else if (rangeKey === '30d') {
+      daysCount = 30;
+      rangeLabel = '30 Hari Terakhir';
+      startDate = new Date(
+        Date.UTC(year, month, date - 29, 0, 0, 0, 0) - WIB_OFFSET_MS,
+      );
+      previousEndDate = new Date(startDate.getTime() - 1);
+      previousStartDate = new Date(
+        previousEndDate.getTime() - 30 * 24 * 60 * 60 * 1000 + 1,
+      );
+    } else if (rangeKey === '90d') {
+      daysCount = 90;
+      rangeLabel = '90 Hari Terakhir';
+      startDate = new Date(
+        Date.UTC(year, month, date - 89, 0, 0, 0, 0) - WIB_OFFSET_MS,
+      );
+      previousEndDate = new Date(startDate.getTime() - 1);
+      previousStartDate = new Date(
+        previousEndDate.getTime() - 90 * 24 * 60 * 60 * 1000 + 1,
+      );
+    } else if (rangeKey === 'month') {
+      rangeLabel = 'Bulan Ini';
+      startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0) - WIB_OFFSET_MS);
+      daysCount = date;
+      const prevMonthLastDate = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      previousEndDate = new Date(
+        Date.UTC(year, month - 1, prevMonthLastDate, 23, 59, 59, 999) -
+          WIB_OFFSET_MS,
+      );
+      previousStartDate = new Date(
+        Date.UTC(year, month - 1, 1, 0, 0, 0, 0) - WIB_OFFSET_MS,
+      );
+    } else if (rangeKey === 'all') {
+      rangeLabel = 'Semua Waktu';
+      startDate = new Date(0);
+      daysCount = 365;
+      previousStartDate = null;
+      previousEndDate = null;
+    } else {
+      // Default 7d
+      rangeKey = '7d';
+      daysCount = 7;
+      rangeLabel = '7 Hari Terakhir';
+      startDate = new Date(
+        Date.UTC(year, month, date - 6, 0, 0, 0, 0) - WIB_OFFSET_MS,
+      );
+      previousEndDate = new Date(startDate.getTime() - 1);
+      previousStartDate = new Date(
+        previousEndDate.getTime() - 7 * 24 * 60 * 60 * 1000 + 1,
+      );
+    }
+
+    return {
+      startDate,
+      endDate,
+      previousStartDate,
+      previousEndDate,
+      rangeKey,
+      rangeLabel,
+      daysCount,
+    };
+  }
+
+  async getDashboardStats(query?: DashboardStatsQueryDto) {
+    const range = this.resolveDashboardDateRange(
+      query?.range,
+      query?.startDate,
+      query?.endDate,
+    );
+
+    // 1. Category Distribution over all invitations in database
     const rawCategories = await this.invitationRepo
       .createQueryBuilder('inv')
       .leftJoin('inv.templateDesign', 'templateDesign')
@@ -1893,37 +2008,401 @@ export class AdminService {
       count: Number(item.count) || 0,
     }));
 
-    // 2. Get 7-Day Registration Trend for Invitations
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
+    // 2. Daily Registration & Revenue Trends
+    let rawInvTrend: any[] = [];
+    if (typeof this.invitationRepo?.createQueryBuilder === 'function') {
+      try {
+        rawInvTrend = await this.invitationRepo
+          .createQueryBuilder('inv')
+          .select("DATE_FORMAT(inv.createdAt, '%Y-%m-%d')", 'date')
+          .addSelect('COUNT(inv.id)', 'count')
+          .where('inv.createdAt >= :startDate', { startDate: range.startDate })
+          .groupBy('date')
+          .orderBy('date', 'ASC')
+          .getRawMany();
+      } catch {
+        rawInvTrend = [];
+      }
+    }
 
-    const rawTrend = await this.invitationRepo
-      .createQueryBuilder('inv')
-      .select("DATE_FORMAT(inv.createdAt, '%Y-%m-%d')", 'date')
-      .addSelect('COUNT(inv.id)', 'count')
-      .where('inv.createdAt >= :sevenDaysAgo', { sevenDaysAgo })
-      .groupBy('date')
-      .orderBy('date', 'ASC')
-      .getRawMany();
+    let rawPayTrend: any[] = [];
+    if (typeof this.paymentRepo?.createQueryBuilder === 'function') {
+      try {
+        rawPayTrend = await this.paymentRepo
+          .createQueryBuilder('p')
+          .select("DATE_FORMAT(p.createdAt, '%Y-%m-%d')", 'date')
+          .addSelect(
+            "COALESCE(SUM(CASE WHEN p.status = 'success' THEN p.amount ELSE 0 END), 0)",
+            'revenue',
+          )
+          .addSelect(
+            "COUNT(CASE WHEN p.status = 'success' THEN 1 END)",
+            'orders',
+          )
+          .where('p.createdAt >= :startDate AND p.createdAt <= :endDate', {
+            startDate: range.startDate,
+            endDate: range.endDate,
+          })
+          .groupBy('date')
+          .getRawMany();
+      } catch {
+        rawPayTrend = [];
+      }
+    }
 
-    // Map last 7 days array with default 0 if missing
-    const trendStats: { date: string; dayLabel: string; count: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
+    const payTrendMap = new Map<string, { revenue: number; orders: number }>();
+    if (Array.isArray(rawPayTrend)) {
+      for (const row of rawPayTrend) {
+        if (row?.date) {
+          payTrendMap.set(String(row.date), {
+            revenue: Number(row.revenue) || 0,
+            orders: Number(row.orders) || 0,
+          });
+        }
+      }
+    }
+
+    const invTrendMap = new Map<string, number>();
+    if (Array.isArray(rawInvTrend)) {
+      for (const row of rawInvTrend) {
+        if (row?.date) {
+          invTrendMap.set(String(row.date), Number(row.count) || 0);
+        }
+      }
+    }
+
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agt',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+
+    const trendStats: {
+      date: string;
+      dayLabel: string;
+      count: number;
+      revenue: number;
+      orders: number;
+    }[] = [];
+
+    const daysCount = range.daysCount;
+    for (let i = daysCount - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
       const dateStr = d.toISOString().split('T')[0];
-      const found = rawTrend.find((item) => item.date === dateStr);
+      let dayLabel = `H-${i}`;
+      if (i === 0) dayLabel = 'Hari Ini';
+      else if (i === 1) dayLabel = 'Kemarin';
+      else if (daysCount > 7) {
+        dayLabel = `${d.getUTCDate()} ${monthNames[d.getUTCMonth()]}`;
+      }
+
+      const invCount = invTrendMap.get(dateStr) || 0;
+      const payData = payTrendMap.get(dateStr) || { revenue: 0, orders: 0 };
+
       trendStats.push({
         date: dateStr,
-        dayLabel: i === 0 ? 'Hari Ini' : i === 1 ? 'Kemarin' : `H-${i}`,
-        count: found ? Number(found.count) : 0,
+        dayLabel,
+        count: invCount,
+        revenue: payData.revenue,
+        orders: payData.orders,
       });
+    }
+
+    // 3. Current Period Financial & Order Metrics
+    let grossRevenue = 0;
+    let discountTotal = 0;
+    let paidOrders = 0;
+    let pendingOrders = 0;
+    let failedOrders = 0;
+    let uniqueBuyers = 0;
+
+    if (typeof this.paymentRepo?.createQueryBuilder === 'function') {
+      try {
+        const rawMetrics = await this.paymentRepo
+          .createQueryBuilder('p')
+          .select(
+            "COALESCE(SUM(CASE WHEN p.status = 'success' THEN p.amount ELSE 0 END), 0)",
+            'grossRevenue',
+          )
+          .addSelect(
+            "COALESCE(SUM(CASE WHEN p.status = 'success' THEN p.discountAmount ELSE 0 END), 0)",
+            'discountTotal',
+          )
+          .addSelect(
+            "COUNT(CASE WHEN p.status = 'success' THEN 1 END)",
+            'paidOrders',
+          )
+          .addSelect(
+            "COUNT(CASE WHEN p.status = 'pending' THEN 1 END)",
+            'pendingOrders',
+          )
+          .addSelect(
+            "COUNT(CASE WHEN p.status IN ('failed', 'expired') THEN 1 END)",
+            'failedOrders',
+          )
+          .addSelect(
+            "COUNT(DISTINCT CASE WHEN p.status = 'success' THEN p.email END)",
+            'uniqueBuyers',
+          )
+          .where('p.createdAt >= :startDate AND p.createdAt <= :endDate', {
+            startDate: range.startDate,
+            endDate: range.endDate,
+          })
+          .getRawOne();
+
+        if (rawMetrics) {
+          grossRevenue = Number(rawMetrics.grossRevenue) || 0;
+          discountTotal = Number(rawMetrics.discountTotal) || 0;
+          paidOrders = Number(rawMetrics.paidOrders) || 0;
+          pendingOrders = Number(rawMetrics.pendingOrders) || 0;
+          failedOrders = Number(rawMetrics.failedOrders) || 0;
+          uniqueBuyers = Number(rawMetrics.uniqueBuyers) || 0;
+        }
+      } catch {
+        // Fallback safe values
+      }
+    }
+
+    // 4. Previous Period Comparison Metrics
+    let prevGrossRevenue = 0;
+    let prevPaidOrders = 0;
+    let prevUniqueBuyers = 0;
+
+    if (
+      range.previousStartDate &&
+      typeof this.paymentRepo?.createQueryBuilder === 'function'
+    ) {
+      try {
+        const prevMetrics = await this.paymentRepo
+          .createQueryBuilder('p')
+          .select(
+            "COALESCE(SUM(CASE WHEN p.status = 'success' THEN p.amount ELSE 0 END), 0)",
+            'grossRevenue',
+          )
+          .addSelect(
+            "COUNT(CASE WHEN p.status = 'success' THEN 1 END)",
+            'paidOrders',
+          )
+          .addSelect(
+            "COUNT(DISTINCT CASE WHEN p.status = 'success' THEN p.email END)",
+            'uniqueBuyers',
+          )
+          .where('p.createdAt >= :prevStart AND p.createdAt <= :prevEnd', {
+            prevStart: range.previousStartDate,
+            prevEnd: range.previousEndDate,
+          })
+          .getRawOne();
+
+        if (prevMetrics) {
+          prevGrossRevenue = Number(prevMetrics.grossRevenue) || 0;
+          prevPaidOrders = Number(prevMetrics.paidOrders) || 0;
+          prevUniqueBuyers = Number(prevMetrics.uniqueBuyers) || 0;
+        }
+      } catch {
+        // Fallback safe values
+      }
+    }
+
+    // 5. Invitations breakdown (Paid vs Free)
+    let totalInvitations = 0;
+    let paidInvitations = 0;
+    let prevTotalInvitations = 0;
+
+    if (typeof this.invitationRepo?.createQueryBuilder === 'function') {
+      try {
+        const invRaw = await this.invitationRepo
+          .createQueryBuilder('inv')
+          .select('COUNT(inv.id)', 'total')
+          .where('inv.createdAt >= :startDate AND inv.createdAt <= :endDate', {
+            startDate: range.startDate,
+            endDate: range.endDate,
+          })
+          .getRawOne();
+        totalInvitations = Number(invRaw?.total) || 0;
+
+        if (typeof this.paymentRepo?.createQueryBuilder === 'function') {
+          const paidInvRaw = await this.paymentRepo
+            .createQueryBuilder('p')
+            .select('COUNT(DISTINCT p.invitationId)', 'total')
+            .where(
+              "p.status = 'success' AND p.amount > 0 AND p.invitationId IS NOT NULL",
+            )
+            .andWhere('p.createdAt >= :startDate AND p.createdAt <= :endDate', {
+              startDate: range.startDate,
+              endDate: range.endDate,
+            })
+            .getRawOne();
+          paidInvitations = Number(paidInvRaw?.total) || 0;
+        }
+
+        if (range.previousStartDate) {
+          const prevInvRaw = await this.invitationRepo
+            .createQueryBuilder('inv')
+            .select('COUNT(inv.id)', 'total')
+            .where('inv.createdAt >= :prevStart AND inv.createdAt <= :prevEnd', {
+              prevStart: range.previousStartDate,
+              prevEnd: range.previousEndDate,
+            })
+            .getRawOne();
+          prevTotalInvitations = Number(prevInvRaw?.total) || 0;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    const calcGrowth = (curr: number, prev: number): number | null => {
+      if (prev === 0) {
+        return curr > 0 ? 100 : 0;
+      }
+      return Number((((curr - prev) / prev) * 100).toFixed(1));
+    };
+
+    // 6. Actionable Queue
+    const actionableItems: Array<{
+      type: string;
+      severity: 'danger' | 'warning' | 'info';
+      title: string;
+      count: number;
+      description: string;
+      link: string;
+      actionLabel: string;
+    }> = [];
+
+    try {
+      const reconQueue = await this.getReconciliationQueue();
+      if (reconQueue && reconQueue.items && reconQueue.items.length > 0) {
+        const byType: Record<string, any[]> = {};
+        for (const item of reconQueue.items) {
+          const t = item.type || 'UNKNOWN';
+          if (!byType[t]) byType[t] = [];
+          byType[t].push(item);
+        }
+
+        if (byType['SUCCESS_NOT_PUBLISHED']?.length) {
+          actionableItems.push({
+            type: 'SUCCESS_NOT_PUBLISHED',
+            severity: 'danger',
+            title: 'Pembayaran Lunas Tapi Belum Terbit',
+            count: byType['SUCCESS_NOT_PUBLISHED'].length,
+            description:
+              'Customer telah membayar namun undangan belum berstatus publikasi',
+            link: '/admin/payments?tab=reconciliation',
+            actionLabel: 'Rekonsiliasi Sekarang',
+          });
+        }
+
+        if (byType['PENDING_AGING']?.length) {
+          actionableItems.push({
+            type: 'PENDING_AGING',
+            severity: 'warning',
+            title: 'Transaksi Pending Menggantung (> 24 Jam)',
+            count: byType['PENDING_AGING'].length,
+            description:
+              'Pembayaran belum tuntas atau notifikasi webhook Midtrans belum tersinkron',
+            link: '/admin/payments?status=pending',
+            actionLabel: 'Periksa Transaksi',
+          });
+        }
+
+        if (byType['COMMISSION_PENDING']?.length) {
+          actionableItems.push({
+            type: 'COMMISSION_PENDING',
+            severity: 'info',
+            title: 'Komisi Referral Belum Dikreditkan',
+            count: byType['COMMISSION_PENDING'].length,
+            description:
+              'Transaksi referral sukses tapi saldo komisi afiliasi belum dicatat',
+            link: '/admin/payments?tab=reconciliation',
+            actionLabel: 'Kreditkan Saldo',
+          });
+        }
+
+        if (byType['PUBLISHED_UNPAID']?.length) {
+          actionableItems.push({
+            type: 'PUBLISHED_UNPAID',
+            severity: 'warning',
+            title: 'Undangan Aktif Tanpa Catatan Bayar',
+            count: byType['PUBLISHED_UNPAID'].length,
+            description:
+              'Undangan berstatus publikasi aktif namun riwayat pembayaran lunas tidak ditemukan',
+            link: '/admin/invitations',
+            actionLabel: 'Audit Undangan',
+          });
+        }
+      }
+    } catch {
+      // Graceful fallback
     }
 
     return {
       categories: categoryStats,
       trend: trendStats,
+      kpi: {
+        revenue: {
+          value: grossRevenue,
+          discount: discountTotal,
+          net: grossRevenue,
+          previous: prevGrossRevenue,
+          growth: calcGrowth(grossRevenue, prevGrossRevenue),
+        },
+        paidOrders: {
+          value: paidOrders,
+          previous: prevPaidOrders,
+          growth: calcGrowth(paidOrders, prevPaidOrders),
+        },
+        pendingOrders: {
+          value: pendingOrders,
+          failed: failedOrders,
+        },
+        uniqueBuyers: {
+          value: uniqueBuyers,
+          previous: prevUniqueBuyers,
+          growth: calcGrowth(uniqueBuyers, prevUniqueBuyers),
+        },
+        aov: {
+          value:
+            paidOrders > 0 ? Math.round(grossRevenue / paidOrders) : 0,
+          previous:
+            prevPaidOrders > 0
+              ? Math.round(prevGrossRevenue / prevPaidOrders)
+              : 0,
+          growth: calcGrowth(
+            paidOrders > 0 ? Math.round(grossRevenue / paidOrders) : 0,
+            prevPaidOrders > 0
+              ? Math.round(prevGrossRevenue / prevPaidOrders)
+              : 0,
+          ),
+        },
+        invitations: {
+          total: totalInvitations,
+          paid: paidInvitations,
+          free: Math.max(0, totalInvitations - paidInvitations),
+          previous: prevTotalInvitations,
+          growth: calcGrowth(totalInvitations, prevTotalInvitations),
+        },
+      },
+      actionRequired: {
+        count: actionableItems.reduce((acc, it) => acc + it.count, 0),
+        items: actionableItems,
+      },
+      dateRange: {
+        key: range.rangeKey,
+        label: range.rangeLabel,
+        startDate: range.startDate.toISOString(),
+        endDate: range.endDate.toISOString(),
+        timezone: 'Asia/Jakarta (WIB)',
+      },
+      lastUpdated: new Date().toISOString(),
     };
   }
 

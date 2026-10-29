@@ -29,6 +29,7 @@ import {
 } from './dto/palette-color.dto';
 import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
+import { AdminRole, resolveAdminRole } from './security/admin-roles';
 import { resolveDashboardPeriod } from './admin-dashboard-period';
 
 @Injectable()
@@ -1807,74 +1808,27 @@ export class AdminService {
     }
   }
 
-  async getSystemHealth() {
-    const results = {
-      database: { status: 'unhealthy', msg: 'Disconnected' },
-      storage: { status: 'unhealthy', msg: 'Not Configured' },
-      email: { status: 'unhealthy', msg: 'Not Configured' },
-      payment: { status: 'unhealthy', msg: 'Not Configured' },
-      rendered: new Date().toLocaleTimeString('id-ID'),
-    };
-
-    // 1. Database Check
-    try {
-      const dbStartTime = Date.now();
-      await this.userRepo.query('SELECT 1');
-      const dbLatency = Date.now() - dbStartTime;
-      results.database = {
-        status: 'healthy',
-        msg: `Terhubung (${dbLatency}ms)`,
-      };
-    } catch (e) {
-      results.database = {
-        status: 'unhealthy',
-        msg: `Error: ${e.message || e}`,
-      };
+  async updateAdminRole(id: number, adminRole: AdminRole, actorId: number) {
+    const target = await this.userRepo.findOne({ where: { id } });
+    if (!target) throw new NotFoundException('Pengguna tidak ditemukan');
+    if (!target.isAdmin) {
+      throw new BadRequestException('Pengguna ini bukan admin. Jadikan admin lebih dulu.');
     }
-
-    // 2. Storage Check
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.AWS_BUCKET_NAME;
-    if (cloudName) {
-      results.storage = {
-        status: 'healthy',
-        msg: `Cloud Active - ${cloudName}`,
-      };
-    } else {
-      results.storage = {
-        status: 'healthy',
-        msg: 'Local Storage - Active',
-      };
+    if (resolveAdminRole(target) === 'superadmin' && adminRole !== 'superadmin') {
+      const admins = await this.userRepo.find({
+        where: { isAdmin: true },
+        select: { id: true, isAdmin: true, adminRole: true },
+      });
+      const otherSuperadmins = admins.filter(
+        (admin) => admin.id !== id && resolveAdminRole(admin) === 'superadmin',
+      );
+      if (!otherSuperadmins.length) {
+        throw new BadRequestException('Minimal satu superadmin harus tetap ada.');
+      }
     }
-
-    // 3. Email Check
-    const cloudflareAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
-    if (cloudflareAccount) {
-      results.email = {
-        status: 'healthy',
-        msg: 'Cloudflare API Active',
-      };
-    } else {
-      results.email = {
-        status: 'unhealthy',
-        msg: 'Cloudflare credentials missing',
-      };
-    }
-
-    // 4. Payment Gateway Check
-    const midtransServerKey = process.env.MIDTRANS_SERVER_KEY;
-    if (midtransServerKey) {
-      results.payment = {
-        status: 'healthy',
-        msg: 'Midtrans API Ready',
-      };
-    } else {
-      results.payment = {
-        status: 'unhealthy',
-        msg: 'Midtrans server key missing',
-      };
-    }
-
-    return results;
+    target.adminRole = adminRole;
+    await this.userRepo.save(target);
+    return { id, adminRole, changedById: actorId };
   }
 
   async getDashboardStats() {

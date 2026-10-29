@@ -33,6 +33,9 @@ import {
 } from './dto/palette-color.dto';
 import { ApiTags } from '@nestjs/swagger';
 import { PromoService } from '../promo/promo.service';
+import { AdminHealthService } from './admin-health.service';
+import { AdminAuditService } from './security/admin-audit.service';
+import { AuditLogQueryDto, UpdateAdminRoleDto } from './dto/admin-security.dto';
 import { CreatePromoCodeDto } from '../promo/dto/create-promo-code.dto';
 import { UpdatePromoCodeDto } from '../promo/dto/update-promo-code.dto';
 
@@ -50,6 +53,8 @@ export class AdminController {
   constructor(
     private readonly service: AdminService,
     private readonly promoService: PromoService,
+    private readonly health: AdminHealthService,
+    private readonly audit: AdminAuditService,
   ) {}
 
   // Users
@@ -406,8 +411,22 @@ export class AdminController {
   }
 
   @Get('health')
-  getSystemHealth() {
-    return this.service.getSystemHealth();
+  getSystemHealth(@Query('refresh') refresh?: string) {
+    return this.health.check(refresh === '1');
+  }
+
+  @Get('audit-logs')
+  listAuditLogs(@Query() query: AuditLogQueryDto) {
+    return this.audit.list(query);
+  }
+
+  @Patch('users/:id/admin-role')
+  updateAdminRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateAdminRoleDto,
+    @Req() req: { user: { id: number } },
+  ) {
+    return this.service.updateAdminRole(id, dto.adminRole, req.user.id);
   }
 
   @Get('stats')

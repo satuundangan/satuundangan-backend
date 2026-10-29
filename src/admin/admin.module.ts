@@ -25,6 +25,15 @@ import { AdminDashboardController } from './admin-dashboard.controller';
 import { AdminDashboardService } from './admin-dashboard.service';
 import { AffiliateProfile } from '../affiliate/entities/affiliate-profile.entity';
 import { WithdrawRequest } from '../affiliate/entities/withdraw-request.entity';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AdminHealthService } from './admin-health.service';
+import { AdminAuditLog } from './security/admin-audit-log.entity';
+import { AdminAuditService } from './security/admin-audit.service';
+import { AdminAuditInterceptor } from './security/admin-audit.interceptor';
+import { SystemSetting } from './security/system-setting.entity';
+import { MaintenanceService } from './security/maintenance.service';
+import { MaintenanceGuard } from './security/maintenance.guard';
+import { MaintenanceController } from './security/maintenance.controller';
 
 @Module({
   imports: [
@@ -44,14 +53,26 @@ import { WithdrawRequest } from '../affiliate/entities/withdraw-request.entity';
       ActivityLog,
       AffiliateProfile,
       WithdrawRequest,
+      AdminAuditLog,
+      SystemSetting,
     ]),
     PromoModule,
     UploadModule,
   ],
-  providers: [AdminService, AdminDashboardService, AdminGuard],
+  providers: [
+    AdminService,
+    AdminDashboardService,
+    AdminGuard,
+    AdminHealthService,
+    AdminAuditService,
+    MaintenanceService,
+    { provide: APP_INTERCEPTOR, useClass: AdminAuditInterceptor },
+    { provide: APP_GUARD, useClass: MaintenanceGuard },
+  ],
   controllers: [
     AdminController,
     AdminDashboardController,
+    MaintenanceController,
     PublicSectionController,
     PublicAudioController,
     TelemetryController,

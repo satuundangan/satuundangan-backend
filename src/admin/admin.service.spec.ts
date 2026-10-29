@@ -118,6 +118,43 @@ describe('AdminService - getDashboardStats', () => {
     expect(result.trend[6].dayLabel).toBe('Hari Ini');
   });
 
+  it('returns structured kpi, actionRequired, and dateRange metadata', async () => {
+    const result = await service.getDashboardStats({ range: '7d' });
+
+    expect(result).toHaveProperty('kpi');
+    expect(result.kpi).toHaveProperty('revenue');
+    expect(result.kpi).toHaveProperty('paidOrders');
+    expect(result.kpi).toHaveProperty('pendingOrders');
+    expect(result.kpi).toHaveProperty('uniqueBuyers');
+    expect(result.kpi).toHaveProperty('aov');
+    expect(result.kpi).toHaveProperty('invitations');
+
+    expect(result).toHaveProperty('actionRequired');
+    expect(result.actionRequired).toHaveProperty('count');
+    expect(Array.isArray(result.actionRequired.items)).toBe(true);
+
+    expect(result).toHaveProperty('dateRange');
+    expect(result.dateRange.key).toBe('7d');
+    expect(result.dateRange.label).toBe('7 Hari Terakhir');
+    expect(result.dateRange.timezone).toBe('Asia/Jakarta (WIB)');
+    expect(result).toHaveProperty('lastUpdated');
+  });
+
+  it('handles 30d range and custom date boundaries without throwing', async () => {
+    const res30d = await service.getDashboardStats({ range: '30d' });
+    expect(res30d.trend).toHaveLength(30);
+    expect(res30d.dateRange.key).toBe('30d');
+    expect(res30d.dateRange.label).toBe('30 Hari Terakhir');
+
+    const resCustom = await service.getDashboardStats({
+      range: 'custom',
+      startDate: '2026-10-01',
+      endDate: '2026-10-10',
+    });
+    expect(resCustom.dateRange.key).toBe('custom');
+    expect(resCustom.dateRange.label).toBe('2026-10-01 s/d 2026-10-10');
+  });
+
   describe('transformInvitationSummary', () => {
     it('correctly categorizes paid invitation with success payment and amount > 0', () => {
       const inv: any = {

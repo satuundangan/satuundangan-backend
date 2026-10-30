@@ -220,10 +220,7 @@ export function buildDigestMessage(
   smoke: Record<string, SmokeResult>,
   now: Date,
 ): string {
-  const lines: string[] = [
-    '*Event Watch SatuUndangan*',
-    formatWibDate(now),
-  ];
+  const lines: string[] = ['*Event Watch SatuUndangan*', formatWibDate(now)];
   const groups: Array<{ days: number; label: string }> = [
     { days: 0, label: 'Hari-H' },
     { days: 1, label: 'H-1' },

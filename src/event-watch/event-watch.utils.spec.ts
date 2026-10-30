@@ -109,9 +109,9 @@ describe('isExcludedOwner', () => {
     expect(isExcludedOwner({ email: 'FOO@bar.com' }, list)).toBe(true);
     expect(isExcludedOwner({ email: 'someone@anything.com' }, list)).toBe(true);
     expect(isExcludedOwner({ email: 'someone2@gmail.com' }, list)).toBe(false);
-    expect(isExcludedOwner({ email: 'undangdongofficial@gmail.com' }, list)).toBe(
-      false,
-    );
+    expect(
+      isExcludedOwner({ email: 'undangdongofficial@gmail.com' }, list),
+    ).toBe(false);
   });
 });
 
@@ -120,7 +120,9 @@ describe('selectUpcomingEvents', () => {
   const excludeList = parseExcludeList(undefined);
   const owner = { email: 'siskava.62@gmail.com', isAdmin: false };
 
-  const base = (over: Partial<EventSourceInvitation>): EventSourceInvitation => ({
+  const base = (
+    over: Partial<EventSourceInvitation>,
+  ): EventSourceInvitation => ({
     id: 1,
     slug: 'a-b',
     title: 'Title',
@@ -171,8 +173,16 @@ describe('selectUpcomingEvents', () => {
           dateTime: new Date('2026-11-01T03:00:00Z'),
           user: { email: 'tester@x.com' },
         }),
-        base({ id: 4, slug: 'past', dateTime: new Date('2026-10-30T03:00:00Z') }),
-        base({ id: 5, slug: 'far', dateTime: new Date('2026-11-20T03:00:00Z') }),
+        base({
+          id: 4,
+          slug: 'past',
+          dateTime: new Date('2026-10-30T03:00:00Z'),
+        }),
+        base({
+          id: 5,
+          slug: 'far',
+          dateTime: new Date('2026-11-20T03:00:00Z'),
+        }),
         base({ id: 6, slug: 'ok', dateTime: new Date('2026-11-01T03:00:00Z') }),
       ],
       { days: 7, now, excludeList },
@@ -183,7 +193,11 @@ describe('selectUpcomingEvents', () => {
   it('sorts by daysUntil then eventAt and builds couple names', () => {
     const items = selectUpcomingEvents(
       [
-        base({ id: 1, slug: 'later', dateTime: new Date('2026-11-07T03:00:00Z') }),
+        base({
+          id: 1,
+          slug: 'later',
+          dateTime: new Date('2026-11-07T03:00:00Z'),
+        }),
         base({
           id: 2,
           slug: 'late-day0',
@@ -204,7 +218,11 @@ describe('selectUpcomingEvents', () => {
       ],
       { days: 7, now, excludeList },
     );
-    expect(items.map((i) => i.slug)).toEqual(['early-day0', 'late-day0', 'later']);
+    expect(items.map((i) => i.slug)).toEqual([
+      'early-day0',
+      'late-day0',
+      'later',
+    ]);
     expect(items[0].coupleNames).toBe('Judul');
     expect(items[1].coupleNames).toBe('Cinta');
     expect(items[2].coupleNames).toBe('Ali & Budi');
@@ -254,7 +272,11 @@ describe('buildDigestMessage', () => {
   });
 
   it('omits empty groups and checklist without H-7', () => {
-    const msg = buildDigestMessage(items.filter((i) => i.daysUntil === 0), smoke, now);
+    const msg = buildDigestMessage(
+      items.filter((i) => i.daysUntil === 0),
+      smoke,
+      now,
+    );
     expect(msg).toContain('*Hari-H');
     expect(msg).not.toContain('*H-1');
     expect(msg).not.toContain('*H-7');

@@ -2,16 +2,20 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { LocalhostOnlyGuard } from './localhost-only.guard';
 
 const ctx = (req: unknown) =>
-  ({ switchToHttp: () => ({ getRequest: () => req }) }) as unknown as ExecutionContext;
+  ({
+    switchToHttp: () => ({ getRequest: () => req }),
+  }) as unknown as ExecutionContext;
 
 describe('LocalhostOnlyGuard', () => {
   const guard = new LocalhostOnlyGuard();
 
   it('allows loopback socket addresses', () => {
-    expect(guard.canActivate(ctx({ socket: { remoteAddress: '127.0.0.1' } }))).toBe(
+    expect(
+      guard.canActivate(ctx({ socket: { remoteAddress: '127.0.0.1' } })),
+    ).toBe(true);
+    expect(guard.canActivate(ctx({ socket: { remoteAddress: '::1' } }))).toBe(
       true,
     );
-    expect(guard.canActivate(ctx({ socket: { remoteAddress: '::1' } }))).toBe(true);
     expect(
       guard.canActivate(ctx({ socket: { remoteAddress: '::ffff:127.0.0.1' } })),
     ).toBe(true);

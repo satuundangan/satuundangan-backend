@@ -20,12 +20,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Build and Push Dev Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:dev
+          tags: |
+            ${{ env.IMAGE }}:dev
+            ${{ env.IMAGE }}:dev-sha-${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -54,6 +59,42 @@ jobs:
                 echo -e "\nRESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" >> .env.dev
               fi
             fi
-            docker compose -f docker-compose.dev.yml pull
-            docker compose -f docker-compose.dev.yml up -d
+            SERVICE=backend-dev
+            CONTAINER=satu-undangan-api-dev
+            echo "[deploy-dev] commit ${{ github.sha }}"
+
+            health_check() {
+              hc_c="$1"; hc_ok=0; hc_i=0
+              hc_rc0=$(docker inspect -f '{{.RestartCount}}' "$hc_c" 2>/dev/null || echo 0)
+              while [ "$hc_i" -lt 30 ]; do
+                hc_i=$((hc_i + 1))
+                sleep 3
+                hc_rc=$(docker inspect -f '{{.RestartCount}}' "$hc_c" 2>/dev/null || echo missing)
+                if [ "$hc_rc" != "$hc_rc0" ]; then
+                  echo "[health] $hc_c restart count changed ($hc_rc0 -> $hc_rc): crash-looping"
+                  return 1
+                fi
+                hc_status=$(docker exec "$hc_c" node -e 'fetch("http://localhost:3000/payment/packages",{signal:AbortSignal.timeout(5000)}).then(r=>console.log(r.status)).catch(()=>console.log(0))' 2>/dev/null || echo 0)
+                if [ "$hc_status" = "200" ]; then hc_ok=$((hc_ok + 1)); else hc_ok=0; fi
+                echo "[health] $hc_c attempt $hc_i/30 status=$hc_status streak=$hc_ok"
+                if [ "$hc_ok" -ge 3 ]; then return 0; fi
+              done
+              return 1
+            }
+
+            if ! docker compose -f docker-compose.dev.yml pull "$SERVICE"; then
+              echo "[deploy-dev] pull failed"
+              exit 1
+            fi
+            if ! docker compose -f docker-compose.dev.yml up -d "$SERVICE"; then
+              echo "[deploy-dev] compose up failed. Last 80 log lines:"
+              docker logs --tail 80 "$CONTAINER" 2>&1 || true
+              exit 1
+            fi
+            if ! health_check "$CONTAINER"; then
+              echo "[deploy-dev] UNHEALTHY. Last 80 log lines of $CONTAINER:"
+              docker logs --tail 80 "$CONTAINER" 2>&1 || true
+              exit 1
+            fi
+            echo "[deploy-dev] healthy; pruning dangling images"
             docker image prune -f || true

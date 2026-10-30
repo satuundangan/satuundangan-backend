@@ -87,6 +87,9 @@ describe('isExcludedOwner', () => {
     [{ email: 'playwright@test.com' }],
     [{ email: 'tester@example.com' }],
     [{ email: 'test123@gmail.com' }],
+    [{ email: 'test@gmail.com' }],
+    [{ email: 'test.user@gmail.com' }],
+    [{ email: 'testing_01@gmail.com' }],
     [{ email: 'admin@x.com' }],
     [{ email: 'undangdongofficial@gmail.com' }],
     [null],
@@ -101,6 +104,9 @@ describe('isExcludedOwner', () => {
     expect(
       isExcludedOwner({ email: 'siskava.62@gmail.com', isAdmin: false }, def),
     ).toBe(false);
+    expect(isExcludedOwner({ email: 'testiana.putri@gmail.com' }, def)).toBe(
+      false,
+    );
   });
 
   it('honors an explicit env list (and drops the default)', () => {

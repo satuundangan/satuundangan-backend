@@ -144,7 +144,8 @@ export function isExcludedOwner(
   const at = email.lastIndexOf('@');
   const local = at >= 0 ? email.slice(0, at) : email;
   const domain = at >= 0 ? email.slice(at + 1) : '';
-  if (local.startsWith('test') || local === 'admin') return true;
+  // "test", "test123", "test.user", "testing_01" — but not real names like "testiana".
+  if (/^test(ing)?(\d|[._+-]|$)/.test(local) || local === 'admin') return true;
   if (domain === 'test.com' || domain === 'example.com') return true;
   if (list.emails.includes(email)) return true;
   if (list.localParts.includes(local)) return true;

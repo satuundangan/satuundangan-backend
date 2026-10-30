@@ -25,6 +25,14 @@ export class CreateAdminUserDto {
   @IsOptional()
   @IsBoolean()
   isAdmin?: boolean = false;
+
+  @IsOptional()
+  @IsBoolean()
+  hasWeddingPlannerAccess?: boolean;
+
+  @IsOptional()
+  @IsString()
+  instagramHandle?: string;
 }
 
 export class UpdateAdminUserDto {
@@ -48,4 +56,12 @@ export class UpdateAdminUserDto {
   @IsOptional()
   @IsBoolean()
   isEmailVerified?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  hasWeddingPlannerAccess?: boolean;
+
+  @IsOptional()
+  @IsString()
+  instagramHandle?: string;
 }

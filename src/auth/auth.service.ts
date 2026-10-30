@@ -104,7 +104,9 @@ export class AuthService {
       throw new UnauthorizedException('Password not matched');
     }
     Logger.log('User logged in successfully:', normalizedEmail);
-    return this._createToken(user.id, user.email, user.isApproved);
+    const token = this._createToken(user.id, user.email, user.isApproved);
+    await this.userRepo.update(user.id, { lastLoginAt: new Date() });
+    return token;
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
@@ -245,7 +247,9 @@ export class AuthService {
   async googleLogin(
     user: User,
   ): Promise<{ access_token: string; isApproved: boolean }> {
-    return this._createToken(user.id, user?.email, user.isApproved);
+    const token = this._createToken(user.id, user?.email, user.isApproved);
+    await this.userRepo.update(user.id, { lastLoginAt: new Date() });
+    return token;
   }
 
   private _createToken(
@@ -254,7 +258,10 @@ export class AuthService {
     isApproved: boolean = false,
     sessionId?: string,
   ): { access_token: string; isApproved: boolean } {
-    const payload: { sub: number; email: string; sid?: string } = { sub: userId, email };
+    const payload: { sub: number; email: string; sid?: string } = {
+      sub: userId,
+      email,
+    };
     if (sessionId) payload.sid = sessionId;
     Logger.log(`Creating JWT for userId: ${userId}, email: ${email}`);
     return {
@@ -270,7 +277,9 @@ export class AuthService {
     meta: { ip?: string | null; userAgent?: string | null } = {},
   ) {
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await this.userRepo.findOne({ where: { email: normalizedEmail } });
+    const user = await this.userRepo.findOne({
+      where: { email: normalizedEmail },
+    });
 
     if (!user || !user.isAdmin) {
       throw new UnauthorizedException('Akun tidak ditemukan atau bukan admin');
@@ -286,7 +295,14 @@ export class AuthService {
 
     // 2FA / TOTP temporarily bypassed as requested
     const session = await this.adminSecurity.startSession(user.id, meta);
-    return this._createToken(user.id, user.email, user.isApproved, session.id);
+    const token = this._createToken(
+      user.id,
+      user.email,
+      user.isApproved,
+      session.id,
+    );
+    await this.userRepo.update(user.id, { lastLoginAt: new Date() });
+    return token;
   }
 
   setupTotp(userId: number) {

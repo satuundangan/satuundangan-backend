@@ -79,6 +79,11 @@ export class User {
   @UpdateDateColumn({ type: 'datetime' })
   updatedAt: Date;
 
+  // Only populated for successful credential, OAuth, or admin authentication
+  // from the point this field is deployed. Historical login time is unknown.
+  @Column({ type: 'datetime', nullable: true })
+  lastLoginAt: Date | null;
+
   @OneToMany(() => Invitation, (invitation) => invitation.user, {
     onDelete: 'CASCADE',
   })

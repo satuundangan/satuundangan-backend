@@ -3,9 +3,17 @@ name: Deploy to Biznet
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      override_reason:
+        description: 'Reason to deploy despite H-1/Hari-H customer events (leave empty for normal deploy)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build-and-push:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,7 +46,11 @@ jobs:
     steps:
       - name: Execute Remote SSH commands
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          OVERRIDE_REASON: ${{ github.event.inputs.override_reason }}
+          DEPLOY_ACTOR: ${{ github.actor }}
         with:
+          envs: OVERRIDE_REASON,DEPLOY_ACTOR
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
@@ -63,6 +75,28 @@ jobs:
             SERVICE=backend-api
             CONTAINER=satu-undangan-api
             echo "[deploy] commit ${{ github.sha }}"
+
+            # Event-watch gate: block prod deploy when real-customer weddings are on H-1 / Hari-H.
+            # Asks the CURRENTLY running container. rc 0 = none, 10 = events, anything else = unknown -> warn & continue.
+            GATE_OUT=$(docker exec "$CONTAINER" node -e 'fetch("http://127.0.0.1:3000/internal/upcoming-events?days=1",{signal:AbortSignal.timeout(5000)}).then(function(r){if(r.status!==200){console.log("http status "+r.status);process.exit(2)}return r.json()}).then(function(b){if(!b||typeof b.count!=="number"||!Array.isArray(b.items)){console.log("unexpected payload");process.exit(3)}console.log("count="+b.count);b.items.forEach(function(i){console.log("  - "+i.slug+" | "+i.eventAtWib+" | H-"+i.daysUntil)});process.exit(b.count>0?10:0)}).catch(function(e){console.log("error "+(e&&e.message));process.exit(4)})' 2>&1)
+            GATE_RC=$?
+            case "$GATE_RC" in
+              0)
+                echo "[gate] no customer events on H-1/Hari-H ($GATE_OUT)"
+                ;;
+              10)
+                echo "[gate] customer events within 1 day:"
+                echo "$GATE_OUT"
+                if [ -z "$OVERRIDE_REASON" ]; then
+                  echo "::error::Deploy blocked: real-customer wedding(s) on H-1/Hari-H (listed above). To deploy anyway: GitHub Actions -> 'Deploy to Biznet' -> Run workflow (branch master) -> fill override_reason."
+                  exit 1
+                fi
+                echo "[gate] OVERRIDE: $OVERRIDE_REASON by $DEPLOY_ACTOR"
+                ;;
+              *)
+                echo "[gate] WARNING: event check unavailable (rc=$GATE_RC): $GATE_OUT -- continuing deploy"
+                ;;
+            esac
 
             health_check() {
               hc_c="$1"; hc_ok=0; hc_i=0

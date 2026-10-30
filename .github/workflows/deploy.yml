@@ -20,12 +20,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Build and Push Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -54,6 +59,69 @@ jobs:
                 echo -e "\nRESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" >> .env
               fi
             fi
-            docker compose pull
-            docker compose up -d --force-recreate
+            IMAGE=ghcr.io/satuundangan/satuundangan-backend   # must match docker-compose.yml (lowercase)
+            SERVICE=backend-api
+            CONTAINER=satu-undangan-api
+            echo "[deploy] commit ${{ github.sha }}"
+
+            health_check() {
+              hc_c="$1"; hc_ok=0; hc_i=0
+              hc_rc0=$(docker inspect -f '{{.RestartCount}}' "$hc_c" 2>/dev/null || echo 0)
+              while [ "$hc_i" -lt 30 ]; do
+                hc_i=$((hc_i + 1))
+                sleep 3
+                hc_rc=$(docker inspect -f '{{.RestartCount}}' "$hc_c" 2>/dev/null || echo missing)
+                if [ "$hc_rc" != "$hc_rc0" ]; then
+                  echo "[health] $hc_c restart count changed ($hc_rc0 -> $hc_rc): crash-looping"
+                  return 1
+                fi
+                hc_status=$(docker exec "$hc_c" node -e 'fetch("http://localhost:3000/payment/packages",{signal:AbortSignal.timeout(5000)}).then(r=>console.log(r.status)).catch(()=>console.log(0))' 2>/dev/null || echo 0)
+                if [ "$hc_status" = "200" ]; then hc_ok=$((hc_ok + 1)); else hc_ok=0; fi
+                echo "[health] $hc_c attempt $hc_i/30 status=$hc_status streak=$hc_ok"
+                if [ "$hc_ok" -ge 3 ]; then return 0; fi
+              done
+              return 1
+            }
+
+            # Pin the currently running image so prune cannot delete it (first deploy: none)
+            PREV_IMAGE=$(docker inspect -f '{{.Image}}' "$CONTAINER" 2>/dev/null || true)
+            if [ -n "$PREV_IMAGE" ]; then
+              docker tag "$PREV_IMAGE" "$IMAGE:rollback" && echo "[deploy] pinned previous image $PREV_IMAGE as $IMAGE:rollback"
+            else
+              echo "[deploy] no running $CONTAINER found; rollback unavailable (first deploy?)"
+            fi
+
+            if ! docker compose pull "$SERVICE"; then
+              echo "[deploy] pull failed; running container untouched"
+              exit 1
+            fi
+
+            DEPLOY_OK=0
+            if docker compose up -d --no-deps --force-recreate "$SERVICE"; then
+              if health_check "$CONTAINER"; then DEPLOY_OK=1; fi
+            else
+              echo "[deploy] compose up failed"
+            fi
+
+            if [ "$DEPLOY_OK" -ne 1 ]; then
+              echo "[deploy] NEW IMAGE UNHEALTHY. Last 80 log lines of $CONTAINER:"
+              docker logs --tail 80 "$CONTAINER" 2>&1 || true
+              if [ -n "$PREV_IMAGE" ]; then
+                echo "[rollback] restoring $IMAGE:rollback -> $IMAGE:latest"
+                docker tag "$IMAGE:rollback" "$IMAGE:latest"
+                docker compose up -d --no-deps --force-recreate "$SERVICE"
+                if health_check "$CONTAINER"; then
+                  echo "[rollback] SUCCESS: previous image is serving again"
+                else
+                  echo "[rollback] FAILED: previous image also unhealthy. Last 80 log lines:"
+                  docker logs --tail 80 "$CONTAINER" 2>&1 || true
+                fi
+                echo "[rollback] NOTE: GHCR :latest still points to the bad build; a manual 'docker compose pull' would re-fetch it. Fix forward and redeploy."
+              else
+                echo "[rollback] skipped: no previous image"
+              fi
+              exit 1
+            fi
+
+            echo "[deploy] healthy; pruning dangling images"
             docker image prune -f || true

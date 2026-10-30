@@ -85,6 +85,20 @@ export class EmailService {
     });
   }
 
+  /** Plain-text operational alert (e.g. event-watch digest fallback). */
+  async sendOpsAlert(
+    to: string,
+    subject: string,
+    text: string,
+  ): Promise<boolean> {
+    return this.sendMail({
+      to,
+      subject,
+      text,
+      html: `<pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:13px">${this.escapeHtml(text)}</pre>`,
+    });
+  }
+
   private async sendMail(payload: SendMailPayload): Promise<boolean> {
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
 

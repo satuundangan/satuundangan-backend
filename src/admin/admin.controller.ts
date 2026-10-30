@@ -1,5 +1,6 @@
 import {
   Controller,
+  BadRequestException,
   Get,
   Query,
   UseGuards,
@@ -39,6 +40,16 @@ import { AdminAuditService } from './security/admin-audit.service';
 import { AuditLogQueryDto, UpdateAdminRoleDto } from './dto/admin-security.dto';
 import { CreatePromoCodeDto } from '../promo/dto/create-promo-code.dto';
 import { UpdatePromoCodeDto } from '../promo/dto/update-promo-code.dto';
+import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
+
+function requireAdminReason(req: { headers?: Record<string, unknown> }) {
+  const reason = String(req?.headers?.['x-admin-reason'] ?? '').trim();
+  if (reason.length < 5) {
+    throw new BadRequestException(
+      'Alasan operasional minimal 5 karakter diperlukan dan dicatat pada audit log.',
+    );
+  }
+}
 
 const AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES =
   (Number(process.env.AUDIO_UPLOAD_MAX_FILE_SIZE_MB) ||
@@ -60,13 +71,23 @@ export class AdminController {
 
   // Users
   @Get('users')
-  listUsers(@Query() q: PaginationQueryDto) {
+  listUsers(@Query() q: AdminUsersQueryDto) {
     const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
-    return this.service.listUsers(page, limit, search, sortBy, sortOrder);
+    return this.service.listUsers(page, limit, search, sortBy, sortOrder, q);
+  }
+
+  @Get('users/stats')
+  getUserStats() {
+    return this.service.getUserStats();
+  }
+
+  @Get('users/:id/customer')
+  getCustomerDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getCustomerDetail(id);
   }
 
   @Get('users/:id')
-  getUser(@Param('id') id: number) {
+  getUser(@Param('id', ParseIntPipe) id: number) {
     return this.service.getUser(id);
   }
 
@@ -76,17 +97,24 @@ export class AdminController {
   }
 
   @Patch('users/:id')
-  updateUser(@Param('id') id: number, @Body() dto: UpdateAdminUserDto) {
+  updateUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateAdminUserDto,
+    @Req() req: any,
+  ) {
+    requireAdminReason(req);
     return this.service.updateUser(id, dto);
   }
 
   @Post('users/:id/verify-email')
-  verifyUserEmail(@Param('id') id: number) {
+  verifyUserEmail(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    requireAdminReason(req);
     return this.service.verifyUserEmail(id);
   }
 
   @Delete('users/:id')
-  deleteUser(@Param('id') id: number) {
+  deleteUser(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    requireAdminReason(req);
     return this.service.deleteUser(id);
   }
 
@@ -214,10 +242,7 @@ export class AdminController {
   }
 
   @Post('payments/:id/sync-gateway')
-  syncPaymentGateway(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req?: any,
-  ) {
+  syncPaymentGateway(@Param('id', ParseIntPipe) id: number, @Req() req?: any) {
     return this.service.syncPaymentGateway(id, req?.user);
   }
 
@@ -247,7 +272,13 @@ export class AdminController {
   @Get('guest-messages')
   listGuestMessages(@Query() q: PaginationQueryDto) {
     const { page = 1, limit = 20, q: search, sortBy, sortOrder } = q;
-    return this.service.listGuestMessages(page, limit, search, sortBy, sortOrder);
+    return this.service.listGuestMessages(
+      page,
+      limit,
+      search,
+      sortBy,
+      sortOrder,
+    );
   }
 
   @Delete('guest-messages/:id')
@@ -259,7 +290,27 @@ export class AdminController {
   @Get('template-designs')
   listTemplateDesigns(@Query() q: PaginationQueryDto) {
     const { page = 1, limit = 20, q: search, sortBy, sortOrder, filters } = q;
-    return this.service.listTemplateDesigns(page, limit, search, sortBy, sortOrder, filters);
+    return this.service.listTemplateDesigns(
+      page,
+      limit,
+      search,
+      sortBy,
+      sortOrder,
+      filters,
+    );
+  }
+
+  @Get('template-designs/metrics')
+  getTemplateDesignMetrics(
+    @Query('days') days?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.service.getTemplateDesignMetrics({
+      days: days ? Number(days) : undefined,
+      startDate,
+      endDate,
+    });
   }
 
   @Get('template-designs/:id')
@@ -358,6 +409,11 @@ export class AdminController {
     return this.service.createBank(body);
   }
 
+  @Patch('banks/:id')
+  updateBank(@Param('id') id: string, @Body() body: any) {
+    return this.service.updateBank(id, body);
+  }
+
   @Delete('banks/:id')
   deleteBank(@Param('id') id: string) {
     return this.service.deleteBank(id);
@@ -427,8 +483,9 @@ export class AdminController {
   updateAdminRole(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateAdminRoleDto,
-    @Req() req: { user: { id: number } },
+    @Req() req: { user: { id: number }; headers?: Record<string, unknown> },
   ) {
+    requireAdminReason(req);
     return this.service.updateAdminRole(id, dto.adminRole, req.user.id);
   }
 

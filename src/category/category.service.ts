@@ -8,12 +8,15 @@ import { Repository, ILike } from 'typeorm';
 import { Category } from './category.entity';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
+import { TemplateDesign } from '../template-design/template-design.entity';
 
 @Injectable()
 export class CategoryService {
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(TemplateDesign)
+    private readonly templateRepo: Repository<TemplateDesign>,
   ) {}
 
   async findAll(query: PaginationQueryDto = {}) {
@@ -27,7 +30,36 @@ export class CategoryService {
       take: limit,
     });
 
-    return { data, total, page, limit };
+    const enriched = await Promise.all(
+      data.map(async (category) => {
+        const [templateCount, activeTemplateCount, invitationResult] =
+          await Promise.all([
+            this.templateRepo.count({
+              where: { category: { id: category.id } },
+            }),
+            this.templateRepo.count({
+              where: { category: { id: category.id }, isPublished: true },
+            }),
+            this.templateRepo
+              .createQueryBuilder('template')
+              .leftJoin('template.category', 'category')
+              .leftJoin('template.invitations', 'invitation')
+              .select('COUNT(DISTINCT invitation.id)', 'count')
+              .where('category.id = :categoryId', {
+                categoryId: category.id,
+              })
+              .getRawOne(),
+          ]);
+        return {
+          ...category,
+          templateCount,
+          activeTemplateCount,
+          invitationCount: Number(invitationResult?.count || 0),
+        };
+      }),
+    );
+
+    return { data: enriched, total, page, limit };
   }
 
   async findOne(id: string) {
@@ -61,6 +93,14 @@ export class CategoryService {
 
   async remove(id: string) {
     const category = await this.findOne(id);
+    const templateCount = await this.templateRepo.count({
+      where: { category: { id } },
+    });
+    if (templateCount > 0) {
+      throw new BadRequestException(
+        `Kategori masih dipakai ${templateCount} template. Pindahkan template sebelum menghapus kategori.`,
+      );
+    }
     return this.categoryRepo.remove(category);
   }
 

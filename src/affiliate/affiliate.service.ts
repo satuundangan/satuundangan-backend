@@ -491,6 +491,9 @@ export class AffiliateService {
       affiliateProfileId: profile.id,
       requestedAmount: dto.amount,
       status: WithdrawStatus.PENDING,
+      bankNameSnapshot: profile.bankName,
+      bankAccountNumberSnapshot: profile.bankAccountNumber,
+      bankAccountNameSnapshot: profile.bankAccountName,
     });
 
     const saved = await this.withdrawRepo.save(withdraw);
@@ -517,10 +520,35 @@ export class AffiliateService {
 
   // --- ADMIN METHODS ---
 
-  async adminListResellers(page: number, limit: number, search?: string) {
+  async adminListResellers(
+    page: number,
+    limit: number,
+    search?: string,
+    status?: string,
+  ) {
+    const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const query = this.profileRepo
       .createQueryBuilder('profile')
       .leftJoinAndSelect('profile.user', 'user')
+      .addSelect(
+        (subQuery) =>
+          subQuery
+            .select('COUNT(*)')
+            .from(CommissionTransaction, 'commission30d')
+            .where('commission30d.affiliateProfileId = profile.id')
+            .andWhere('commission30d.createdAt >= :since30d'),
+        'sales30d',
+      )
+      .addSelect(
+        (subQuery) =>
+          subQuery
+            .select('COALESCE(SUM(commission30d.grossAmount), 0)')
+            .from(CommissionTransaction, 'commission30d')
+            .where('commission30d.affiliateProfileId = profile.id')
+            .andWhere('commission30d.createdAt >= :since30d'),
+        'gross30d',
+      )
+      .setParameter('since30d', since30d)
       .orderBy('profile.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -533,8 +561,20 @@ export class AffiliateService {
         },
       );
     }
+    if (status) {
+      if (!Object.values(AffiliateStatus).includes(status as AffiliateStatus)) {
+        throw new BadRequestException(`Invalid status: ${status}`);
+      }
+      query.andWhere('profile.status = :status', { status });
+    }
 
-    const [data, total] = await query.getManyAndCount();
+    const total = await query.getCount();
+    const { entities, raw } = await query.getRawAndEntities();
+    const data = entities.map((profile, index) => ({
+      ...profile,
+      sales30d: Number(raw[index]?.sales30d ?? 0),
+      gross30d: Number(raw[index]?.gross30d ?? 0),
+    }));
 
     return {
       success: true,
@@ -569,6 +609,7 @@ export class AffiliateService {
       .createQueryBuilder('wr')
       .leftJoinAndSelect('wr.affiliateProfile', 'profile')
       .leftJoinAndSelect('profile.user', 'user')
+      .leftJoinAndSelect('wr.processedBy', 'processedBy')
       .orderBy('wr.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -588,11 +629,112 @@ export class AffiliateService {
     };
   }
 
+  async adminListCommissions(
+    page: number = 1,
+    limit: number = 20,
+    status?: string,
+    affiliateProfileId?: number,
+  ) {
+    const query = this.commissionRepo
+      .createQueryBuilder('commission')
+      .leftJoinAndSelect('commission.affiliateProfile', 'profile')
+      .leftJoinAndSelect('profile.user', 'reseller')
+      .leftJoinAndSelect('commission.payment', 'payment')
+      .leftJoinAndSelect('payment.invitation', 'invitation')
+      .leftJoinAndSelect('invitation.user', 'buyer')
+      .orderBy('commission.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (status) query.andWhere('commission.status = :status', { status });
+    if (affiliateProfileId) {
+      query.andWhere('commission.affiliateProfileId = :affiliateProfileId', {
+        affiliateProfileId,
+      });
+    }
+
+    const [data, total] = await query.getManyAndCount();
+    const commissionSummaryQuery = this.commissionRepo
+      .createQueryBuilder('commission')
+      .select('commission.status', 'status')
+      .addSelect('COALESCE(SUM(commission.commissionAmount), 0)', 'total')
+      .groupBy('commission.status');
+    if (affiliateProfileId) {
+      commissionSummaryQuery.andWhere(
+        'commission.affiliateProfileId = :affiliateProfileId',
+        { affiliateProfileId },
+      );
+    }
+    const commissionTotals = await commissionSummaryQuery.getRawMany();
+    const withdrawalQuery = this.withdrawRepo
+      .createQueryBuilder('withdrawal')
+      .select('withdrawal.status', 'status')
+      .addSelect('COALESCE(SUM(withdrawal.requestedAmount), 0)', 'total')
+      .groupBy('withdrawal.status');
+    if (affiliateProfileId) {
+      withdrawalQuery.andWhere(
+        'withdrawal.affiliateProfileId = :affiliateProfileId',
+        { affiliateProfileId },
+      );
+    }
+    const withdrawalTotals = await withdrawalQuery.getRawMany();
+    const amountFor = (
+      items: { status: string; total: string }[],
+      key: string,
+    ) => Number(items.find((item) => item.status === key)?.total || 0);
+    const pending = amountFor(commissionTotals, CommissionStatus.PENDING);
+    const cleared = amountFor(commissionTotals, CommissionStatus.CLEARED);
+    const reversed = amountFor(commissionTotals, CommissionStatus.REVERSED);
+    const withdrawn = amountFor(withdrawalTotals, WithdrawStatus.APPROVED);
+    const pendingWithdrawals = amountFor(
+      withdrawalTotals,
+      WithdrawStatus.PENDING,
+    );
+    return {
+      data: data.map((commission) => ({
+        id: commission.id,
+        reseller: commission.affiliateProfile?.user?.name ?? '—',
+        resellerCode: commission.affiliateProfile?.affiliateCode ?? '—',
+        buyer: commission.payment?.invitation?.user?.name ?? '—',
+        paymentId: commission.paymentId,
+        orderId: commission.payment?.orderId ?? '—',
+        paymentStatus: commission.payment?.status ?? 'unknown',
+        settledAt: commission.payment?.settlementTime ?? commission.createdAt,
+        grossAmount: Number(commission.grossAmount),
+        commissionRate: Number(commission.commissionRate),
+        commissionAmount: Number(commission.commissionAmount),
+        tierAtTime: commission.tierAtTime,
+        status: commission.status,
+        clearedAt: commission.clearedAt,
+        note: commission.note,
+      })),
+      total,
+      page,
+      limit,
+      summary: {
+        pendingCommissions: pending,
+        clearedCommissions: cleared,
+        reversedCommissions: reversed,
+        approvedWithdrawals: withdrawn,
+        pendingWithdrawals,
+        availableAfterApprovedWithdrawals: Math.max(0, cleared - withdrawn),
+        reconciliationNote:
+          'Withdrawal tidak dialokasikan ke baris komisi per order; saldo tersedia direkonsiliasi pada agregat cleared dikurangi payout yang disetujui.',
+      },
+      note: 'Hanya transaksi komisi tersimpan untuk pembayaran sukses yang ditampilkan. Kasus dilewati sebelum komisi dibuat tidak tersedia sebagai baris historis; commissionCredited bukan bukti kredit.',
+    };
+  }
+
   async adminApproveWithdrawal(
     id: number,
     proofUrl?: string,
     adminNote?: string,
+    processedByUserId: number | null = null,
   ) {
+    if (!adminNote?.trim()) {
+      throw new BadRequestException('Catatan keputusan wajib diisi');
+    }
+
     return this.dataSource.transaction(async (manager) => {
       const withdrawRepo = manager.getRepository(WithdrawRequest);
       const profileRepo = manager.getRepository(AffiliateProfile);
@@ -610,8 +752,9 @@ export class AffiliateService {
       await withdrawRepo.update(id, {
         status: WithdrawStatus.APPROVED,
         proofUrl,
-        adminNote,
+        adminNote: adminNote.trim(),
         processedAt: new Date(),
+        processedByUserId,
       });
 
       // Decrement profile balance (Current balance)
@@ -633,21 +776,37 @@ export class AffiliateService {
     });
   }
 
-  async adminRejectWithdrawal(id: number, adminNote: string) {
-    const request = await this.withdrawRepo.findOne({ where: { id } });
-    if (!request) throw new NotFoundException('Withdraw request not found');
-    if (request.status !== WithdrawStatus.PENDING) {
-      throw new BadRequestException('Request is no longer pending');
+  async adminRejectWithdrawal(
+    id: number,
+    adminNote: string,
+    processedByUserId: number | null = null,
+  ) {
+    if (!adminNote?.trim()) {
+      throw new BadRequestException('Alasan penolakan wajib diisi');
     }
 
-    await this.withdrawRepo.update(id, {
-      status: WithdrawStatus.REJECTED,
-      adminNote,
-      processedAt: new Date(),
+    return this.dataSource.transaction(async (manager) => {
+      const withdrawRepo = manager.getRepository(WithdrawRequest);
+      const request = await withdrawRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!request) throw new NotFoundException('Withdraw request not found');
+      if (request.status !== WithdrawStatus.PENDING) {
+        throw new BadRequestException('Request is no longer pending');
+      }
+
+      await withdrawRepo.update(id, {
+        status: WithdrawStatus.REJECTED,
+        adminNote: adminNote.trim(),
+        processedAt: new Date(),
+        processedByUserId,
+      });
+
+      this.logger.log(
+        `Admin rejected withdrawal id=${id} actor=${processedByUserId}`,
+      );
+      return { success: true };
     });
-
-    this.logger.log(`Admin rejected withdrawal id=${id} reason=${adminNote}`);
-
-    return { success: true };
   }
 }

@@ -5,9 +5,10 @@ import { PromoService } from './promo.service';
 import { PromoController } from './promo.controller';
 import { Invitation } from '../invitation/invitation.entity';
 import { User } from '../user/user.entity';
+import { Payment } from '../payment/payment.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PromoCode, Invitation, User])],
+  imports: [TypeOrmModule.forFeature([PromoCode, Invitation, User, Payment])],
   providers: [PromoService],
   controllers: [PromoController],
   exports: [PromoService],

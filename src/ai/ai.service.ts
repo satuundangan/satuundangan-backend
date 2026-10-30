@@ -10,6 +10,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../user/user.entity';
 import { MessageDto } from './dto/chat.dto';
+import { AiCreditLog } from './ai-credit-log.entity';
+
+export interface AdminAiLogsQuery {
+  status?: string;
+  userId?: number;
+  page?: number;
+  limit?: number;
+}
 
 @Injectable()
 export class AiService {
@@ -19,11 +27,31 @@ export class AiService {
     private configService: ConfigService,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(AiCreditLog)
+    private creditLogRepo: Repository<AiCreditLog>,
   ) {}
 
   async getCredits(userId: number): Promise<{ credits: number }> {
     const user = await this.userRepo.findOneOrFail({ where: { id: userId } });
     return { credits: user.aiCredits };
+  }
+
+  async recordCreditLog(dto: Partial<AiCreditLog>): Promise<AiCreditLog> {
+    const log = this.creditLogRepo.create({
+      userId: dto.userId!,
+      action: dto.action || 'deduct',
+      feature: dto.feature || 'nova_assistant',
+      creditsChange: dto.creditsChange ?? 0,
+      creditsBalance: dto.creditsBalance ?? 0,
+      status: dto.status || 'success',
+      model: dto.model || 'deepseek-v4-flash',
+      promptTokens: dto.promptTokens || 0,
+      completionTokens: dto.completionTokens || 0,
+      totalTokens: dto.totalTokens || 0,
+      estimatedCostIdr: dto.estimatedCostIdr || 0,
+      errorMessage: dto.errorMessage || null,
+    });
+    return this.creditLogRepo.save(log);
   }
 
   async chat(
@@ -36,6 +64,7 @@ export class AiService {
     const isFirstMessage =
       messages.filter((m) => m.role === 'user').length === 1;
 
+    let creditDeducted = 0;
     if (isFirstMessage) {
       if (user.aiCredits < 1) {
         throw new HttpException(
@@ -44,6 +73,7 @@ export class AiService {
         );
       }
       user.aiCredits -= 1;
+      creditDeducted = -1;
       await this.userRepo.save(user);
       this.logger.log(
         `AI credit deducted userId=${userId} remaining=${user.aiCredits}`,
@@ -57,27 +87,67 @@ export class AiService {
 
     const systemPrompt = this.buildSystemPrompt(currentData);
 
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    let response: Response;
+    try {
+      response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-v4-flash',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+          ],
+          response_format: { type: 'json_object' },
+          max_tokens: 600,
+          stream: false,
+        }),
+      });
+    } catch (err: any) {
+      this.logger.error(`DeepSeek API network error: ${err?.message || err}`);
+      await this.recordCreditLog({
+        userId,
+        action: 'deduct',
+        feature: 'nova_assistant',
+        creditsChange: creditDeducted,
+        creditsBalance: user.aiCredits,
+        status: 'failed',
         model: 'deepseek-v4-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-        ],
-        response_format: { type: 'json_object' },
-        max_tokens: 600,
-        stream: false,
-      }),
-    });
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCostIdr: 0,
+        errorMessage: String(err?.message || err),
+      });
+
+      return {
+        updatedData: currentData,
+        message: 'Nova sedang sibuk sebentar. Coba lagi ya! 🙏',
+        creditsRemaining: user.aiCredits,
+      };
+    }
 
     if (!response.ok) {
       const err = await response.text();
       this.logger.error(`DeepSeek API error: ${err}`);
+      await this.recordCreditLog({
+        userId,
+        action: 'deduct',
+        feature: 'nova_assistant',
+        creditsChange: creditDeducted,
+        creditsBalance: user.aiCredits,
+        status: 'failed',
+        model: 'deepseek-v4-flash',
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCostIdr: 0,
+        errorMessage: err,
+      });
+
       return {
         updatedData: currentData,
         message: 'Nova sedang sibuk sebentar. Coba lagi ya! 🙏',
@@ -88,9 +158,99 @@ export class AiService {
     const data = await response.json();
     const result = JSON.parse(data.choices[0].message.content);
 
+    const promptTokens = data.usage?.prompt_tokens || 0;
+    const completionTokens = data.usage?.completion_tokens || 0;
+    const totalTokens =
+      data.usage?.total_tokens || promptTokens + completionTokens;
+    // DeepSeek V3/V4 IDR pricing: promptTokens * 0.0022 + completionTokens * 0.0044
+    const estimatedCostIdr =
+      promptTokens * 0.0022 + completionTokens * 0.0044;
+
+    await this.recordCreditLog({
+      userId,
+      action: 'deduct',
+      feature: 'nova_assistant',
+      creditsChange: creditDeducted,
+      creditsBalance: user.aiCredits,
+      status: 'success',
+      model: 'deepseek-v4-flash',
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      estimatedCostIdr,
+      errorMessage: null,
+    });
+
     return {
       ...result,
       creditsRemaining: user.aiCredits,
+    };
+  }
+
+  async getAdminStats() {
+    const logs = await this.creditLogRepo.find();
+
+    let totalCreditsPurchased = 0;
+    let totalCreditsUsed = 0;
+    let totalEstimatedCostIdr = 0;
+    let successfulRequests = 0;
+    let failedRequests = 0;
+    const activeUserSet = new Set<number>();
+
+    for (const log of logs) {
+      if (log.userId) {
+        activeUserSet.add(log.userId);
+      }
+      if (log.action === 'topup' && log.status === 'success') {
+        totalCreditsPurchased += Math.max(0, log.creditsChange);
+      }
+      if (log.action === 'deduct') {
+        totalCreditsUsed += Math.abs(log.creditsChange);
+      }
+      totalEstimatedCostIdr += Number(log.estimatedCostIdr) || 0;
+      if (log.status === 'success') {
+        successfulRequests++;
+      } else {
+        failedRequests++;
+      }
+    }
+
+    return {
+      totalCreditsPurchased,
+      totalCreditsUsed,
+      totalEstimatedCostIdr: Math.round(totalEstimatedCostIdr * 100) / 100,
+      totalRequests: logs.length,
+      successfulRequests,
+      failedRequests,
+      activeUsersCount: activeUserSet.size,
+    };
+  }
+
+  async getAdminLogs(query: AdminAiLogsQuery = {}) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(query.limit) || 20));
+
+    const qb = this.creditLogRepo.createQueryBuilder('log');
+
+    if (query.status) {
+      qb.andWhere('log.status = :status', { status: query.status });
+    }
+
+    if (query.userId) {
+      qb.andWhere('log.userId = :userId', { userId: Number(query.userId) });
+    }
+
+    qb.orderBy('log.createdAt', 'DESC');
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 

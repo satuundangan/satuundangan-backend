@@ -26,6 +26,9 @@ export class GuestMessage {
   @Column('int')
   totalGuests: number;
 
+  @Column({ default: 'published' })
+  status: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

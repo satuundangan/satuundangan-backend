@@ -23,7 +23,7 @@ export class Lead {
   @Column()
   whatsapp: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   email: string | null;
 
   @Column({ name: 'wedding_date', type: 'date', nullable: true })
@@ -44,7 +44,7 @@ export class Lead {
   @Column({ name: 'guest_count', type: 'int', nullable: true })
   guestCount: number | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   concept: string | null;
 
   @Column({ type: 'json', nullable: true })
@@ -56,7 +56,7 @@ export class Lead {
   @Column({ default: 'new' })
   stage: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   owner: string | null;
 
   @Column({ name: 'due_date', type: 'datetime', nullable: true })

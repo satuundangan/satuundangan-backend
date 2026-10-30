@@ -62,22 +62,22 @@ export class SupportTicket {
   @Column({ name: 'customer_name' })
   customerName: string;
 
-  @Column({ name: 'customer_phone', nullable: true })
+  @Column({ name: 'customer_phone', type: 'varchar', nullable: true })
   customerPhone: string | null;
 
-  @Column({ name: 'customer_email', nullable: true })
+  @Column({ name: 'customer_email', type: 'varchar', nullable: true })
   customerEmail: string | null;
 
   @Column({ name: 'invitation_id', type: 'int', nullable: true })
   invitationId: number | null;
 
-  @Column({ name: 'order_id', nullable: true })
+  @Column({ name: 'order_id', type: 'varchar', nullable: true })
   orderId: string | null;
 
   @Column({ name: 'wedding_date', type: 'date', nullable: true })
   weddingDate: Date | null;
 
-  @Column({ name: 'assigned_to', nullable: true })
+  @Column({ name: 'assigned_to', type: 'varchar', nullable: true })
   assignedTo: string | null;
 
   @Column({ name: 'first_response_at', type: 'datetime', nullable: true })

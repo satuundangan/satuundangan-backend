@@ -147,6 +147,9 @@ export function isExcludedOwner(
   // "test", "test123", "test.user", "testing_01" — but not real names like "testiana".
   if (/^test(ing)?(\d|[._+-]|$)/.test(local) || local === 'admin') return true;
   if (domain === 'test.com' || domain === 'example.com') return true;
+  // Reserved TLDs used by seeds/bots (e.g. @satuundangan.local, @example.test) and our own domain.
+  if (/\.(local|test|example|invalid)$/.test(domain)) return true;
+  if (/^satuundangan\./.test(domain)) return true;
   if (list.emails.includes(email)) return true;
   if (list.localParts.includes(local)) return true;
   return false;

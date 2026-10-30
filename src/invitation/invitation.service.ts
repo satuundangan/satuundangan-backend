@@ -174,28 +174,48 @@ export class InvitationService {
       order: { createdAt: 'DESC' },
       skip,
       take: limit,
-      relations: ['templateDesign'],
+      relations: ['templateDesign', 'payments'],
     });
 
-    const data = raw_data.map((invitation) => ({
-      ...invitation,
-      templateDesignId: invitation.templateDesignId,
-      templateName:
-        invitation.templateName || invitation.templateDesign?.name || '',
-      isPublished: invitation.isPublished,
-      is_published: invitation.isPublished,
-      groomPhotoUrl: invitation.groomPhotoUrl || '',
-      photoCoupleUrl: invitation.photoCoupleUrl || '',
-      quoteType: invitation.quoteType || 'default',
-      isSingleEvent: invitation.isSingleEvent ?? true,
-      encryptedGuestName: invitation.encryptedGuestName,
-      socialMediaBrides: invitation.socialMediaBrides || {},
-      socialMediaGroom: invitation.socialMediaGroom || {},
-      videoPrewedding: invitation.videoPrewedding || '',
-      turutMengundang: invitation.turutMengundang || '',
-      footerText: invitation.footerText || '',
-      enableCover: invitation.enableCover ?? true,
-    }));
+    const data = raw_data.map((invitation) => {
+      const sortedPayments = Array.isArray(invitation.payments)
+        ? [...invitation.payments].sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          )
+        : [];
+      const latestPayment = sortedPayments[0] || null;
+
+      return {
+        ...invitation,
+        templateDesignId: invitation.templateDesignId,
+        templateName:
+          invitation.templateName || invitation.templateDesign?.name || '',
+        isPublished: invitation.isPublished,
+        is_published: invitation.isPublished,
+        latestOrderId: latestPayment?.orderId || null,
+        latestPaymentStatus: latestPayment?.status || null,
+        payments: sortedPayments.map((p) => ({
+          orderId: p.orderId,
+          status: p.status,
+          amount: p.amount,
+          package: p.package,
+          paymentMethod: p.paymentMethod || p.paymentType,
+          createdAt: p.createdAt,
+        })),
+        groomPhotoUrl: invitation.groomPhotoUrl || '',
+        photoCoupleUrl: invitation.photoCoupleUrl || '',
+        quoteType: invitation.quoteType || 'default',
+        isSingleEvent: invitation.isSingleEvent ?? true,
+        encryptedGuestName: invitation.encryptedGuestName,
+        socialMediaBrides: invitation.socialMediaBrides || {},
+        socialMediaGroom: invitation.socialMediaGroom || {},
+        videoPrewedding: invitation.videoPrewedding || '',
+        turutMengundang: invitation.turutMengundang || '',
+        footerText: invitation.footerText || '',
+        enableCover: invitation.enableCover ?? true,
+      };
+    });
 
     return {
       data,

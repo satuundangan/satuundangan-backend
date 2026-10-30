@@ -2253,19 +2253,28 @@ export class AdminService {
       sections[0],
     );
 
-    return sections.map((s) => {
-      const raw = s as any;
-      const isActive = s.is_active ?? raw.is_published ?? true;
-      console.log(
-        `[DEBUG] Mapping item ${s.key}: is_active=${s.is_active}, is_published=${raw.is_published} -> result=${isActive}`,
-      );
-      return {
-        id: s.id,
-        label: s.label,
-        key: s.key,
-        is_active: isActive,
-      };
-    });
+    return Promise.all(
+      sections.map(async (s) => {
+        const raw = s as any;
+        const isActive = s.is_active ?? raw.is_published ?? true;
+        const [templateUseCount, enabledTemplateUseCount] = await Promise.all([
+          this.templateDesignSectionRepo.count({
+            where: { section: { id: s.id } },
+          }),
+          this.templateDesignSectionRepo.count({
+            where: { section: { id: s.id }, is_enabled: true },
+          }),
+        ]);
+        return {
+          id: s.id,
+          label: s.label,
+          key: s.key,
+          is_active: isActive,
+          templateUseCount,
+          enabledTemplateUseCount,
+        };
+      }),
+    );
   }
 
   async createSection(payload: any) {
@@ -2319,6 +2328,14 @@ export class AdminService {
   async deleteSection(id: string) {
     const section = await this.sectionRepo.findOne({ where: { id } });
     if (!section) throw new NotFoundException('Section not found');
+    const templateUseCount = await this.templateDesignSectionRepo.count({
+      where: { section: { id } },
+    });
+    if (templateUseCount > 0) {
+      throw new BadRequestException(
+        `Section masih direferensikan oleh ${templateUseCount} template. Nonaktifkan atau lepaskan dari template terlebih dahulu.`,
+      );
+    }
     await this.sectionRepo.remove(section);
     return { success: true };
   }

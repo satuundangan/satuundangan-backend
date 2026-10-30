@@ -4,11 +4,12 @@ import { CategoryService } from './category.service';
 import { CategoryController } from './category.controller';
 import { PublicCategoryController } from './public-category.controller';
 import { Category } from './category.entity';
+import { TemplateDesign } from '../template-design/template-design.entity';
 import { User } from '../user/user.entity';
 import { AdminGuard } from '../auth/guards/admin.guard';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Category, User])],
+  imports: [TypeOrmModule.forFeature([Category, TemplateDesign, User])],
   controllers: [CategoryController, PublicCategoryController],
   providers: [CategoryService, AdminGuard],
   exports: [CategoryService],

@@ -585,6 +585,16 @@ export class PaymentService {
       orderId: payment.orderId,
       status: payment.status,
       invitationSlug: payment.invitation?.slug ?? null,
+      invitationTitle: payment.invitation?.title ?? null,
+      amount: Number(payment.amount),
+      package: payment.package ?? payment.invitation?.package ?? 'basic',
+      paymentMethod: payment.paymentMethod ?? payment.paymentType ?? null,
+      customerName: payment.name,
+      customerEmail: payment.email,
+      settlementTime: payment.settlementTime ?? null,
+      createdAt: payment.createdAt,
+      snapToken: payment.snapToken,
+      redirectUrl: payment.redirectUrl,
     };
   }
 

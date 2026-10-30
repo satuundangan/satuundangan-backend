@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -74,6 +75,33 @@ export class GuestMessagesController {
     return {
       success: true,
       data: messages,
+    };
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Delete a guest message by ID' })
+  @ApiParam({ name: 'id', type: Number, example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'The guest message has been successfully deleted.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. You are not allowed to delete this message.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Guest message not found.',
+  })
+  async deleteMessage(
+    @CurrentUser() user: { id: number; email: string; isAdmin: boolean },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.guestMessagesService.delete(id, user);
+    return {
+      success: true,
+      message: 'Guest message deleted successfully',
     };
   }
 }

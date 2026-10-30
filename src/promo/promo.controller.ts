@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PromoService } from './promo.service';
@@ -20,6 +21,7 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 @ApiTags('Promo')
 @Controller('promo')
 export class PromoController {
+  constructor(private readonly promoService: PromoService) {}
 
   @Get('active-intent')
   @ApiOperation({ summary: 'Get active exit intent promo' })
@@ -32,12 +34,10 @@ export class PromoController {
         code: promo.code,
         discount_type: promo.discountType,
         discount_value: Number(promo.discountValue),
-        text: promo.exitIntentText
-      }
+        text: promo.exitIntentText,
+      },
     };
   }
-
-  constructor(private readonly promoService: PromoService) {}
 
   @Post('validate')
   @UseGuards(JwtAuthGuard)
@@ -68,6 +68,13 @@ export class PromoController {
 
   // --- Admin Management ---
 
+  @Get('admin/summary')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Get promo codes summary metrics (Admin only)' })
+  async getSummary() {
+    return this.promoService.getSummary();
+  }
+
   @Get('admin/list')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiOperation({ summary: 'List all promo codes (Admin only)' })
@@ -75,8 +82,16 @@ export class PromoController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('q') q?: string,
+    @Query('status') status?: string,
   ) {
-    return this.promoService.list(page, limit, q);
+    return this.promoService.list(page, limit, q, status);
+  }
+
+  @Get('admin/:id')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Get promo code detail by ID (Admin only)' })
+  async getDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.promoService.getDetail(id);
   }
 
   @Post('admin')
@@ -89,14 +104,17 @@ export class PromoController {
   @Patch('admin/:id')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiOperation({ summary: 'Update a promo code (Admin only)' })
-  async update(@Param('id') id: number, @Body() dto: UpdatePromoCodeDto) {
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePromoCodeDto,
+  ) {
     return this.promoService.update(id, dto);
   }
 
   @Delete('admin/:id')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiOperation({ summary: 'Delete a promo code (Admin only)' })
-  async remove(@Param('id') id: number) {
+  async remove(@Param('id', ParseIntPipe) id: number) {
     await this.promoService.remove(id);
     return { success: true, message: 'Promo code deleted successfully' };
   }

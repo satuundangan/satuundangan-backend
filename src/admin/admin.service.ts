@@ -32,6 +32,7 @@ import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
 import { AdminRole, resolveAdminRole } from './security/admin-roles';
 import { resolveDashboardPeriod } from './admin-dashboard-period';
+import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 
 @Injectable()
 export class AdminService {
@@ -68,15 +69,184 @@ export class AdminService {
     q?: string,
     sortBy = 'createdAt',
     sortOrder: 'ASC' | 'DESC' = 'DESC',
+    filters: Pick<
+      AdminUsersQueryDto,
+      'verification' | 'role' | 'lifecycle' | 'provider'
+    > = {},
   ) {
     const qb = this.userRepo
       .createQueryBuilder('user')
-      .loadRelationCountAndMap('user.invitationsCount', 'user.invitations');
+      .select('user.id', 'id')
+      .addSelect('user.name', 'name')
+      .addSelect('user.email', 'email')
+      .addSelect('user.provider', 'provider')
+      .addSelect('user.isAdmin', 'isAdmin')
+      .addSelect('user.adminRole', 'adminRole')
+      .addSelect('user.avatar', 'avatar')
+      .addSelect('user.emailVerifiedAt', 'emailVerifiedAt')
+      .addSelect('user.hasWeddingPlannerAccess', 'hasWeddingPlannerAccess')
+      .addSelect('user.instagramHandle', 'instagramHandle')
+      .addSelect('user.createdAt', 'createdAt')
+      .addSelect('user.updatedAt', 'updatedAt')
+      .addSelect('user.lastLoginAt', 'lastLoginAt')
+      .addSelect(
+        (sub) =>
+          sub
+            .select('COUNT(inv.id)')
+            .from(Invitation, 'inv')
+            .where('inv.userId = user.id'),
+        'invitationsCount',
+      )
+      .addSelect(
+        (sub) =>
+          sub
+            .select('COUNT(DISTINCT pay.id)')
+            .from(Payment, 'pay')
+            .where('pay.userId = user.id')
+            .andWhere("pay.status = 'success'")
+            .andWhere('pay.amount > 0')
+            .andWhere(
+              "(pay.paymentMethod IS NULL OR pay.paymentMethod != 'FREE_ACTIVATION')",
+            )
+            .andWhere(
+              "(pay.paymentType IS NULL OR LOWER(pay.paymentType) != 'simulation')",
+            ),
+        'paidTransactionsCount',
+      )
+      .addSelect(
+        (sub) =>
+          sub
+            .select('COUNT(DISTINCT pay.id)')
+            .from(Payment, 'pay')
+            .where('pay.userId IS NULL')
+            .andWhere(
+              '(LOWER(pay.email) = LOWER(user.email) OR EXISTS (SELECT 1 FROM invitation owned_inv WHERE owned_inv.id = pay.invitationId AND owned_inv.userId = user.id))',
+            )
+            .andWhere("pay.status = 'success'")
+            .andWhere('pay.amount > 0')
+            .andWhere(
+              "(pay.paymentMethod IS NULL OR pay.paymentMethod != 'FREE_ACTIVATION')",
+            )
+            .andWhere(
+              "(pay.paymentType IS NULL OR LOWER(pay.paymentType) != 'simulation')",
+            ),
+        'paidTransactionsByFallback',
+      )
+      .addSelect(
+        (sub) =>
+          sub
+            .select('COALESCE(SUM(pay.amount), 0)')
+            .from(Payment, 'pay')
+            .where('pay.userId = user.id')
+            .andWhere("pay.status = 'success'")
+            .andWhere('pay.amount > 0')
+            .andWhere(
+              "(pay.paymentMethod IS NULL OR pay.paymentMethod != 'FREE_ACTIVATION')",
+            )
+            .andWhere(
+              "(pay.paymentType IS NULL OR LOWER(pay.paymentType) != 'simulation')",
+            ),
+        'paidSpendByAccount',
+      )
+      .addSelect(
+        (sub) =>
+          sub
+            .select('COALESCE(SUM(pay.amount), 0)')
+            .from(Payment, 'pay')
+            .where('pay.userId IS NULL')
+            .andWhere(
+              '(LOWER(pay.email) = LOWER(user.email) OR EXISTS (SELECT 1 FROM invitation owned_inv WHERE owned_inv.id = pay.invitationId AND owned_inv.userId = user.id))',
+            )
+            .andWhere("pay.status = 'success'")
+            .andWhere('pay.amount > 0')
+            .andWhere(
+              "(pay.paymentMethod IS NULL OR pay.paymentMethod != 'FREE_ACTIVATION')",
+            )
+            .andWhere(
+              "(pay.paymentType IS NULL OR LOWER(pay.paymentType) != 'simulation')",
+            ),
+        'paidSpendByFallback',
+      );
 
     if (q && q.trim()) {
-      qb.where('user.name LIKE :search OR user.email LIKE :search', {
+      qb.andWhere('(user.name LIKE :search OR user.email LIKE :search)', {
         search: `%${q.trim()}%`,
       });
+    }
+
+    if (filters.verification === 'verified')
+      qb.andWhere('user.emailVerifiedAt IS NOT NULL');
+    if (filters.verification === 'unverified')
+      qb.andWhere('user.emailVerifiedAt IS NULL');
+    if (filters.role === 'admin') qb.andWhere('user.isAdmin = true');
+    if (filters.role === 'customer') qb.andWhere('user.isAdmin = false');
+    if (filters.provider?.trim())
+      qb.andWhere('user.provider = :provider', {
+        provider: filters.provider.trim(),
+      });
+
+    const hasPaid = (sub: any) =>
+      sub
+        .select('pay.id')
+        .from(Payment, 'pay')
+        .where(
+          '(pay.userId = user.id OR (pay.userId IS NULL AND (LOWER(pay.email) = LOWER(user.email) OR EXISTS (SELECT 1 FROM invitation owned_inv WHERE owned_inv.id = pay.invitationId AND owned_inv.userId = user.id))))',
+        )
+        .andWhere("pay.status = 'success'")
+        .andWhere('pay.amount > 0')
+        .andWhere(
+          "(pay.paymentMethod IS NULL OR pay.paymentMethod != 'FREE_ACTIVATION')",
+        )
+        .andWhere(
+          "(pay.paymentType IS NULL OR LOWER(pay.paymentType) != 'simulation')",
+        );
+    const hasInvitation = (sub: any) =>
+      sub
+        .select('inv.id')
+        .from(Invitation, 'inv')
+        .where('inv.userId = user.id');
+    const hasPublishedInvitation = (sub: any) =>
+      sub
+        .select('inv.id')
+        .from(Invitation, 'inv')
+        .where('inv.userId = user.id')
+        .andWhere('inv.isPublished = true');
+    const hasPendingPayment = (sub: any) =>
+      sub
+        .select('pay.id')
+        .from(Payment, 'pay')
+        .where(
+          '(pay.userId = user.id OR (pay.userId IS NULL AND (LOWER(pay.email) = LOWER(user.email) OR EXISTS (SELECT 1 FROM invitation owned_inv WHERE owned_inv.id = pay.invitationId AND owned_inv.userId = user.id))))',
+        )
+        .andWhere("pay.status = 'pending'");
+
+    switch (filters.lifecycle) {
+      case 'never_started':
+        qb.andWhere(`NOT EXISTS ${hasInvitation(qb.subQuery())!.getQuery()}`);
+        break;
+      case 'draft':
+        qb.andWhere(`EXISTS ${hasInvitation(qb.subQuery())!.getQuery()}`)
+          .andWhere(
+            `NOT EXISTS ${hasPublishedInvitation(qb.subQuery())!.getQuery()}`,
+          )
+          .andWhere(
+            `NOT EXISTS ${hasPendingPayment(qb.subQuery())!.getQuery()}`,
+          )
+          .andWhere(`NOT EXISTS ${hasPaid(qb.subQuery())!.getQuery()}`);
+        break;
+      case 'checkout_pending':
+        qb.andWhere(
+          `EXISTS ${hasPendingPayment(qb.subQuery())!.getQuery()}`,
+        ).andWhere(`NOT EXISTS ${hasPaid(qb.subQuery())!.getQuery()}`);
+        break;
+      case 'paid':
+        qb.andWhere(`EXISTS ${hasPaid(qb.subQuery())!.getQuery()}`);
+        break;
+      case 'published':
+        qb.andWhere(
+          `EXISTS ${hasPublishedInvitation(qb.subQuery())!.getQuery()}`,
+        );
+        break;
     }
 
     const validCols: Record<string, string> = {
@@ -87,19 +257,368 @@ export class AdminService {
       isAdmin: 'user.isAdmin',
     };
     const orderCol = validCols[sortBy] || 'user.createdAt';
-
     qb.orderBy(orderCol, sortOrder)
       .skip((page - 1) * limit)
       .take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-    return { data, total, page, limit };
+    const data = await qb.getRawMany();
+    const total = await qb.clone().select('user.id').getCount();
+    return {
+      data: data.map((row) => ({
+        ...row,
+        id: Number(row.id),
+        isAdmin: Boolean(Number(row.isAdmin)),
+        hasWeddingPlannerAccess: Boolean(Number(row.hasWeddingPlannerAccess)),
+        invitationsCount: Number(row.invitationsCount || 0),
+        paidTransactionsCount: Number(row.paidTransactionsCount || 0),
+        paidTransactionsByFallback: Number(row.paidTransactionsByFallback || 0),
+        paidSpendByAccount: Number(row.paidSpendByAccount || 0),
+        paidSpendByFallback: Number(row.paidSpendByFallback || 0),
+        activityTimestampAccuracy: row.createdAt
+          ? 'legacy_accuracy_unverified'
+          : 'unknown',
+      })),
+      total,
+      page,
+      limit,
+      definitions: {
+        paidTransactionsCount:
+          'Successful positive non-simulation payment linked by Payment.userId; free activation excluded.',
+        paidTransactionsByFallback:
+          'Separate fallback count for successful positive non-simulation payments with no userId and either matching payer email or a link to an owned invitation; fallback attribution does not prove account ownership.',
+        paidSpendByAccount:
+          'Sum of successful positive Payment.amount linked by Payment.userId. Amount is after any stored discount; refund, gateway fee and commission data are not deducted.',
+        activityTimestampAccuracy:
+          'createdAt for legacy accounts may predate its reliable capture; lastLoginAt is only recorded after deployment.',
+      },
+    };
   }
 
   async getUser(id: number) {
+    const found = await this.userRepo.findOne({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        provider: true,
+        isAdmin: true,
+        adminRole: true,
+        avatar: true,
+        emailVerifiedAt: true,
+        hasWeddingPlannerAccess: true,
+        instagramHandle: true,
+        createdAt: true,
+        updatedAt: true,
+        lastLoginAt: true,
+      },
+    });
+    if (!found) throw new NotFoundException('User not found');
+    return found;
+  }
+
+  async getUserStats() {
+    const row = await this.userRepo
+      .createQueryBuilder('user')
+      .select('COUNT(user.id)', 'total')
+      .addSelect(
+        'SUM(CASE WHEN user.emailVerifiedAt IS NOT NULL THEN 1 ELSE 0 END)',
+        'verified',
+      )
+      .addSelect(
+        'SUM(CASE WHEN user.isAdmin = true THEN 1 ELSE 0 END)',
+        'admins',
+      )
+      .addSelect(
+        'SUM(CASE WHEN user.isAdmin = false THEN 1 ELSE 0 END)',
+        'customers',
+      )
+      .getRawOne();
+    return {
+      total: Number(row?.total || 0),
+      verified: Number(row?.verified || 0),
+      admins: Number(row?.admins || 0),
+      customers: Number(row?.customers || 0),
+      definitions: {
+        customers:
+          'Accounts with isAdmin=false, including accounts that have not created an invitation.',
+        verified: 'Accounts with a stored emailVerifiedAt timestamp.',
+      },
+    };
+  }
+
+  private async findUserEntity(id: number) {
     const found = await this.userRepo.findOne({ where: { id } });
     if (!found) throw new NotFoundException('User not found');
     return found;
+  }
+
+  async getCustomerDetail(id: number) {
+    const user = await this.getUser(id);
+    const [
+      invitations,
+      payments,
+      activities,
+      invitationCount,
+      publishedInvitationCount,
+      paymentCount,
+      accountPaymentStats,
+      emailPaymentStats,
+      pendingPaymentCount,
+    ] = await Promise.all([
+      this.invitationRepo.find({
+        where: { user: { id } },
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          isPublished: true,
+          dateTime: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        order: { id: 'DESC' },
+        take: 50,
+      }),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .leftJoinAndSelect('payment.invitation', 'invitation')
+        .leftJoin('invitation.user', 'invitationOwner')
+        .where(
+          '(payment.userId = :id OR (payment.userId IS NULL AND (LOWER(payment.email) = :email OR invitation.userId = :id)))',
+          {
+            id,
+            email: String(user.email).toLowerCase(),
+          },
+        )
+        .select([
+          'payment.id',
+          'payment.orderId',
+          'payment.name',
+          'payment.email',
+          'payment.amount',
+          'payment.status',
+          'payment.purpose',
+          'payment.paymentMethod',
+          'payment.paymentType',
+          'payment.createdAt',
+          'payment.settlementTime',
+          'payment.invitationId',
+          'payment.userId',
+          'invitation.id',
+          'invitation.title',
+          'invitation.slug',
+          'invitationOwner.id',
+        ])
+        .orderBy('payment.id', 'DESC')
+        .take(100)
+        .getMany(),
+      this.activityLogRepo.find({
+        where: { userEmail: user.email },
+        select: { id: true, action: true, level: true, createdAt: true },
+        order: { id: 'DESC' },
+        take: 50,
+      }),
+      this.invitationRepo.count({ where: { user: { id } } }),
+      this.invitationRepo.count({ where: { user: { id }, isPublished: true } }),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .leftJoin('payment.invitation', 'invitation')
+        .where(
+          '(payment.userId = :id OR (payment.userId IS NULL AND (LOWER(payment.email) = :email OR invitation.userId = :id)))',
+          { id, email: String(user.email).toLowerCase() },
+        )
+        .getCount(),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .leftJoin('payment.invitation', 'invitation')
+        .select(
+          "SUM(CASE WHEN payment.status = 'success' AND payment.amount > 0 AND (payment.paymentMethod IS NULL OR payment.paymentMethod != 'FREE_ACTIVATION') AND (payment.paymentType IS NULL OR LOWER(payment.paymentType) != 'simulation') THEN 1 ELSE 0 END)",
+          'count',
+        )
+        .addSelect(
+          "COALESCE(SUM(CASE WHEN payment.status = 'success' AND payment.amount > 0 AND (payment.paymentMethod IS NULL OR payment.paymentMethod != 'FREE_ACTIVATION') AND (payment.paymentType IS NULL OR LOWER(payment.paymentType) != 'simulation') THEN payment.amount ELSE 0 END), 0)",
+          'spend',
+        )
+        .where('payment.userId = :id', { id })
+        .getRawOne(),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .leftJoin('payment.invitation', 'invitation')
+        .select(
+          "SUM(CASE WHEN payment.status = 'success' AND payment.amount > 0 AND (payment.paymentMethod IS NULL OR payment.paymentMethod != 'FREE_ACTIVATION') AND (payment.paymentType IS NULL OR LOWER(payment.paymentType) != 'simulation') THEN 1 ELSE 0 END)",
+          'count',
+        )
+        .addSelect(
+          "COALESCE(SUM(CASE WHEN payment.status = 'success' AND payment.amount > 0 AND (payment.paymentMethod IS NULL OR payment.paymentMethod != 'FREE_ACTIVATION') AND (payment.paymentType IS NULL OR LOWER(payment.paymentType) != 'simulation') THEN payment.amount ELSE 0 END), 0)",
+          'spend',
+        )
+        .where(
+          'payment.userId IS NULL AND (LOWER(payment.email) = :email OR invitation.userId = :id)',
+          {
+            email: String(user.email).toLowerCase(),
+            id,
+          },
+        )
+        .getRawOne(),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .where(
+          '(payment.userId = :id OR (payment.userId IS NULL AND (LOWER(payment.email) = :email OR invitation.userId = :id)))',
+          { id, email: String(user.email).toLowerCase() },
+        )
+        .leftJoin('payment.invitation', 'invitation')
+        .andWhere("payment.status = 'pending'")
+        .getCount(),
+    ]);
+
+    const timeline = [
+      ...(user.lastLoginAt
+        ? [
+            {
+              type: 'login',
+              at: user.lastLoginAt,
+              label: 'Login berhasil (pelacakan baru aktif)',
+              evidence: 'lastLoginAt',
+            },
+          ]
+        : []),
+      ...(user.emailVerifiedAt
+        ? [
+            {
+              type: 'email_verified',
+              at: user.emailVerifiedAt,
+              source: 'User.emailVerifiedAt',
+            },
+          ]
+        : []),
+      ...invitations.map((inv) => ({
+        type: 'invitation_created',
+        at: inv.createdAt,
+        invitationId: inv.id,
+        label: inv.title,
+      })),
+      ...payments
+        .filter(
+          (payment) =>
+            payment.status === 'success' &&
+            Number(payment.amount) > 0 &&
+            payment.paymentMethod !== 'FREE_ACTIVATION' &&
+            payment.paymentType !== 'simulation',
+        )
+        .map((payment) => ({
+          type: 'payment_settled',
+          at: payment.settlementTime,
+          paymentId: payment.id,
+          orderId: payment.orderId,
+          label: payment.invitation?.title || 'Transaksi',
+          evidence:
+            payment.userId === id
+              ? 'account_id'
+              : payment.invitation?.user?.id === id
+                ? 'owned_invitation'
+                : 'payer_email_match',
+        })),
+      ...(publishedInvitationCount
+        ? [
+            {
+              type: 'invitation_published',
+              at: null,
+              label: `${publishedInvitationCount} undangan berstatus terbit`,
+              evidence: 'isPublished=true; timestamp terbit tidak tersedia',
+              timestampUnknown: true,
+            },
+          ]
+        : []),
+      ...activities.map((activity) => ({
+        type: 'activity',
+        at: activity.createdAt,
+        label: activity.action,
+        level: activity.level,
+      })),
+    ];
+    const accountPaidCount = Number(accountPaymentStats?.count || 0);
+    const accountSpend = Number(accountPaymentStats?.spend || 0);
+    const fallbackPaidCount = Number(emailPaymentStats?.count || 0);
+    const fallbackSpend = Number(emailPaymentStats?.spend || 0);
+
+    return {
+      customer: {
+        ...user,
+        activityTimestampAccuracy: user.createdAt
+          ? 'legacy_accuracy_unverified'
+          : 'unknown',
+        lastLoginAtAccuracy: user.lastLoginAt
+          ? 'tracked_since_deployment'
+          : 'unknown',
+      },
+      lifecycle: {
+        stage:
+          publishedInvitationCount > 0
+            ? 'published'
+            : pendingPaymentCount > 0
+              ? 'checkout_pending'
+              : accountPaidCount > 0
+                ? 'paid'
+                : fallbackPaidCount > 0
+                  ? 'paid_by_legacy_link'
+                  : invitationCount
+                    ? 'draft'
+                    : user.emailVerifiedAt
+                      ? 'verified_no_invitation'
+                      : 'unverified',
+        evidence:
+          'Derived from recorded verification, owned invitations, and eligible payment records. No wedding-completion event exists.',
+        weddingCompletion: null,
+      },
+      invitations,
+      payments: payments.map((payment) => ({
+        id: payment.id,
+        orderId: payment.orderId,
+        payer: { name: payment.name, email: payment.email },
+        accountAttribution:
+          payment.userId === id
+            ? 'account_id'
+            : payment.userId === null && payment.invitation?.user?.id === id
+              ? 'owned_invitation'
+              : payment.userId === null
+                ? 'payer_email_match'
+                : 'unrelated',
+        amount: Number(payment.amount),
+        status: payment.status,
+        purpose: payment.purpose,
+        paymentMethod: payment.paymentMethod,
+        paymentType: payment.paymentType,
+        createdAt: payment.createdAt,
+        settlementTime: payment.settlementTime,
+        invitation: payment.invitation
+          ? {
+              id: payment.invitation.id,
+              title: payment.invitation.title,
+              slug: payment.invitation.slug,
+            }
+          : null,
+      })),
+      summary: {
+        invitationCount,
+        paymentCount,
+        paidTransactionCountByAccountId: accountPaidCount,
+        paidTransactionCountByFallback: fallbackPaidCount,
+        spendByAccount: accountSpend,
+        spendByFallback: fallbackSpend,
+        fallbackLinkMayNotIdentifyTheAccountOwner: true,
+      },
+      timeline: timeline.sort((a, b) => {
+        if (!a.at) return 1;
+        if (!b.at) return -1;
+        return new Date(b.at).getTime() - new Date(a.at).getTime();
+      }),
+      limitations: [
+        'Legacy signup timestamps have not been validated against historical event sources.',
+        'No reliable login history exists before lastLoginAt tracking was deployed.',
+        'No wedding completion event is currently stored.',
+        'Detail lists are capped to the latest 50 invitations, 100 payments and 50 activity records; summary totals use all matching records.',
+      ],
+    };
   }
 
   async createUser(payload: Partial<User> & { password?: string }) {
@@ -114,11 +633,12 @@ export class AdminService {
       user.password = await bcrypt.hash(payload.password, 10);
       user.provider = user.provider || 'local';
     }
-    return this.userRepo.save(user);
+    const saved = await this.userRepo.save(user);
+    return this.getUser(saved.id);
   }
 
   async updateUser(id: number, payload: Partial<User> & { password?: string }) {
-    const user = await this.getUser(id);
+    const user = await this.findUserEntity(id);
     if (payload.email && payload.email !== user.email) {
       const exists = await this.userRepo.findOne({
         where: { email: payload.email },
@@ -131,34 +651,58 @@ export class AdminService {
     }
     const { isEmailVerified, ...rest } = payload as any;
     if (typeof isEmailVerified === 'boolean') {
-      user.emailVerifiedAt = isEmailVerified ? (user.emailVerifiedAt || new Date()) : null;
+      user.emailVerifiedAt = isEmailVerified
+        ? user.emailVerifiedAt || new Date()
+        : null;
       if (isEmailVerified) {
         user.emailVerificationTokenHash = null;
         user.emailVerificationTokenExpiresAt = null;
       }
     }
     Object.assign(user, rest);
-    return this.userRepo.save(user);
+    await this.userRepo.save(user);
+    return this.getUser(user.id);
   }
 
   async deleteUser(id: number) {
-    const user = await this.getUser(id);
+    const user = await this.findUserEntity(id);
+    const [invitationCount, paymentCount] = await Promise.all([
+      this.invitationRepo.count({ where: { user: { id } } }),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .leftJoin('payment.invitation', 'invitation')
+        .where(
+          '(payment.userId = :id OR (payment.userId IS NULL AND (LOWER(payment.email) = :email OR invitation.userId = :id)))',
+          { id, email: user.email.toLowerCase() },
+        )
+        .getCount(),
+    ]);
     try {
-      await this.userRepo.query('DELETE FROM user_consents WHERE user_id = ?', [id]);
+      await this.userRepo.query('DELETE FROM user_consents WHERE user_id = ?', [
+        id,
+      ]);
     } catch {}
     if (user.email) {
       try {
         await this.activityLogRepo.delete({ userEmail: user.email });
       } catch {}
     }
-    try {
-      const userInvs = await this.invitationRepo.find({ where: { user: { id } } });
-      for (const inv of userInvs) {
-        await this.deleteInvitation(inv.id);
-      }
-    } catch {}
+    const userInvs = await this.invitationRepo.find({
+      where: { user: { id } },
+    });
+    for (const inv of userInvs) {
+      await this.deleteInvitation(inv.id);
+    }
     await this.userRepo.remove(user);
-    return { success: true };
+    return {
+      success: true,
+      impact: {
+        invitationCount,
+        linkedPaymentCount: paymentCount,
+        invitationsAreDeleted: true,
+        paymentRecordsAreRetained: true,
+      },
+    };
   }
 
   async verifyUserEmail(id: number) {
@@ -167,7 +711,10 @@ export class AdminService {
     user.emailVerificationTokenHash = null;
     user.emailVerificationTokenExpiresAt = null;
     await this.userRepo.save(user);
-    return { success: true, message: `Email ${user.email} berhasil diverifikasi.` };
+    return {
+      success: true,
+      message: `Email ${user.email} berhasil diverifikasi.`,
+    };
   }
 
   // Invitations
@@ -309,7 +856,9 @@ export class AdminService {
   private wibDayBoundary(value: string, edge: 'start' | 'end'): Date {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       const parsed = new Date(
-        edge === 'start' ? `${value}T00:00:00+07:00` : `${value}T23:59:59.999+07:00`,
+        edge === 'start'
+          ? `${value}T00:00:00+07:00`
+          : `${value}T23:59:59.999+07:00`,
       );
       if (!Number.isNaN(parsed.getTime())) return parsed;
     }
@@ -631,24 +1180,35 @@ export class AdminService {
         qb.andWhere('p.settlementTime IS NOT NULL');
       } else if (kind === 'free') {
         qb.andWhere('p.amount = 0');
-        qb.andWhere("(p.paymentMethod = 'FREE_ACTIVATION' OR p.paymentType = 'free')");
+        qb.andWhere(
+          "(p.paymentMethod = 'FREE_ACTIVATION' OR p.paymentType = 'free')",
+        );
         qb.andWhere('p.settlementTime IS NOT NULL');
       }
     }
 
     if (startDate || endDate) {
-      const dateColumn = kind === 'paid' || kind === 'free' ? 'p.settlementTime' : 'p.createdAt';
+      const dateColumn =
+        kind === 'paid' || kind === 'free' ? 'p.settlementTime' : 'p.createdAt';
       if (kind || (startDate && endDate)) {
         const range = resolveDashboardPeriod({ startDate, endDate });
-        qb.andWhere(`${dateColumn} >= :rangeStart AND ${dateColumn} < :rangeEnd`, {
-          rangeStart: range.start, rangeEnd: range.effectiveEnd,
-        });
+        qb.andWhere(
+          `${dateColumn} >= :rangeStart AND ${dateColumn} < :rangeEnd`,
+          {
+            rangeStart: range.start,
+            rangeEnd: range.effectiveEnd,
+          },
+        );
       } else if (startDate) {
         const range = resolveDashboardPeriod({ startDate, endDate: startDate });
-        qb.andWhere(`${dateColumn} >= :rangeStart`, { rangeStart: range.start });
+        qb.andWhere(`${dateColumn} >= :rangeStart`, {
+          rangeStart: range.start,
+        });
       } else if (endDate) {
         const range = resolveDashboardPeriod({ startDate: endDate, endDate });
-        qb.andWhere(`${dateColumn} < :rangeEnd`, { rangeEnd: range.effectiveEnd });
+        qb.andWhere(`${dateColumn} < :rangeEnd`, {
+          rangeEnd: range.effectiveEnd,
+        });
       }
     }
 
@@ -1042,11 +1602,7 @@ export class AdminService {
     };
   }
 
-  async reconcilePaymentPublish(
-    id: number,
-    reason?: string,
-    adminUser?: any,
-  ) {
+  async reconcilePaymentPublish(id: number, reason?: string, adminUser?: any) {
     const payment = await this.paymentRepo.findOne({
       where: { id },
       relations: ['invitation'],
@@ -1054,7 +1610,9 @@ export class AdminService {
 
     if (!payment) throw new NotFoundException('Payment not found');
     if (!payment.invitation) {
-      throw new BadRequestException('Transaksi tidak terhubung ke undangan manapun');
+      throw new BadRequestException(
+        'Transaksi tidak terhubung ke undangan manapun',
+      );
     }
     if (payment.status !== 'success') {
       throw new BadRequestException(
@@ -1168,8 +1726,17 @@ export class AdminService {
     let page = 1;
     while (true) {
       const result = await this.listPayments(
-        page, batchSize, q, status, purpose, packageType, startDate, endDate,
-        'createdAt', 'DESC', kind,
+        page,
+        batchSize,
+        q,
+        status,
+        purpose,
+        packageType,
+        startDate,
+        endDate,
+        'createdAt',
+        'DESC',
+        kind,
       );
       data.push(...result.data);
       if (result.data.length < batchSize || data.length >= result.total) break;
@@ -1830,9 +2397,14 @@ export class AdminService {
     const target = await this.userRepo.findOne({ where: { id } });
     if (!target) throw new NotFoundException('Pengguna tidak ditemukan');
     if (!target.isAdmin) {
-      throw new BadRequestException('Pengguna ini bukan admin. Jadikan admin lebih dulu.');
+      throw new BadRequestException(
+        'Pengguna ini bukan admin. Jadikan admin lebih dulu.',
+      );
     }
-    if (resolveAdminRole(target) === 'superadmin' && adminRole !== 'superadmin') {
+    if (
+      resolveAdminRole(target) === 'superadmin' &&
+      adminRole !== 'superadmin'
+    ) {
       const admins = await this.userRepo.find({
         where: { isAdmin: true },
         select: { id: true, isAdmin: true, adminRole: true },
@@ -1841,7 +2413,9 @@ export class AdminService {
         (admin) => admin.id !== id && resolveAdminRole(admin) === 'superadmin',
       );
       if (!otherSuperadmins.length) {
-        throw new BadRequestException('Minimal satu superadmin harus tetap ada.');
+        throw new BadRequestException(
+          'Minimal satu superadmin harus tetap ada.',
+        );
       }
     }
     target.adminRole = adminRole;
@@ -1880,7 +2454,9 @@ export class AdminService {
       rangeLabel = `${customStart} s/d ${customEnd}`;
       const [sy, sm, sd] = customStart.split('-').map(Number);
       const [ey, em, ed] = customEnd.split('-').map(Number);
-      startDate = new Date(Date.UTC(sy, sm - 1, sd, 0, 0, 0, 0) - WIB_OFFSET_MS);
+      startDate = new Date(
+        Date.UTC(sy, sm - 1, sd, 0, 0, 0, 0) - WIB_OFFSET_MS,
+      );
       endDate = new Date(
         Date.UTC(ey, em - 1, ed, 23, 59, 59, 999) - WIB_OFFSET_MS,
       );
@@ -1916,7 +2492,9 @@ export class AdminService {
       );
     } else if (rangeKey === 'month') {
       rangeLabel = 'Bulan Ini';
-      startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0) - WIB_OFFSET_MS);
+      startDate = new Date(
+        Date.UTC(year, month, 1, 0, 0, 0, 0) - WIB_OFFSET_MS,
+      );
       daysCount = date;
       const prevMonthLastDate = new Date(Date.UTC(year, month, 0)).getUTCDate();
       previousEndDate = new Date(
@@ -2219,10 +2797,13 @@ export class AdminService {
           const prevInvRaw = await this.invitationRepo
             .createQueryBuilder('inv')
             .select('COUNT(inv.id)', 'total')
-            .where('inv.createdAt >= :prevStart AND inv.createdAt <= :prevEnd', {
-              prevStart: range.previousStartDate,
-              prevEnd: range.previousEndDate,
-            })
+            .where(
+              'inv.createdAt >= :prevStart AND inv.createdAt <= :prevEnd',
+              {
+                prevStart: range.previousStartDate,
+                prevEnd: range.previousEndDate,
+              },
+            )
             .getRawOne();
           prevTotalInvitations = Number(prevInvRaw?.total) || 0;
         }
@@ -2341,8 +2922,7 @@ export class AdminService {
           growth: calcGrowth(uniqueBuyers, prevUniqueBuyers),
         },
         aov: {
-          value:
-            paidOrders > 0 ? Math.round(grossRevenue / paidOrders) : 0,
+          value: paidOrders > 0 ? Math.round(grossRevenue / paidOrders) : 0,
           previous:
             prevPaidOrders > 0
               ? Math.round(prevGrossRevenue / prevPaidOrders)
@@ -2522,4 +3102,3 @@ export class AdminService {
     return { success: true, message: 'Semua catatan log berhasil dibersihkan' };
   }
 }
-

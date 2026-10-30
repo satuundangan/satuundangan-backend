@@ -184,25 +184,65 @@ export class InvitationService {
               new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
           )
         : [];
-      const latestPayment = sortedPayments[0] || null;
+
+      const latest = sortedPayments.length > 0 ? sortedPayments[0] : null;
+      const latestPayment =
+        invitation.payments && invitation.payments.length > 0 && latest
+          ? {
+              orderId: latest.orderId,
+              status: latest.status,
+              amount: Number(latest.amount),
+              package: latest.package,
+              paymentMethod:
+                latest.paymentMethod ?? latest.paymentType,
+              settlementTime: latest.settlementTime,
+              createdAt: latest.createdAt,
+            }
+          : null;
+
+      const latestPending = sortedPayments.find(
+        (p) => p.status === 'pending' || p.status === PaymentStatus.PENDING,
+      );
+
+      const paymentStatus = invitation.isPublished
+        ? 'settled'
+        : latestPending
+          ? 'pending'
+          : 'unpaid';
+
+      const latestOrderId = latestPayment?.orderId ?? null;
+
+      const settledPayment = invitation.payments?.find(
+        (p) =>
+          p.status === 'settlement' ||
+          p.status === 'capture' ||
+          p.status === 'success',
+      );
+      const baseDate =
+        settledPayment?.settlementTime ||
+        invitation.updatedAt ||
+        invitation.createdAt ||
+        new Date();
+      const expiresAt = invitation.isPublished
+        ? new Date(
+            new Date(baseDate).getTime() + 366 * 24 * 60 * 60 * 1000,
+          ).toISOString()
+        : null;
 
       return {
         ...invitation,
+        package: invitation.package || 'basic',
+        payments: sortedPayments,
+        latestPayment,
+        paymentStatus,
+        latestOrderId,
+        latestPaymentStatus: latestPayment?.status || null,
+        expiresAt,
         templateDesignId: invitation.templateDesignId,
         templateName:
           invitation.templateName || invitation.templateDesign?.name || '',
         isPublished: invitation.isPublished,
         is_published: invitation.isPublished,
-        latestOrderId: latestPayment?.orderId || null,
-        latestPaymentStatus: latestPayment?.status || null,
-        payments: sortedPayments.map((p) => ({
-          orderId: p.orderId,
-          status: p.status,
-          amount: p.amount,
-          package: p.package,
-          paymentMethod: p.paymentMethod || p.paymentType,
-          createdAt: p.createdAt,
-        })),
         groomPhotoUrl: invitation.groomPhotoUrl || '',
         photoCoupleUrl: invitation.photoCoupleUrl || '',
         quoteType: invitation.quoteType || 'default',

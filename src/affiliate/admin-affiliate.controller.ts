@@ -7,6 +7,7 @@ import {
   Post,
   Query,
   UseGuards,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -15,6 +16,8 @@ import { AffiliateConfigService } from './affiliate-config.service';
 import { AffiliateService } from './affiliate.service';
 import { UpdateTierConfigDto } from './dto/update-tier-config.dto';
 import { UpdateSystemConfigDto } from './dto/update-system-config.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { User } from '../user/user.entity';
 
 @ApiTags('Admin Affiliate')
 @Controller('admin/affiliate')
@@ -32,11 +35,13 @@ export class AdminAffiliateController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
     @Query('search') search?: string,
+    @Query('status') status?: string,
   ) {
     return this.affiliateService.adminListResellers(
       Number(page),
       Number(limit),
       search,
+      status,
     );
   }
 
@@ -65,10 +70,29 @@ export class AdminAffiliateController {
     );
   }
 
+  @Get('commissions')
+  @ApiOperation({
+    summary: 'List settlement-backed reseller commission ledger rows',
+  })
+  async listCommissions(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('status') status?: string,
+    @Query('affiliateProfileId') affiliateProfileId?: string,
+  ) {
+    return this.affiliateService.adminListCommissions(
+      Number(page),
+      Number(limit),
+      status,
+      affiliateProfileId ? Number(affiliateProfileId) : undefined,
+    );
+  }
+
   @Post('withdrawals/:id/approve')
   @ApiOperation({ summary: 'Approve withdrawal and upload proof (ADM-03)' })
   async approveWithdrawal(
-    @Param('id') id: number,
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() admin: User,
     @Body('proofUrl') proofUrl?: string,
     @Body('adminNote') adminNote?: string,
   ) {
@@ -76,16 +100,18 @@ export class AdminAffiliateController {
       id,
       proofUrl,
       adminNote,
+      admin.id,
     );
   }
 
   @Post('withdrawals/:id/reject')
   @ApiOperation({ summary: 'Reject withdrawal with reason (ADM-04)' })
   async rejectWithdrawal(
-    @Param('id') id: number,
+    @Param('id', ParseIntPipe) id: number,
     @Body('adminNote') adminNote: string,
+    @CurrentUser() admin: User,
   ) {
-    return this.affiliateService.adminRejectWithdrawal(id, adminNote);
+    return this.affiliateService.adminRejectWithdrawal(id, adminNote, admin.id);
   }
 
   @Get('tier-config')
@@ -110,9 +136,14 @@ export class AdminAffiliateController {
   })
   async updateTierConfig(
     @Param('tier') tier: string,
+    @CurrentUser() admin: User,
     @Body() dto: UpdateTierConfigDto,
   ) {
-    const updated = await this.configService.updateTierConfig(tier, dto);
+    const updated = await this.configService.updateTierConfig(
+      tier,
+      dto,
+      admin.id,
+    );
     return {
       success: true,
       data: {
@@ -134,10 +165,28 @@ export class AdminAffiliateController {
     return { success: true, data };
   }
 
+  @Get('config-history')
+  @ApiOperation({ summary: 'List effective affiliate config changes' })
+  async getConfigHistory() {
+    return {
+      success: true,
+      data: await this.configService.listConfigHistory(),
+    };
+  }
+
+  @Get('job-runs')
+  @ApiOperation({ summary: 'List recent affiliate scheduler runs' })
+  async getJobRuns() {
+    return { success: true, data: await this.configService.listJobRuns() };
+  }
+
   @Patch('system-config')
   @ApiOperation({ summary: 'Update system config (ADM-06, ADM-07, ADM-08)' })
-  async updateSystemConfig(@Body() dto: UpdateSystemConfigDto) {
-    const data = await this.configService.updateSystemConfig(dto);
+  async updateSystemConfig(
+    @CurrentUser() admin: User,
+    @Body() dto: UpdateSystemConfigDto,
+  ) {
+    const data = await this.configService.updateSystemConfig(dto, admin.id);
     return { success: true, data };
   }
 }

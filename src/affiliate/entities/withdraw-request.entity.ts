@@ -39,6 +39,15 @@ export class WithdrawRequest {
   @Column({ type: 'varchar', length: 500, nullable: true })
   proofUrl: string | null;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  bankNameSnapshot: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  bankAccountNumberSnapshot: string | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  bankAccountNameSnapshot: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   processedAt: Date | null;
 

@@ -2343,7 +2343,28 @@ export class AdminService {
   // Audio
   async listAudio(q?: string) {
     const where = q ? { title: ILike(`%${q}%`) } : undefined;
-    return this.audioRepo.find({ where, order: { title: 'ASC' } });
+    const tracks = await this.audioRepo.find({
+      where,
+      order: { title: 'ASC' },
+    });
+    return Promise.all(
+      tracks.map(async (track) => {
+        const [templateUseCount, invitationUseCount] = await Promise.all([
+          this.templateDesignRepo.count({ where: { defaultMusic: track.url } }),
+          this.invitationRepo.count({ where: { musicChoice: track.url } }),
+        ]);
+        return {
+          ...track,
+          templateUseCount,
+          invitationUseCount,
+          sourceStatus: 'unknown',
+          licenseStatus: 'unknown',
+          durationStatus: 'unknown',
+          usageMatch:
+            'Exact URL match only; filename and historical URL aliases are not inferred.',
+        };
+      }),
+    );
   }
 
   async createAudio(payload: Partial<Audio>) {
@@ -2373,6 +2394,15 @@ export class AdminService {
   async deleteAudio(id: string) {
     const audio = await this.audioRepo.findOne({ where: { id } });
     if (!audio) throw new NotFoundException('Audio not found');
+    const [templateUseCount, invitationUseCount] = await Promise.all([
+      this.templateDesignRepo.count({ where: { defaultMusic: audio.url } }),
+      this.invitationRepo.count({ where: { musicChoice: audio.url } }),
+    ]);
+    if (templateUseCount > 0 || invitationUseCount > 0) {
+      throw new BadRequestException(
+        `Audio masih digunakan oleh ${templateUseCount} template dan ${invitationUseCount} undangan. Ganti referensi sebelum menghapus.`,
+      );
+    }
     await this.audioRepo.remove(audio);
     return { success: true };
   }
@@ -2382,7 +2412,36 @@ export class AdminService {
     const where = q
       ? [{ name: ILike(`%${q}%`) }, { code: ILike(`%${q}%`) }]
       : undefined;
-    return this.bankRepo.find({ where, order: { name: 'ASC' } });
+    const banks = await this.bankRepo.find({ where, order: { name: 'ASC' } });
+    return Promise.all(
+      banks.map(async (bank) => {
+        const [bankAccountResult, walletResult] = await Promise.all([
+          this.invitationRepo
+            .createQueryBuilder('invitation')
+            .select('COUNT(DISTINCT invitation.id)', 'count')
+            .where(
+              "JSON_SEARCH(invitation.bankAccounts, 'one', :name, NULL, '$[*].bankName') IS NOT NULL",
+              { name: bank.name },
+            )
+            .getRawOne(),
+          this.invitationRepo
+            .createQueryBuilder('invitation')
+            .select('COUNT(DISTINCT invitation.id)', 'count')
+            .where(
+              "JSON_SEARCH(invitation.eWalletLink, 'one', :name, NULL, '$[*].wallet_provider') IS NOT NULL",
+              { name: bank.name },
+            )
+            .getRawOne(),
+        ]);
+        return {
+          ...bank,
+          bankAccountUseCount: Number(bankAccountResult?.count || 0),
+          walletUseCount: Number(walletResult?.count || 0),
+          usageMatch:
+            'Exact current name match in invitation snapshots; aliases are not inferred.',
+        };
+      }),
+    );
   }
 
   async createBank(payload: Partial<Bank>) {
@@ -2390,9 +2449,41 @@ export class AdminService {
     return this.bankRepo.save(bank);
   }
 
+  async updateBank(id: string, payload: Partial<Bank>) {
+    const bank = await this.bankRepo.findOne({ where: { id } });
+    if (!bank) throw new NotFoundException('Bank not found');
+    Object.assign(bank, payload);
+    return this.bankRepo.save(bank);
+  }
+
   async deleteBank(id: string) {
     const bank = await this.bankRepo.findOne({ where: { id } });
     if (!bank) throw new NotFoundException('Bank not found');
+    const [bankAccountResult, walletResult] = await Promise.all([
+      this.invitationRepo
+        .createQueryBuilder('invitation')
+        .select('COUNT(DISTINCT invitation.id)', 'count')
+        .where(
+          "JSON_SEARCH(invitation.bankAccounts, 'one', :name, NULL, '$[*].bankName') IS NOT NULL",
+          { name: bank.name },
+        )
+        .getRawOne(),
+      this.invitationRepo
+        .createQueryBuilder('invitation')
+        .select('COUNT(DISTINCT invitation.id)', 'count')
+        .where(
+          "JSON_SEARCH(invitation.eWalletLink, 'one', :name, NULL, '$[*].wallet_provider') IS NOT NULL",
+          { name: bank.name },
+        )
+        .getRawOne(),
+    ]);
+    const usageCount =
+      Number(bankAccountResult?.count || 0) + Number(walletResult?.count || 0);
+    if (usageCount > 0) {
+      throw new BadRequestException(
+        `Master masih dipakai pada ${Number(bankAccountResult?.count || 0)} snapshot rekening dan ${Number(walletResult?.count || 0)} snapshot e-wallet. Perbarui referensi dahulu sebelum menghapus.`,
+      );
+    }
     await this.bankRepo.remove(bank);
     return { success: true };
   }

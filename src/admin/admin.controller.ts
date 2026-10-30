@@ -409,6 +409,11 @@ export class AdminController {
     return this.service.createBank(body);
   }
 
+  @Patch('banks/:id')
+  updateBank(@Param('id') id: string, @Body() body: any) {
+    return this.service.updateBank(id, body);
+  }
+
   @Delete('banks/:id')
   deleteBank(@Param('id') id: string) {
     return this.service.deleteBank(id);

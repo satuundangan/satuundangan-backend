@@ -98,4 +98,27 @@ export class GuestMessagesService {
     }
     return messages;
   }
+
+  async delete(
+    id: number,
+    user: { id: number; isAdmin: boolean },
+  ): Promise<void> {
+    const message = await this.guestMessageRepo.findOne({
+      where: { id },
+      relations: ['invitation', 'invitation.user', 'guest'],
+    });
+
+    if (!message) {
+      throw new NotFoundException('Guest message not found');
+    }
+
+    if (!user.isAdmin && message.invitation?.user?.id !== user.id) {
+      throw new ForbiddenException(
+        'You are not allowed to delete this message',
+      );
+    }
+
+    // PENTING: Jangan ubah guest.rsvpStatus jika pesan dihapus (pertahankan data RSVP tamu).
+    await this.guestMessageRepo.remove(message);
+  }
 }

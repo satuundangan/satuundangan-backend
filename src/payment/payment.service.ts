@@ -585,6 +585,14 @@ export class PaymentService {
       orderId: payment.orderId,
       status: payment.status,
       invitationSlug: payment.invitation?.slug ?? null,
+      amount: payment.amount != null ? Number(payment.amount) : null,
+      name: payment.name ?? null,
+      email: payment.email ?? null,
+      package: payment.package || payment.invitation?.package || null,
+      paymentMethod: payment.paymentMethod || payment.paymentType || null,
+      transactionTime: payment.settlementTime || payment.createdAt || null,
+      redirectUrl: payment.redirectUrl ?? null,
+      snapToken: payment.snapToken ?? null,
     };
   }
 

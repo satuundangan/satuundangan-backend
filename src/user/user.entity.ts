@@ -44,6 +44,10 @@ export class User {
   @Column({ type: 'bool', default: false })
   isAdmin: boolean;
 
+  // null on an admin account means superadmin (accounts that predate roles)
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  adminRole: string | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   avatar: string | null;
 
@@ -58,6 +62,10 @@ export class User {
 
   @Column({ type: 'bool', default: false })
   totpEnabled: boolean;
+
+  // SHA-256 hashes of unused one-time recovery codes; never selected by default
+  @Column({ type: 'json', nullable: true, select: false })
+  totpRecoveryHashes: string[] | null;
 
   @Column({ type: 'bool', default: false })
   hasWeddingPlannerAccess: boolean;

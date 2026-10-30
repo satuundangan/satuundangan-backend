@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from '../user/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import { EmailService } from './email.service';
+import { AdminSecurityService } from './admin-security.service';
 
 jest.mock('otplib', () => ({
   generateSecret: jest.fn(() => 'MOCKSECRET'),
@@ -35,6 +36,7 @@ describe('AuthService', () => {
         { provide: getRepositoryToken(User), useValue: mockUserRepo },
         { provide: JwtService, useValue: mockJwtService },
         { provide: EmailService, useValue: mockEmailService },
+        { provide: AdminSecurityService, useValue: {} },
       ],
     }).compile();
 

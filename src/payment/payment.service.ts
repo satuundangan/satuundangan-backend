@@ -70,6 +70,10 @@ export class PaymentService {
     pkg: InvitationPackage,
     promoCode?: string,
     affiliateCode?: string,
+    analyticsContext?: {
+      gaClientId: string | null;
+      acquisition: Record<string, string> | null;
+    },
   ) {
     if (!pkg || !(pkg in PACKAGE_PRICES)) {
       throw new BadRequestException('Paket tidak valid');
@@ -301,6 +305,8 @@ export class PaymentService {
       discountAmount: discountAmount || null,
       affiliateProfileId: affiliateProfileId,
       package: pkg,
+      gaClientId: analyticsContext?.gaClientId ?? null,
+      acquisition: analyticsContext?.acquisition ?? null,
     } as DeepPartial<Payment>);
 
     await this.paymentRepo.save(payment);

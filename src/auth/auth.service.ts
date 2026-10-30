@@ -18,6 +18,7 @@ import { Logger } from '@nestjs/common';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { EmailService } from './email.service';
+import { AdminSecurityService } from './admin-security.service';
 
 type UserType = {
   id: number;
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly userRepo: Repository<User>,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
+    private readonly adminSecurity: AdminSecurityService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -250,8 +252,10 @@ export class AuthService {
     userId: number,
     email: string,
     isApproved: boolean = false,
+    sessionId?: string,
   ): { access_token: string; isApproved: boolean } {
-    const payload = { sub: userId, email };
+    const payload: { sub: number; email: string; sid?: string } = { sub: userId, email };
+    if (sessionId) payload.sid = sessionId;
     Logger.log(`Creating JWT for userId: ${userId}, email: ${email}`);
     return {
       access_token: this.jwtService.sign(payload),
@@ -259,7 +263,12 @@ export class AuthService {
     };
   }
 
-  async adminLogin(email: string, password: string, totpCode?: string) {
+  async adminLogin(
+    email: string,
+    password: string,
+    totpCode?: string,
+    meta: { ip?: string | null; userAgent?: string | null } = {},
+  ) {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.userRepo.findOne({ where: { email: normalizedEmail } });
 
@@ -276,38 +285,16 @@ export class AuthService {
     }
 
     // 2FA / TOTP temporarily bypassed as requested
-    return this._createToken(user.id, user.email, user.isApproved);
+    const session = await this.adminSecurity.startSession(user.id, meta);
+    return this._createToken(user.id, user.email, user.isApproved, session.id);
   }
 
-  async setupTotp(userId: number): Promise<{ otpauthUrl: string; secret: string; qrCode: string }> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException('User not found');
-
-    const secret = generateSecret();
-    user.totpSecret = secret;
-    user.totpEnabled = false;
-    await this.userRepo.save(user);
-
-    const otpauthUrl = generateURI({ issuer: 'Satu Undangan Admin', label: user.email, secret });
-    const qrCode = await QRCode.toDataURL(otpauthUrl);
-
-    return { otpauthUrl, secret, qrCode };
+  setupTotp(userId: number) {
+    return this.adminSecurity.setup(userId);
   }
 
-  async activateTotp(userId: number, code: string): Promise<{ message: string }> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user || !user.totpSecret) {
-      throw new BadRequestException('Setup TOTP dulu sebelum aktivasi');
-    }
-
-    const result = verifySync({ token: code, secret: user.totpSecret });
-    if (!result.valid) {
-      throw new BadRequestException('Kode OTP tidak valid, coba lagi');
-    }
-
-    user.totpEnabled = true;
-    await this.userRepo.save(user);
-    return { message: 'TOTP berhasil diaktifkan' };
+  activateTotp(userId: number, code: string) {
+    return this.adminSecurity.activate(userId, code);
   }
 
   async findByEmail(email: string) {

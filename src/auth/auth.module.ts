@@ -10,6 +10,8 @@ import { EmailService } from './email.service';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
 import { AdminGuard } from './guards/admin.guard';
+import { AdminSession } from './admin-session.entity';
+import { AdminSecurityService } from './admin-security.service';
 
 import { User } from '../user/user.entity';
 import { UserModule } from '../user/user.module';
@@ -19,7 +21,7 @@ import { TurnstileModule } from '../common/turnstile/turnstile.module';
   imports: [
     ConfigModule, // tambahkan ini
     TurnstileModule,
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, AdminSession]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -33,7 +35,7 @@ import { TurnstileModule } from '../common/turnstile/turnstile.module';
     UserModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, EmailService, JwtStrategy, GoogleStrategy, AdminGuard],
+  providers: [AuthService, EmailService, JwtStrategy, GoogleStrategy, AdminGuard, AdminSecurityService],
   exports: [EmailService],
 })
 export class AuthModule {}

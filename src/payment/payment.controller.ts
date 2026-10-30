@@ -27,6 +27,24 @@ import {
   PACKAGE_FEATURES,
 } from '../invitation/invitation.entity';
 
+/** Browser-supplied analytics context is optional and untrusted: keep only well-formed values. */
+export function sanitizeAnalyticsContext(
+  clientId?: unknown,
+  acquisition?: unknown,
+): { gaClientId: string | null; acquisition: Record<string, string> | null } {
+  const gaClientId =
+    typeof clientId === 'string' && /^\d{5,12}\.\d{5,12}$/.test(clientId) ? clientId : null;
+  let cleaned: Record<string, string> | null = null;
+  if (acquisition && typeof acquisition === 'object' && !Array.isArray(acquisition)) {
+    const entries = ['source', 'medium', 'campaign']
+      .map((key) => [key, (acquisition as Record<string, unknown>)[key]] as const)
+      .filter(([, value]) => typeof value === 'string' && /^[\w .\-:/+()%]{1,100}$/.test(value as string))
+      .map(([key, value]) => [key, (value as string).trim()]);
+    if (entries.length) cleaned = Object.fromEntries(entries);
+  }
+  return { gaClientId, acquisition: cleaned };
+}
+
 @Controller('payment')
 export class PaymentController {
   constructor(
@@ -57,6 +75,8 @@ export class PaymentController {
       package: InvitationPackage;
       promo_code?: string;
       affiliate_code?: string;
+      ga_client_id?: string;
+      acquisition?: { source?: string; medium?: string; campaign?: string };
     },
     @CurrentUser() user: User,
   ) {
@@ -66,6 +86,7 @@ export class PaymentController {
       body.package,
       body.promo_code,
       body.affiliate_code,
+      sanitizeAnalyticsContext(body.ga_client_id, body.acquisition),
     );
   }
 

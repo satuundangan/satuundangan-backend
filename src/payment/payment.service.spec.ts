@@ -15,15 +15,11 @@ import { DataSource } from 'typeorm';
 
 const mockCreateTransaction = jest.fn();
 
-jest.mock(
-  'midtrans-client',
-  () => ({
-    Snap: jest.fn().mockImplementation(() => ({
-      createTransaction: mockCreateTransaction,
-    })),
-  }),
-  { virtual: true },
-);
+jest.mock('midtrans-client', () => ({
+  Snap: jest.fn().mockImplementation(() => ({
+    createTransaction: mockCreateTransaction,
+  })),
+}));
 
 describe('PaymentService', () => {
   let service: PaymentService;
@@ -99,6 +95,9 @@ describe('PaymentService', () => {
     }).compile();
 
     service = module.get<PaymentService>(PaymentService);
+    (service as any).snap = {
+      createTransaction: mockCreateTransaction,
+    };
     paymentRepo = module.get(getRepositoryToken(Payment));
     invitationRepo = module.get(getRepositoryToken(Invitation));
   });

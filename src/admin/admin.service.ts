@@ -1907,6 +1907,137 @@ export class AdminService {
   }
 
   // Template Designs
+  async getTemplateDesignMetrics(
+    query: { days?: number; startDate?: string; endDate?: string } = {},
+  ) {
+    const period = resolveDashboardPeriod(query);
+    const [templates, invitationRows, paidRows, freeRows] = await Promise.all([
+      this.templateDesignRepo.find({
+        select: ['id', 'name', 'slug', 'isPublished'],
+        order: { name: 'ASC' },
+      }),
+      this.invitationRepo
+        .createQueryBuilder('invitation')
+        .select('invitation.templateDesignId', 'templateId')
+        .addSelect('COUNT(invitation.id)', 'invitationCount')
+        .addSelect(
+          'SUM(CASE WHEN invitation.isPublished = 1 THEN 1 ELSE 0 END)',
+          'publishedCount',
+        )
+        .where('invitation.templateDesignId IS NOT NULL')
+        .andWhere(
+          'invitation.createdAt >= :start AND invitation.createdAt < :end',
+          { start: period.start, end: period.effectiveEnd },
+        )
+        .groupBy('invitation.templateDesignId')
+        .getRawMany(),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .innerJoin('payment.invitation', 'invitation')
+        .select('invitation.templateDesignId', 'templateId')
+        .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
+        .addSelect('COALESCE(SUM(payment.amount), 0)', 'grossAmount')
+        .where('invitation.templateDesignId IS NOT NULL')
+        .andWhere("payment.status = 'success'")
+        .andWhere('payment.amount > 0')
+        .andWhere('payment.settlementTime IS NOT NULL')
+        .andWhere(
+          "(payment.paymentMethod IS NULL OR payment.paymentMethod <> 'FREE_ACTIVATION')",
+        )
+        .andWhere(
+          "(payment.paymentType IS NULL OR LOWER(payment.paymentType) <> 'simulation')",
+        )
+        .andWhere(
+          'payment.settlementTime >= :start AND payment.settlementTime < :end',
+          { start: period.start, end: period.effectiveEnd },
+        )
+        .groupBy('invitation.templateDesignId')
+        .getRawMany(),
+      this.paymentRepo
+        .createQueryBuilder('payment')
+        .innerJoin('payment.invitation', 'invitation')
+        .select('invitation.templateDesignId', 'templateId')
+        .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
+        .where('invitation.templateDesignId IS NOT NULL')
+        .andWhere("payment.status = 'success'")
+        .andWhere('payment.amount = 0')
+        .andWhere('payment.settlementTime IS NOT NULL')
+        .andWhere(
+          "(payment.paymentMethod = 'FREE_ACTIVATION' OR LOWER(payment.paymentType) = 'free')",
+        )
+        .andWhere(
+          "(payment.paymentType IS NULL OR LOWER(payment.paymentType) <> 'simulation')",
+        )
+        .andWhere(
+          'payment.settlementTime >= :start AND payment.settlementTime < :end',
+          { start: period.start, end: period.effectiveEnd },
+        )
+        .groupBy('invitation.templateDesignId')
+        .getRawMany(),
+    ]);
+
+    const toMap = (rows: any[], countField: string) =>
+      new Map(
+        rows.map((row) => [
+          Number(row.templateId),
+          {
+            count: Number(row[countField] || 0),
+            grossAmount: Number(row.grossAmount || 0),
+          },
+        ]),
+      );
+    const invitationsByTemplate = new Map(
+      invitationRows.map((row) => [
+        Number(row.templateId),
+        {
+          count: Number(row.invitationCount || 0),
+          publishedCount: Number(row.publishedCount || 0),
+        },
+      ]),
+    );
+    const paidByTemplate = toMap(paidRows, 'paymentCount');
+    const freeByTemplate = toMap(freeRows, 'paymentCount');
+
+    return {
+      period: {
+        startDate: period.startDate,
+        endDate: period.endDate,
+        timezone: period.timezone,
+        days: period.days,
+      },
+      definitions: {
+        invitationCount:
+          'Undangan dibuat dalam periode, dikelompokkan menurut template saat ini.',
+        publishedCount:
+          'Status terbit saat ini pada undangan yang dibuat dalam periode; bukan jumlah transaksi.',
+        paidCount:
+          'Payment sukses, bernilai positif, tersettlement dalam periode, selain aktivasi gratis/simulasi.',
+        freeCount:
+          'Payment sukses bernilai nol dengan penanda aktivasi gratis, tersettlement dalam periode.',
+        grossAmount:
+          'Jumlah Payment.amount dari transaksi berbayar yang memenuhi syarat; refund dan biaya tidak dikurangkan.',
+        attribution:
+          'Template memakai relasi undangan saat ini. Riwayat template saat transaksi tidak tersedia untuk data lama.',
+      },
+      data: templates.map((template) => {
+        const invitationMetric = invitationsByTemplate.get(template.id);
+        const paidMetric = paidByTemplate.get(template.id);
+        const freeMetric = freeByTemplate.get(template.id);
+        return {
+          templateId: template.id,
+          name: template.name,
+          slug: template.slug,
+          isPublished: template.isPublished,
+          invitationCount: invitationMetric?.count || 0,
+          publishedCount: invitationMetric?.publishedCount || 0,
+          paidCount: paidMetric?.count || 0,
+          freeCount: freeMetric?.count || 0,
+          grossAmount: paidMetric?.grossAmount || 0,
+        };
+      }),
+    };
+  }
+
   async listTemplateDesigns(
     page = 1,
     limit = 20,

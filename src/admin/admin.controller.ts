@@ -300,6 +300,19 @@ export class AdminController {
     );
   }
 
+  @Get('template-designs/metrics')
+  getTemplateDesignMetrics(
+    @Query('days') days?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.service.getTemplateDesignMetrics({
+      days: days ? Number(days) : undefined,
+      startDate,
+      endDate,
+    });
+  }
+
   @Get('template-designs/:id')
   getTemplateDesign(@Param('id') id: number) {
     return this.service.getTemplateDesign(id);

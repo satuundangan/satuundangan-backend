@@ -20,6 +20,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../admin/dto/pagination-query.dto';
 import { ApiTags } from '@nestjs/swagger';
 import { RestoreArticleRevisionDto } from './dto/restore-article-revision.dto';
+import { ArticleEditorialService } from './article-editorial.service';
+import { DashboardQueryDto } from '../admin/dto/dashboard-query.dto';
 
 @ApiTags('Articles')
 @Controller()
@@ -27,6 +29,7 @@ export class ArticleController {
   constructor(
     private readonly articleService: ArticleService,
     private readonly articleBotService: ArticleBotService,
+    private readonly editorial: ArticleEditorialService,
   ) {}
 
   @UseGuards(JwtAuthGuard, AdminGuard)
@@ -66,6 +69,24 @@ export class ArticleController {
       query.sortOrder,
       query.filters,
     );
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Get('admin/articles/editorial/overview')
+  editorialOverview() {
+    return this.editorial.overview();
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Get('admin/articles/editorial/performance')
+  editorialPerformance(@Query() query: DashboardQueryDto) {
+    return this.editorial.performance(query);
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Post('admin/articles/:id/check-links')
+  checkLinks(@Param('id', ParseIntPipe) id: number) {
+    return this.editorial.checkLinks(id);
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)

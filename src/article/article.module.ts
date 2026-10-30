@@ -8,11 +8,14 @@ import { AdminGuard } from '../auth/guards/admin.guard';
 
 import { ArticleBotService } from './article-bot.service';
 import { ActivityLog } from '../admin/entities/activity-log.entity';
+import { AdminAnalyticsModule } from '../admin-analytics/admin-analytics.module';
+import { ArticleEditorialService } from './article-editorial.service';
+import { LinkCheckService } from './link-check.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Article, User, ActivityLog])],
+  imports: [TypeOrmModule.forFeature([Article, User, ActivityLog]), AdminAnalyticsModule],
   controllers: [ArticleController],
-  providers: [ArticleService, ArticleBotService, AdminGuard],
+  providers: [ArticleService, ArticleBotService, ArticleEditorialService, LinkCheckService, AdminGuard],
   exports: [ArticleService, ArticleBotService],
 })
 export class ArticleModule {}

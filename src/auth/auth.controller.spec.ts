@@ -7,6 +7,7 @@ import { UserService } from '../user/user.service';
 import { TurnstileService } from '../common/turnstile/turnstile.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { User } from '../user/user.entity';
+import { AdminSecurityService } from './admin-security.service';
 
 jest.mock('otplib', () => ({
   generateSecret: jest.fn(() => 'MOCKSECRET'),
@@ -33,6 +34,7 @@ describe('AuthController', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: TurnstileService, useValue: mockTurnstileService },
         { provide: getRepositoryToken(User), useValue: {} },
+        { provide: AdminSecurityService, useValue: {} },
       ],
     }).compile();
 

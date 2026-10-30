@@ -16,4 +16,9 @@ export class AdminDashboardController {
   getOverview(@Query() query: DashboardQueryDto) {
     return this.dashboard.getOverview(query);
   }
+
+  @Get('actions')
+  getActions() {
+    return this.dashboard.getActionQueue();
+  }
 }

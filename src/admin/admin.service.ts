@@ -30,6 +30,7 @@ import {
 import { DashboardStatsQueryDto } from './dto/dashboard-stats-query.dto';
 import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
+import { AdminRole, resolveAdminRole } from './security/admin-roles';
 import { resolveDashboardPeriod } from './admin-dashboard-period';
 
 @Injectable()
@@ -305,6 +306,18 @@ export class AdminService {
     };
   }
 
+  private wibDayBoundary(value: string, edge: 'start' | 'end'): Date {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const parsed = new Date(
+        edge === 'start' ? `${value}T00:00:00+07:00` : `${value}T23:59:59.999+07:00`,
+      );
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    const fallback = new Date(value);
+    if (edge === 'end') fallback.setHours(23, 59, 59, 999);
+    return fallback;
+  }
+
   async listInvitations(
     page = 1,
     limit = 20,
@@ -316,6 +329,7 @@ export class AdminService {
     packageType?: string,
     startDate?: string,
     endDate?: string,
+    category?: string,
   ) {
     const qb = this.invitationRepo
       .createQueryBuilder('inv')
@@ -349,15 +363,19 @@ export class AdminService {
       qb.andWhere('inv.package = :packageType', { packageType });
     }
 
+    // YYYY-MM-DD is read as a calendar day in WIB, the same convention as the dashboard.
     if (startDate) {
       qb.andWhere('inv.createdAt >= :startDate', {
-        startDate: new Date(startDate),
+        startDate: this.wibDayBoundary(startDate, 'start'),
       });
     }
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      qb.andWhere('inv.createdAt <= :endDate', { endDate: end });
+      qb.andWhere('inv.createdAt <= :endDate', {
+        endDate: this.wibDayBoundary(endDate, 'end'),
+      });
+    }
+    if (category && category !== 'all') {
+      qb.andWhere('category.name = :categoryName', { categoryName: category });
     }
 
     if (paymentStatus && paymentStatus !== 'all') {
@@ -1808,74 +1826,27 @@ export class AdminService {
     }
   }
 
-  async getSystemHealth() {
-    const results = {
-      database: { status: 'unhealthy', msg: 'Disconnected' },
-      storage: { status: 'unhealthy', msg: 'Not Configured' },
-      email: { status: 'unhealthy', msg: 'Not Configured' },
-      payment: { status: 'unhealthy', msg: 'Not Configured' },
-      rendered: new Date().toLocaleTimeString('id-ID'),
-    };
-
-    // 1. Database Check
-    try {
-      const dbStartTime = Date.now();
-      await this.userRepo.query('SELECT 1');
-      const dbLatency = Date.now() - dbStartTime;
-      results.database = {
-        status: 'healthy',
-        msg: `Terhubung (${dbLatency}ms)`,
-      };
-    } catch (e) {
-      results.database = {
-        status: 'unhealthy',
-        msg: `Error: ${e.message || e}`,
-      };
+  async updateAdminRole(id: number, adminRole: AdminRole, actorId: number) {
+    const target = await this.userRepo.findOne({ where: { id } });
+    if (!target) throw new NotFoundException('Pengguna tidak ditemukan');
+    if (!target.isAdmin) {
+      throw new BadRequestException('Pengguna ini bukan admin. Jadikan admin lebih dulu.');
     }
-
-    // 2. Storage Check
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.AWS_BUCKET_NAME;
-    if (cloudName) {
-      results.storage = {
-        status: 'healthy',
-        msg: `Cloud Active - ${cloudName}`,
-      };
-    } else {
-      results.storage = {
-        status: 'healthy',
-        msg: 'Local Storage - Active',
-      };
+    if (resolveAdminRole(target) === 'superadmin' && adminRole !== 'superadmin') {
+      const admins = await this.userRepo.find({
+        where: { isAdmin: true },
+        select: { id: true, isAdmin: true, adminRole: true },
+      });
+      const otherSuperadmins = admins.filter(
+        (admin) => admin.id !== id && resolveAdminRole(admin) === 'superadmin',
+      );
+      if (!otherSuperadmins.length) {
+        throw new BadRequestException('Minimal satu superadmin harus tetap ada.');
+      }
     }
-
-    // 3. Email Check
-    const cloudflareAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
-    if (cloudflareAccount) {
-      results.email = {
-        status: 'healthy',
-        msg: 'Cloudflare API Active',
-      };
-    } else {
-      results.email = {
-        status: 'unhealthy',
-        msg: 'Cloudflare credentials missing',
-      };
-    }
-
-    // 4. Payment Gateway Check
-    const midtransServerKey = process.env.MIDTRANS_SERVER_KEY;
-    if (midtransServerKey) {
-      results.payment = {
-        status: 'healthy',
-        msg: 'Midtrans API Ready',
-      };
-    } else {
-      results.payment = {
-        status: 'unhealthy',
-        msg: 'Midtrans server key missing',
-      };
-    }
-
-    return results;
+    target.adminRole = adminRole;
+    await this.userRepo.save(target);
+    return { id, adminRole, changedById: actorId };
   }
 
   private resolveDashboardDateRange(

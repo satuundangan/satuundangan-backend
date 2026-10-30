@@ -4,6 +4,7 @@ import {
   DefaultValuePipe,
   Get,
   ParseIntPipe,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -28,5 +29,10 @@ export class EventWatchController {
       throw new BadRequestException('days must be an integer between 0 and 60');
     }
     return this.service.getUpcomingEvents(days);
+  }
+
+  @Post('event-watch/test-message')
+  sendTestMessage() {
+    return this.service.sendTestMessage();
   }
 }

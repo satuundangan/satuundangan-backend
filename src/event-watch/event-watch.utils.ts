@@ -271,13 +271,23 @@ export function isLoopbackAddress(addr?: string | null): boolean {
   return !!addr && LOOPBACK.has(addr);
 }
 
-export function parseWaNumbers(raw?: string): string[] {
+/** Telegram chat ids: user ids are positive, group/supergroup ids negative (-100...). */
+export function parseTelegramChatIds(raw?: string): string[] {
   if (!raw) return [];
-  const nums = raw
+  const ids = raw
     .split(',')
-    .map((x) => x.replace(/\D/g, ''))
-    .filter(Boolean);
-  return [...new Set(nums)];
+    .map((x) => x.trim())
+    .filter((x) => /^-?\d+$/.test(x));
+  return [...new Set(ids)];
+}
+
+/** Digest text uses *bold* markers; Telegram gets HTML so slugs/emails with `_` can't break parsing. */
+export function toTelegramHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
 }
 
 export function parseEmailList(raw?: string): string[] {

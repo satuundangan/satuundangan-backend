@@ -70,6 +70,15 @@ jobs:
               else
                 echo -e "\nRESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" >> .env
               fi
+              # Only written when the secret exists, so a token set by hand in .env is not wiped.
+              TG_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+              if [ -n "$TG_TOKEN" ]; then
+                if grep -q "^TELEGRAM_BOT_TOKEN=" .env; then
+                  sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=$TG_TOKEN|" .env
+                else
+                  echo -e "\nTELEGRAM_BOT_TOKEN=$TG_TOKEN" >> .env
+                fi
+              fi
             fi
             IMAGE=ghcr.io/satuundangan/satuundangan-backend   # must match docker-compose.yml (lowercase)
             SERVICE=backend-api

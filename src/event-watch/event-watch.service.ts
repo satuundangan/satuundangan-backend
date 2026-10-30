@@ -3,23 +3,24 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invitation } from '../invitation/invitation.entity';
-import { WhatsappBotService } from '../whatsapp-bot/whatsapp-bot.service';
 import { EmailService } from '../auth/email.service';
 import {
   buildDigestMessage,
   EventSourceInvitation,
+  formatWib,
   parseEmailList,
   parseExcludeList,
-  parseWaNumbers,
+  parseTelegramChatIds,
   selectUpcomingEvents,
   SmokeResult,
+  toTelegramHtml,
   UpcomingEventItem,
 } from './event-watch.utils';
 
 export interface DigestResult {
   sent: boolean;
   count: number;
-  channel: 'whatsapp' | 'email' | 'none';
+  channel: 'telegram' | 'email' | 'none';
 }
 
 @Injectable()
@@ -30,7 +31,6 @@ export class EventWatchService {
     @InjectRepository(Invitation)
     private readonly invitationRepo: Repository<Invitation>,
     private readonly config: ConfigService,
-    private readonly whatsapp: WhatsappBotService,
     private readonly email: EmailService,
   ) {}
 
@@ -95,33 +95,56 @@ export class EventWatchService {
       smoke[item.slug] = await this.smokeCheck(item.slug);
     }
     const text = buildDigestMessage(items, smoke, now);
-
-    const numbers = parseWaNumbers(
-      this.config.get<string>('FOUNDER_WA_NUMBERS'),
+    const channel = await this.deliver(
+      text,
+      `[Event Watch] ${items.length} acara customer (H-7/H-1/Hari-H)`,
     );
-    let waOk = 0;
-    let waFailed = 0;
-    for (const n of numbers) {
-      try {
-        await this.whatsapp.sendMessage(`${n}@s.whatsapp.net`, text);
-        waOk++;
-      } catch (err) {
-        waFailed++;
-        this.logger.warn(
-          `Event-watch WA send to ${n} failed: ${(err as Error)?.message}`,
-        );
+    return { sent: channel !== 'none', count: items.length, channel };
+  }
+
+  /** Manual check of the delivery path (admin endpoint); does not touch event data. */
+  async sendTestMessage(now: Date = new Date()): Promise<DigestResult> {
+    const text = [
+      '*Event Watch SatuUndangan — pesan uji*',
+      `Dikirim ${formatWib(now)}.`,
+      'Kalau pesan ini masuk, notifikasi H-7/H-1/Hari-H siap jalan.',
+    ].join('\n');
+    const channel = await this.deliver(text, '[Event Watch] Pesan uji');
+    return { sent: channel !== 'none', count: 0, channel };
+  }
+
+  /** Telegram first; email fallback when Telegram is unconfigured or any send fails. */
+  private async deliver(
+    text: string,
+    emailSubject: string,
+  ): Promise<DigestResult['channel']> {
+    const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
+    const chatIds = parseTelegramChatIds(
+      this.config.get<string>('TELEGRAM_CHAT_IDS'),
+    );
+    let tgOk = 0;
+    let tgFailed = 0;
+    if (token) {
+      for (const chatId of chatIds) {
+        try {
+          await this.sendTelegram(token, chatId, text);
+          tgOk++;
+        } catch (err) {
+          tgFailed++;
+          this.logger.warn(
+            `Event-watch Telegram send to ${chatId} failed: ${(err as Error)?.message}`,
+          );
+        }
       }
     }
 
-    if (numbers.length > 0 && waFailed === 0) {
-      return { sent: true, count: items.length, channel: 'whatsapp' };
-    }
+    if (tgOk > 0 && tgFailed === 0) return 'telegram';
 
-    // Fallback: WA not configured, not connected, or at least one send failed.
-    const reason =
-      numbers.length === 0
-        ? 'FOUNDER_WA_NUMBERS kosong'
-        : 'WA gagal/tidak terhubung';
+    const reason = !token
+      ? 'TELEGRAM_BOT_TOKEN kosong'
+      : chatIds.length === 0
+        ? 'TELEGRAM_CHAT_IDS kosong'
+        : 'Telegram gagal';
     const addresses = parseEmailList(
       this.config.get<string>('OPS_ALERT_EMAILS'),
     );
@@ -130,7 +153,7 @@ export class EventWatchService {
       try {
         const ok = await this.email.sendOpsAlert(
           addr,
-          `[Event Watch] ${items.length} acara customer (H-7/H-1/Hari-H)`,
+          emailSubject,
           `Catatan: dikirim via email karena ${reason}.\n\n${text}`,
         );
         if (ok) emailOk++;
@@ -141,17 +164,39 @@ export class EventWatchService {
       }
     }
 
-    if (emailOk > 0) {
-      return { sent: true, count: items.length, channel: 'email' };
-    }
-    if (waOk > 0) {
-      // Partial WA delivery without an email fallback still reached someone.
-      return { sent: true, count: items.length, channel: 'whatsapp' };
-    }
+    if (emailOk > 0) return 'email';
+    // Partial Telegram delivery without an email fallback still reached someone.
+    if (tgOk > 0) return 'telegram';
     this.logger.error(
-      `Event-watch digest NOT delivered: no WA success and no OPS_ALERT_EMAILS delivery\n${text}`,
+      `Event-watch message NOT delivered (${reason}, no OPS_ALERT_EMAILS delivery)\n${text}`,
     );
-    return { sent: false, count: items.length, channel: 'none' };
+    return 'none';
+  }
+
+  private async sendTelegram(
+    token: string,
+    chatId: string,
+    text: string,
+  ): Promise<void> {
+    const res = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: toTelegramHtml(text),
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        }),
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    if (!res.ok) {
+      // Telegram error bodies never echo the token; safe to log.
+      const body = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} ${body.slice(0, 200)}`);
+    }
   }
 
   async getDeployGateEvents(days = 1): Promise<{

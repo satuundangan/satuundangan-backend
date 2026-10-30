@@ -8,9 +8,10 @@ import {
   parseEmailList,
   parseEventDate,
   parseExcludeList,
-  parseWaNumbers,
+  parseTelegramChatIds,
   selectUpcomingEvents,
   SmokeResult,
+  toTelegramHtml,
 } from './event-watch.utils';
 
 describe('parseEventDate', () => {
@@ -308,12 +309,17 @@ describe('isLoopbackAddress', () => {
 });
 
 describe('list parsers', () => {
-  it('parseWaNumbers strips non-digits and dedupes', () => {
-    expect(parseWaNumbers('+62 812-111, 62812111, , 62813')).toEqual([
-      '62812111',
-      '62813',
-    ]);
-    expect(parseWaNumbers(undefined)).toEqual([]);
+  it('parseTelegramChatIds keeps user and group ids, drops junk, dedupes', () => {
+    expect(
+      parseTelegramChatIds(' 123456, -1001234567890, @name, 123456, 12a'),
+    ).toEqual(['123456', '-1001234567890']);
+    expect(parseTelegramChatIds(undefined)).toEqual([]);
+  });
+
+  it('toTelegramHtml escapes HTML and converts *bold*', () => {
+    expect(toTelegramHtml('*H-7 (1)*\n<a&b> test_user@x.com')).toBe(
+      '<b>H-7 (1)</b>\n&lt;a&amp;b&gt; test_user@x.com',
+    );
   });
 
   it('parseEmailList keeps emails and dedupes', () => {

@@ -2603,7 +2603,7 @@ export class AdminService {
           ).map(([renderer, counts]) => ({
             renderer,
             ...counts,
-            packageSupport: 'unknown',
+            packageSupport: 'tier-neutral',
           })),
           samplePreviewTemplate: sampleTemplate
             ? {

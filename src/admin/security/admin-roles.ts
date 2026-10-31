@@ -36,6 +36,18 @@ const RESOURCE_ACCESS: Record<string, ResourceAccess> = {
     read: ['superadmin', 'support'],
     write: ['superadmin', 'support'],
   },
+  leads: {
+    read: ['superadmin', 'support', 'finance'],
+    write: ['superadmin', 'support'],
+  },
+  'support-tickets': {
+    read: ['superadmin', 'support'],
+    write: ['superadmin', 'support'],
+  },
+  ai: {
+    read: ['superadmin', 'support', 'content', 'finance'],
+    write: ['superadmin'],
+  },
   payments: {
     read: ['superadmin', 'finance', 'support'],
     write: ['superadmin', 'finance'],

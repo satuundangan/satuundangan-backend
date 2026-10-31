@@ -185,7 +185,11 @@ export class PaymentService {
     }
 
     if (grossAmount === 0) {
+      const wasPublished = invitation.isPublished;
       invitation.isPublished = true;
+      if (!wasPublished && !invitation.publishedAt) {
+        invitation.publishedAt = new Date();
+      }
       invitation.package = pkg;
       await this.invitationRepo.save(invitation);
 
@@ -199,6 +203,7 @@ export class PaymentService {
         paymentType: 'free',
         fraudStatus: 'accept',
         invitationId: invitation.id,
+        templateDesignIdSnapshot: invitation.templateDesignId ?? null,
         settlementTime: new Date(),
         promoCodeId: appliedPromo?.id ?? null,
         discountAmount: discountAmount || null,
@@ -298,6 +303,7 @@ export class PaymentService {
       paymentType: null,
       fraudStatus: null,
       invitationId: invitation.id,
+      templateDesignIdSnapshot: invitation.templateDesignId ?? null,
       transactionId: null,
       snapToken: transaction.token,
       redirectUrl: transaction.redirect_url,
@@ -441,7 +447,11 @@ export class PaymentService {
             where: { id: payment.invitationId },
           });
           if (invitation) {
+            const wasPublished = invitation.isPublished;
             invitation.isPublished = true;
+            if (!wasPublished && !invitation.publishedAt) {
+              invitation.publishedAt = new Date();
+            }
             if (payment.package) {
               invitation.package = payment.package;
             }
@@ -585,6 +595,16 @@ export class PaymentService {
       orderId: payment.orderId,
       status: payment.status,
       invitationSlug: payment.invitation?.slug ?? null,
+      invitationTitle: payment.invitation?.title ?? null,
+      amount: Number(payment.amount),
+      package: payment.package ?? payment.invitation?.package ?? 'basic',
+      paymentMethod: payment.paymentMethod ?? payment.paymentType ?? null,
+      customerName: payment.name,
+      customerEmail: payment.email,
+      settlementTime: payment.settlementTime ?? null,
+      createdAt: payment.createdAt,
+      snapToken: payment.snapToken,
+      redirectUrl: payment.redirectUrl,
     };
   }
 
@@ -623,7 +643,11 @@ export class PaymentService {
       payment.settlementTime = new Date();
       await this.dataSource.transaction(async (manager) => {
         if (payment.invitation) {
+          const wasPublished = payment.invitation.isPublished;
           payment.invitation.isPublished = true;
+          if (!wasPublished && !payment.invitation.publishedAt) {
+            payment.invitation.publishedAt = new Date();
+          }
           if (payment.package) {
             payment.invitation.package = payment.package;
           }

@@ -10,20 +10,16 @@ import { PromoCode } from '../promo/promo-code.entity';
 import { PromoService } from '../promo/promo.service';
 import { AffiliateService } from '../affiliate/affiliate.service';
 import { PaymentStatus } from './types/payment.type';
-import { BadGatewayException } from '@nestjs/common';
+import { BadGatewayException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 const mockCreateTransaction = jest.fn();
 
-jest.mock(
-  'midtrans-client',
-  () => ({
-    Snap: jest.fn().mockImplementation(() => ({
-      createTransaction: mockCreateTransaction,
-    })),
-  }),
-  { virtual: true },
-);
+jest.mock('midtrans-client', () => ({
+  Snap: jest.fn().mockImplementation(() => ({
+    createTransaction: mockCreateTransaction,
+  })),
+}));
 
 describe('PaymentService', () => {
   let service: PaymentService;
@@ -99,6 +95,9 @@ describe('PaymentService', () => {
     }).compile();
 
     service = module.get<PaymentService>(PaymentService);
+    (service as any).snap = {
+      createTransaction: mockCreateTransaction,
+    };
     paymentRepo = module.get(getRepositoryToken(Payment));
     invitationRepo = module.get(getRepositoryToken(Invitation));
   });
@@ -673,6 +672,62 @@ describe('PaymentService', () => {
       expect(mockAffiliateService.creditCommission).toHaveBeenCalled();
       expect(mockPaymentRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
         mockAffiliateService.creditCommission.mock.invocationCallOrder[0],
+      );
+    });
+  });
+
+  describe('getPaymentStatus', () => {
+    it('returns rich receipt metadata for an existing order', async () => {
+      const mockPayment = {
+        orderId: 'INV-100-XYZ',
+        status: PaymentStatus.SUCCESS,
+        amount: '79000.00',
+        package: InvitationPackage.PREMIUM,
+        paymentMethod: 'qris',
+        paymentType: 'qris',
+        name: 'Fauzan Test',
+        email: 'fauzan@example.com',
+        settlementTime: new Date('2026-10-30T10:00:00Z'),
+        createdAt: new Date('2026-10-30T09:55:00Z'),
+        snapToken: 'mock-snap-token',
+        redirectUrl: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/mock-snap-token',
+        invitation: {
+          slug: 'fauzan-wedding',
+          title: 'The Wedding of Fauzan & Partner',
+          package: InvitationPackage.PREMIUM,
+        },
+      };
+
+      mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+
+      const result = await service.getPaymentStatus('INV-100-XYZ');
+
+      expect(result).toEqual({
+        orderId: 'INV-100-XYZ',
+        status: PaymentStatus.SUCCESS,
+        invitationSlug: 'fauzan-wedding',
+        invitationTitle: 'The Wedding of Fauzan & Partner',
+        amount: 79000,
+        package: InvitationPackage.PREMIUM,
+        paymentMethod: 'qris',
+        customerName: 'Fauzan Test',
+        customerEmail: 'fauzan@example.com',
+        settlementTime: mockPayment.settlementTime,
+        createdAt: mockPayment.createdAt,
+        snapToken: 'mock-snap-token',
+        redirectUrl: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/mock-snap-token',
+      });
+      expect(mockPaymentRepo.findOne).toHaveBeenCalledWith({
+        where: { orderId: 'INV-100-XYZ' },
+        relations: ['invitation'],
+      });
+    });
+
+    it('throws NotFoundException if payment does not exist', async () => {
+      mockPaymentRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getPaymentStatus('NON-EXISTENT')).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

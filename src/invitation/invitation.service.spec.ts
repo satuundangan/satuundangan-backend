@@ -305,4 +305,76 @@ describe('InvitationService', () => {
       expect(diffDays).toBe(366);
     });
   });
+
+  describe('findAllByUser', () => {
+    it('returns invitations mapped with payments, status, and expiry calculation', async () => {
+      const mockInvitations = [
+        {
+          id: 10,
+          title: 'Wedding A',
+          slug: 'wedding-a',
+          isPublished: true,
+          package: InvitationPackage.PREMIUM,
+          createdAt: new Date('2026-10-01T00:00:00Z'),
+          updatedAt: new Date('2026-10-01T00:00:00Z'),
+          templateDesign: { name: 'Rustic Floral' },
+          payments: [
+            {
+              orderId: 'INV-10-SETTLED',
+              status: 'settlement',
+              amount: 79000,
+              package: InvitationPackage.PREMIUM,
+              paymentMethod: 'qris',
+              settlementTime: new Date('2026-10-01T01:00:00Z'),
+              createdAt: new Date('2026-10-01T00:30:00Z'),
+            },
+          ],
+        },
+        {
+          id: 11,
+          title: 'Wedding B',
+          slug: 'wedding-b',
+          isPublished: false,
+          package: InvitationPackage.BASIC,
+          createdAt: new Date('2026-10-02T00:00:00Z'),
+          templateDesign: null,
+          payments: [
+            {
+              orderId: 'INV-11-PENDING',
+              status: 'pending',
+              amount: 49000,
+              package: InvitationPackage.BASIC,
+              paymentMethod: 'bank_transfer',
+              settlementTime: null,
+              createdAt: new Date('2026-10-02T00:30:00Z'),
+            },
+          ],
+        },
+      ];
+
+      invitationRepo.findAndCount = jest.fn().mockResolvedValue([mockInvitations, 2]);
+
+      const result = await service.findAllByUser(1, { page: 1, limit: 10 });
+
+      expect(result.total).toBe(2);
+      expect(result.data.length).toBe(2);
+
+      // Check published invitation
+      const first = result.data[0];
+      expect(first.isPublished).toBe(true);
+      expect(first.paymentStatus).toBe('settled');
+      expect(first.latestOrderId).toBe('INV-10-SETTLED');
+      expect(first.latestPayment?.amount).toBe(79000);
+      expect(first.package).toBe(InvitationPackage.PREMIUM);
+      expect(first.expiresAt).toBeDefined();
+
+      // Check pending draft
+      const second = result.data[1];
+      expect(second.isPublished).toBe(false);
+      expect(second.paymentStatus).toBe('pending');
+      expect(second.latestOrderId).toBe('INV-11-PENDING');
+      expect(second.package).toBe(InvitationPackage.BASIC);
+      expect(second.expiresAt).toBeNull();
+    });
+  });
 });

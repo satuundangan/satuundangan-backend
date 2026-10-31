@@ -9,6 +9,9 @@ export class Category {
   @Column({ unique: true })
   name: string;
 
+  @Column({ type: 'json', nullable: true })
+  aliases: string[] | null;
+
   @Column()
   color: string;
 

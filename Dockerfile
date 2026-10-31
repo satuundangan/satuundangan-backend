@@ -5,6 +5,8 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 RUN npm run build
+# Fail the image build if TypeORM cannot build entity metadata (e.g. column type emitted as Object)
+RUN node scripts/check-entities.js dist
 
 # Stage 2: Production (Hanya bawa yang butuh aja)
 FROM node:22-alpine

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   Injectable,
   NotFoundException,
@@ -382,6 +383,7 @@ export class AdminService {
           title: true,
           slug: true,
           isPublished: true,
+          publishedAt: true,
           dateTime: true,
           createdAt: true,
           updatedAt: true,
@@ -528,17 +530,18 @@ export class AdminService {
                 ? 'owned_invitation'
                 : 'payer_email_match',
         })),
-      ...(publishedInvitationCount
-        ? [
-            {
-              type: 'invitation_published',
-              at: null,
-              label: `${publishedInvitationCount} undangan berstatus terbit`,
-              evidence: 'isPublished=true; timestamp terbit tidak tersedia',
-              timestampUnknown: true,
-            },
-          ]
-        : []),
+      ...invitations
+        .filter((inv) => inv.publishedAt || inv.isPublished)
+        .map((inv) => ({
+          type: 'invitation_published',
+          at: inv.publishedAt,
+          invitationId: inv.id,
+          label: `${inv.title || `Undangan #${inv.id}`} pertama diterbitkan`,
+          evidence: inv.publishedAt
+            ? 'publishedAt; waktu penerbitan pertama dicatat sejak pelacakan aktif'
+            : 'isPublished=true; waktu terbit historis tidak diketahui',
+          timestampUnknown: !inv.publishedAt,
+        })),
       ...activities.map((activity) => ({
         type: 'activity',
         at: activity.createdAt,
@@ -625,6 +628,7 @@ export class AdminService {
       limitations: [
         'Legacy signup timestamps have not been validated against historical event sources.',
         'No reliable login history exists before lastLoginAt tracking was deployed.',
+        'Publication timestamps are recorded for new transitions; legacy publication times remain unknown.',
         'No wedding completion event is currently stored.',
         'Detail lists are capped to the latest 50 invitations, 100 payments and 50 activity records; summary totals use all matching records.',
       ],
@@ -934,7 +938,18 @@ export class AdminService {
       });
     }
     if (category && category !== 'all') {
-      qb.andWhere('category.name = :categoryName', { categoryName: category });
+      if (this.isUuid(category)) {
+        qb.andWhere('category.id = :categoryId', { categoryId: category });
+      } else {
+        const normalizedCategory = category.normalize('NFKC').trim().replace(/\s+/gu, ' ');
+        qb.andWhere(
+          '(LOWER(TRIM(category.name)) = LOWER(:categoryName) OR JSON_CONTAINS(category.aliases, :categoryNameJson))',
+          {
+            categoryName: normalizedCategory,
+            categoryNameJson: JSON.stringify(normalizedCategory),
+          },
+        );
+      }
     }
 
     if (paymentStatus && paymentStatus !== 'all') {
@@ -1075,6 +1090,9 @@ export class AdminService {
     delete dataToUpdate.reason;
 
     Object.assign(inv, dataToUpdate);
+    if (!oldPublished && inv.isPublished && !inv.publishedAt) {
+      inv.publishedAt = new Date();
+    }
     const saved = await this.invitationRepo.save(inv);
 
     // Audit logs for critical changes
@@ -1633,6 +1651,9 @@ export class AdminService {
     const inv = payment.invitation;
     const oldPublished = inv.isPublished;
     inv.isPublished = true;
+    if (!oldPublished && !inv.publishedAt) {
+      inv.publishedAt = new Date();
+    }
     if (payment.package) {
       inv.package = payment.package;
     }
@@ -1892,7 +1913,9 @@ export class AdminService {
         const newObj = { ...obj };
         filterEntries.forEach(([key, value]) => {
           if (key === 'category') {
-            newObj.category = { ...newObj.category, name: ILike(`%${value}%`) };
+            newObj.category = this.isUuid(String(value))
+              ? { ...newObj.category, id: value }
+              : { ...newObj.category, name: ILike(`%${value}%`) };
           } else if (key === 'isActive') {
             newObj.isPublished = value === 'true';
           } else if (typeof value === 'string') {
@@ -1943,11 +1966,16 @@ export class AdminService {
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .innerJoin('payment.invitation', 'invitation')
-        .select('invitation.templateDesignId', 'templateId')
+        .leftJoin('payment.invitation', 'invitation')
+        .select(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+          'templateId',
+        )
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
         .addSelect('COALESCE(SUM(payment.amount), 0)', 'grossAmount')
-        .where('invitation.templateDesignId IS NOT NULL')
+        .where(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId) IS NOT NULL',
+        )
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount > 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -1961,14 +1989,21 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy('invitation.templateDesignId')
+        .groupBy(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+        )
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .innerJoin('payment.invitation', 'invitation')
-        .select('invitation.templateDesignId', 'templateId')
+        .leftJoin('payment.invitation', 'invitation')
+        .select(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+          'templateId',
+        )
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
-        .where('invitation.templateDesignId IS NOT NULL')
+        .where(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId) IS NOT NULL',
+        )
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount = 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -1982,7 +2017,9 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy('invitation.templateDesignId')
+        .groupBy(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+        )
         .getRawMany(),
     ]);
 
@@ -2027,7 +2064,7 @@ export class AdminService {
         grossAmount:
           'Jumlah Payment.amount dari transaksi berbayar yang memenuhi syarat; refund dan biaya tidak dikurangkan.',
         attribution:
-          'Template memakai relasi undangan saat ini. Riwayat template saat transaksi tidak tersedia untuk data lama.',
+          'Transaksi baru memakai snapshot template saat checkout. Payment lama tanpa snapshot memakai template undangan saat ini.',
       },
       data: templates.map((template) => {
         const invitationMetric = invitationsByTemplate.get(template.id);
@@ -2064,7 +2101,8 @@ export class AdminService {
         ]
       : {};
 
-    where = this.applyFilters(where, filters);
+    const resolvedFilters = await this.resolveTemplateCategoryFilter(filters);
+    where = this.applyFilters(where, resolvedFilters);
 
     let order: any = { [sortBy]: sortOrder };
     if (sortBy === 'category') {
@@ -2084,6 +2122,38 @@ export class AdminService {
       page,
       limit,
     };
+  }
+
+  private isUuid(value: string) {
+    return /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value);
+  }
+
+  private async resolveTemplateCategoryFilter(filtersStr?: string) {
+    if (!filtersStr) return filtersStr;
+    try {
+      const filters = JSON.parse(filtersStr);
+      const categoryName = filters?.category;
+      if (typeof categoryName !== 'string' || this.isUuid(categoryName)) {
+        return filtersStr;
+      }
+      const normalizedName = categoryName
+        .normalize('NFKC')
+        .trim()
+        .replace(/\s+/gu, ' ');
+      const category = await this.categoryRepo
+        .createQueryBuilder('category')
+        .where('LOWER(TRIM(category.name)) = LOWER(:name)', {
+          name: normalizedName,
+        })
+        .orWhere('JSON_CONTAINS(category.aliases, :nameJson)', {
+          nameJson: JSON.stringify(normalizedName),
+        })
+        .getOne();
+      if (category) filters.category = category.id;
+      return JSON.stringify(filters);
+    } catch {
+      return filtersStr;
+    }
   }
 
   async getTemplateDesign(id: number) {
@@ -2436,7 +2506,8 @@ export class AdminService {
             ? {
                 id: sampleTemplate.id,
                 name: sampleTemplate.name,
-                previewUrl: sampleTemplate.previewUrl,
+                slug: sampleTemplate.slug,
+                componentKey: sampleTemplate.componentKey,
               }
             : null,
         };
@@ -2508,15 +2579,30 @@ export class AdminService {
   }
 
   // Audio
+  private audioContentSha256(file: Express.Multer.File): string {
+    if (!Buffer.isBuffer(file.buffer)) {
+      throw new BadRequestException('Isi file audio tidak dapat dibaca.');
+    }
+    return createHash('sha256').update(file.buffer).digest('hex');
+  }
+
   async listAudio(q?: string) {
     const where = q ? { title: ILike(`%${q}%`) } : undefined;
     const tracks = await this.audioRepo.find({
       where,
       order: { title: 'ASC' },
     });
-    const allTrackUrls = await this.audioRepo.find({ select: { url: true } });
-    const urlUseCount = allTrackUrls.reduce((counts, track) => {
+    const allTracks = await this.audioRepo.find({
+      select: { url: true, contentSha256: true },
+    });
+    const urlUseCount = allTracks.reduce((counts, track) => {
       if (track.url) counts.set(track.url, (counts.get(track.url) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+    const contentUseCount = allTracks.reduce((counts, track) => {
+      if (track.contentSha256) {
+        counts.set(track.contentSha256, (counts.get(track.contentSha256) || 0) + 1);
+      }
       return counts;
     }, new Map<string, number>());
     return Promise.all(
@@ -2530,6 +2616,10 @@ export class AdminService {
           templateUseCount,
           invitationUseCount,
           sameUrlTrackCount: track.url ? urlUseCount.get(track.url) || 1 : 0,
+          sameContentTrackCount: track.contentSha256
+            ? contentUseCount.get(track.contentSha256) || 1
+            : null,
+          contentHashStatus: track.contentSha256 ? 'checked' : 'unknown',
           sourceStatus: track.source?.trim() ? 'recorded' : 'unknown',
           licenseStatus: track.licenseStatus || 'unknown',
           durationStatus:
@@ -2593,6 +2683,7 @@ export class AdminService {
         currentAudio.url = upload.fileUrl;
         currentAudio.format = file.mimetype || null;
         currentAudio.fileSizeBytes = Number.isFinite(file.size) ? file.size : null;
+        currentAudio.contentSha256 = this.audioContentSha256(file);
         currentAudio.durationSeconds =
           typeof payload.durationSeconds === 'number' &&
           Number.isInteger(payload.durationSeconds) &&
@@ -2640,6 +2731,7 @@ export class AdminService {
       url: upload.fileUrl,
       format: file.mimetype || null,
       fileSizeBytes: Number.isFinite(file.size) ? file.size : null,
+      contentSha256: this.audioContentSha256(file),
       durationSeconds:
         typeof payload.durationSeconds === 'number' &&
         Number.isInteger(payload.durationSeconds) &&

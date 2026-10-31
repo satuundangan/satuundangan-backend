@@ -3,9 +3,17 @@ name: Deploy to Biznet
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      override_reason:
+        description: 'Reason to deploy despite H-1/Hari-H customer events (leave empty for normal deploy)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build-and-push:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -20,12 +28,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Build and Push Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -33,7 +46,11 @@ jobs:
     steps:
       - name: Execute Remote SSH commands
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          OVERRIDE_REASON: ${{ github.event.inputs.override_reason }}
+          DEPLOY_ACTOR: ${{ github.actor }}
         with:
+          envs: OVERRIDE_REASON,DEPLOY_ACTOR
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_KEY }}
@@ -53,7 +70,101 @@ jobs:
               else
                 echo -e "\nRESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" >> .env
               fi
+              # Only written when the secret exists, so a token set by hand in .env is not wiped.
+              TG_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+              if [ -n "$TG_TOKEN" ]; then
+                if grep -q "^TELEGRAM_BOT_TOKEN=" .env; then
+                  sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=$TG_TOKEN|" .env
+                else
+                  echo -e "\nTELEGRAM_BOT_TOKEN=$TG_TOKEN" >> .env
+                fi
+              fi
             fi
-            docker compose pull
-            docker compose up -d --force-recreate
+            IMAGE=ghcr.io/satuundangan/satuundangan-backend   # must match docker-compose.yml (lowercase)
+            SERVICE=backend-api
+            CONTAINER=satu-undangan-api
+            echo "[deploy] commit ${{ github.sha }}"
+
+            # Event-watch gate: block prod deploy when real-customer weddings are on H-1 / Hari-H.
+            # Asks the CURRENTLY running container. rc 0 = none, 10 = events, anything else = unknown -> warn & continue.
+            GATE_OUT=$(docker exec "$CONTAINER" node -e 'fetch("http://127.0.0.1:3000/internal/upcoming-events?days=1",{signal:AbortSignal.timeout(5000)}).then(function(r){if(r.status!==200){console.log("http status "+r.status);process.exit(2)}return r.json()}).then(function(b){if(!b||typeof b.count!=="number"||!Array.isArray(b.items)){console.log("unexpected payload");process.exit(3)}console.log("count="+b.count);b.items.forEach(function(i){console.log("  - "+i.slug+" | "+i.eventAtWib+" | H-"+i.daysUntil)});process.exit(b.count>0?10:0)}).catch(function(e){console.log("error "+(e&&e.message));process.exit(4)})' 2>&1)
+            GATE_RC=$?
+            case "$GATE_RC" in
+              0)
+                echo "[gate] no customer events on H-1/Hari-H ($GATE_OUT)"
+                ;;
+              10)
+                echo "[gate] customer events within 1 day:"
+                echo "$GATE_OUT"
+                if [ -z "$OVERRIDE_REASON" ]; then
+                  echo "::error::Deploy blocked: real-customer wedding(s) on H-1/Hari-H (listed above). To deploy anyway: GitHub Actions -> 'Deploy to Biznet' -> Run workflow (branch master) -> fill override_reason."
+                  exit 1
+                fi
+                echo "[gate] OVERRIDE: $OVERRIDE_REASON by $DEPLOY_ACTOR"
+                ;;
+              *)
+                echo "[gate] WARNING: event check unavailable (rc=$GATE_RC): $GATE_OUT -- continuing deploy"
+                ;;
+            esac
+
+            health_check() {
+              hc_c="$1"; hc_ok=0; hc_i=0
+              hc_rc0=$(docker inspect -f '{{.RestartCount}}' "$hc_c" 2>/dev/null || echo 0)
+              while [ "$hc_i" -lt 30 ]; do
+                hc_i=$((hc_i + 1))
+                sleep 3
+                hc_rc=$(docker inspect -f '{{.RestartCount}}' "$hc_c" 2>/dev/null || echo missing)
+                if [ "$hc_rc" != "$hc_rc0" ]; then
+                  echo "[health] $hc_c restart count changed ($hc_rc0 -> $hc_rc): crash-looping"
+                  return 1
+                fi
+                hc_status=$(docker exec "$hc_c" node -e 'fetch("http://localhost:3000/payment/packages",{signal:AbortSignal.timeout(5000)}).then(r=>console.log(r.status)).catch(()=>console.log(0))' 2>/dev/null || echo 0)
+                if [ "$hc_status" = "200" ]; then hc_ok=$((hc_ok + 1)); else hc_ok=0; fi
+                echo "[health] $hc_c attempt $hc_i/30 status=$hc_status streak=$hc_ok"
+                if [ "$hc_ok" -ge 3 ]; then return 0; fi
+              done
+              return 1
+            }
+
+            # Pin the currently running image so prune cannot delete it (first deploy: none)
+            PREV_IMAGE=$(docker inspect -f '{{.Image}}' "$CONTAINER" 2>/dev/null || true)
+            if [ -n "$PREV_IMAGE" ]; then
+              docker tag "$PREV_IMAGE" "$IMAGE:rollback" && echo "[deploy] pinned previous image $PREV_IMAGE as $IMAGE:rollback"
+            else
+              echo "[deploy] no running $CONTAINER found; rollback unavailable (first deploy?)"
+            fi
+
+            if ! docker compose pull "$SERVICE"; then
+              echo "[deploy] pull failed; running container untouched"
+              exit 1
+            fi
+
+            DEPLOY_OK=0
+            if docker compose up -d --no-deps --force-recreate "$SERVICE"; then
+              if health_check "$CONTAINER"; then DEPLOY_OK=1; fi
+            else
+              echo "[deploy] compose up failed"
+            fi
+
+            if [ "$DEPLOY_OK" -ne 1 ]; then
+              echo "[deploy] NEW IMAGE UNHEALTHY. Last 80 log lines of $CONTAINER:"
+              docker logs --tail 80 "$CONTAINER" 2>&1 || true
+              if [ -n "$PREV_IMAGE" ]; then
+                echo "[rollback] restoring $IMAGE:rollback -> $IMAGE:latest"
+                docker tag "$IMAGE:rollback" "$IMAGE:latest"
+                docker compose up -d --no-deps --force-recreate "$SERVICE"
+                if health_check "$CONTAINER"; then
+                  echo "[rollback] SUCCESS: previous image is serving again"
+                else
+                  echo "[rollback] FAILED: previous image also unhealthy. Last 80 log lines:"
+                  docker logs --tail 80 "$CONTAINER" 2>&1 || true
+                fi
+                echo "[rollback] NOTE: GHCR :latest still points to the bad build; a manual 'docker compose pull' would re-fetch it. Fix forward and redeploy."
+              else
+                echo "[rollback] skipped: no previous image"
+              fi
+              exit 1
+            fi
+
+            echo "[deploy] healthy; pruning dangling images"
             docker image prune -f || true

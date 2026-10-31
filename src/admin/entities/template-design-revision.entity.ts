@@ -17,10 +17,10 @@ export class TemplateDesignRevision {
   @Column({ type: 'json' })
   snapshot: Record<string, any>;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   actorId: number | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   actorEmail: string | null;
 
   @CreateDateColumn()

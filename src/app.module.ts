@@ -22,6 +22,9 @@ import { SitemapModule } from './sitemap/sitemap.module';
 import { WhatsappBotModule } from './whatsapp-bot/whatsapp-bot.module';
 import { WeddingPlannerModule } from './wedding-planner/wedding-planner.module';
 import { SmokeStudioModule } from './smoke-studio/smoke-studio.module';
+import { LeadModule } from './lead/lead.module';
+import { SupportTicketModule } from './support-ticket/support-ticket.module';
+import { EventWatchModule } from './event-watch/event-watch.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -62,6 +65,9 @@ import { AppService } from './app.service';
     WhatsappBotModule,
     WeddingPlannerModule,
     SmokeStudioModule,
+    LeadModule,
+    SupportTicketModule,
+    EventWatchModule,
   ],
   controllers: [AppController],
   providers: [AppService],

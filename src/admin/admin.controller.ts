@@ -322,6 +322,23 @@ export class AdminController {
     return this.service.getTemplateDesign(id);
   }
 
+  @Get('template-designs/:id/revisions')
+  getTemplateDesignRevisions(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getTemplateDesignRevisions(id);
+  }
+
+  @Post('template-designs/:id/revisions/:revisionId/rollback')
+  rollbackTemplateDesignRevision(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('revisionId') revisionId: string,
+    @Req() req?: any,
+  ) {
+    return this.service.rollbackTemplateDesignRevision(id, revisionId, {
+      id: req?.user?.id,
+      email: req?.user?.email,
+    });
+  }
+
   @Post('template-designs')
   createTemplateDesign(@Body() dto: CreateTemplateDesignDto) {
     return this.service.createTemplateDesign(dto);
@@ -331,8 +348,12 @@ export class AdminController {
   updateTemplateDesign(
     @Param('id') id: number,
     @Body() dto: UpdateTemplateDesignDto,
+    @Req() req?: any,
   ) {
-    return this.service.updateTemplateDesign(id, dto);
+    return this.service.updateTemplateDesign(id, dto, {
+      id: req?.user?.id,
+      email: req?.user?.email,
+    });
   }
 
   @Delete('template-designs/:id')

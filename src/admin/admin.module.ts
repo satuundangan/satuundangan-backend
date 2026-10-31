@@ -17,6 +17,7 @@ import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
+import { TemplateDesignRevision } from './entities/template-design-revision.entity';
 import { ActivityLog } from './entities/activity-log.entity';
 import { TelemetryController } from './telemetry.controller';
 import { PromoModule } from '../promo/promo.module';
@@ -50,6 +51,7 @@ import { MaintenanceController } from './security/maintenance.controller';
       Audio,
       Bank,
       PaletteColor,
+      TemplateDesignRevision,
       ActivityLog,
       AffiliateProfile,
       WithdrawRequest,

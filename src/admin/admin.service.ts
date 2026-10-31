@@ -27,6 +27,10 @@ import {
   CreatePaletteColorDto,
   UpdatePaletteColorDto,
 } from './dto/palette-color.dto';
+import {
+  UpdateAudioMetadataDto,
+  UploadAudioMetadataDto,
+} from './dto/audio-metadata.dto';
 import { DashboardStatsQueryDto } from './dto/dashboard-stats-query.dto';
 import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
@@ -2357,9 +2361,14 @@ export class AdminService {
           ...track,
           templateUseCount,
           invitationUseCount,
-          sourceStatus: 'unknown',
-          licenseStatus: 'unknown',
-          durationStatus: 'unknown',
+          sourceStatus: track.source?.trim() ? 'recorded' : 'unknown',
+          licenseStatus: track.licenseStatus || 'unknown',
+          durationStatus:
+            track.durationSeconds !== null &&
+            Number.isInteger(track.durationSeconds) &&
+            track.durationSeconds >= 0
+              ? 'recorded'
+              : 'unknown',
           usageMatch:
             'Exact URL match only; filename and historical URL aliases are not inferred.',
         };
@@ -2368,13 +2377,25 @@ export class AdminService {
   }
 
   async createAudio(payload: Partial<Audio>) {
-    const audio = this.audioRepo.create(payload);
+    const audio = this.audioRepo.create({
+      ...payload,
+      licenseStatus: payload.licenseStatus || 'unknown',
+    });
+    return this.audioRepo.save(audio);
+  }
+
+  async updateAudioMetadata(id: string, payload: UpdateAudioMetadataDto) {
+    const audio = await this.audioRepo.findOne({ where: { id } });
+    if (!audio) throw new NotFoundException('Audio not found');
+    if (payload.source !== undefined) audio.source = payload.source?.trim() || null;
+    if (payload.credit !== undefined) audio.credit = payload.credit?.trim() || null;
+    if (payload.licenseStatus !== undefined) audio.licenseStatus = payload.licenseStatus;
     return this.audioRepo.save(audio);
   }
 
   async uploadAudio(
     file: Express.Multer.File,
-    payload: { title?: string; category?: string },
+    payload: UploadAudioMetadataDto,
   ) {
     const upload = await this.uploadService.uploadFile(file);
     const fallbackTitle = file.originalname
@@ -2386,6 +2407,17 @@ export class AdminService {
       title: payload.title?.trim() || fallbackTitle,
       category: payload.category?.trim() || 'romantic',
       url: upload.fileUrl,
+      format: file.mimetype || null,
+      fileSizeBytes: Number.isFinite(file.size) ? file.size : null,
+      durationSeconds:
+        typeof payload.durationSeconds === 'number' &&
+        Number.isInteger(payload.durationSeconds) &&
+        payload.durationSeconds >= 0
+          ? payload.durationSeconds
+          : null,
+      source: payload.source?.trim() || null,
+      credit: payload.credit?.trim() || null,
+      licenseStatus: payload.licenseStatus || 'unknown',
     });
 
     return this.audioRepo.save(audio);

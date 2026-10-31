@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsNotEmpty, IsString, IsHexColor } from 'class-validator';
+import { IsNotEmpty, IsString, IsHexColor, IsBoolean, IsOptional } from 'class-validator';
 
 export class CreateCategoryDto {
   @IsString()
@@ -10,6 +10,10 @@ export class CreateCategoryDto {
   @IsNotEmpty()
   @IsHexColor()
   color: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {}

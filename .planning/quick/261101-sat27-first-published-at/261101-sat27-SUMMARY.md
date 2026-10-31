@@ -18,5 +18,6 @@
 
 ## Deployment
 
-- Not pushed yet. Change is intended for `development` only.
+- Backend `cbed84d` and frontend `2ee3e30` were pushed to `development`.
+- Backend development workflow #115 and frontend development workflow both completed successfully.
 - Production branch and environment were not touched.

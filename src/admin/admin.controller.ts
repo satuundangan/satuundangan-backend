@@ -372,6 +372,32 @@ export class AdminController {
     return this.service.createAudio(body);
   }
 
+  @Patch('audio/:id/replace')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES,
+      },
+    }),
+  )
+  replaceAudio(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES,
+          }),
+          new FileTypeValidator({ fileType: /^audio\/(mpeg|mp3)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @Body() body: UploadAudioMetadataDto,
+  ) {
+    return this.service.replaceAudio(id, file, body);
+  }
+
   @Patch('audio/:id')
   updateAudioMetadata(
     @Param('id') id: string,

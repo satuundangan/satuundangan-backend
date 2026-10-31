@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, LessThan } from 'typeorm';
@@ -40,6 +41,8 @@ import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Invitation)
@@ -2391,6 +2394,68 @@ export class AdminService {
     if (payload.credit !== undefined) audio.credit = payload.credit?.trim() || null;
     if (payload.licenseStatus !== undefined) audio.licenseStatus = payload.licenseStatus;
     return this.audioRepo.save(audio);
+  }
+
+  async replaceAudio(
+    id: string,
+    file: Express.Multer.File,
+    payload: UploadAudioMetadataDto,
+  ) {
+    const audio = await this.audioRepo.findOne({ where: { id } });
+    if (!audio) throw new NotFoundException('Audio not found');
+    const upload = await this.uploadService.uploadFile(file);
+
+    try {
+      return await this.audioRepo.manager.transaction(async (manager) => {
+        const currentAudio = await manager.findOne(Audio, {
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!currentAudio) throw new NotFoundException('Audio not found');
+        const previousUrl = currentAudio.url;
+        const templateResult = await manager.update(
+          TemplateDesign,
+          { defaultMusic: previousUrl },
+          { defaultMusic: upload.fileUrl },
+        );
+        const invitationResult = await manager.update(
+          Invitation,
+          { musicChoice: previousUrl },
+          { musicChoice: upload.fileUrl },
+        );
+
+        currentAudio.url = upload.fileUrl;
+        currentAudio.format = file.mimetype || null;
+        currentAudio.fileSizeBytes = Number.isFinite(file.size) ? file.size : null;
+        currentAudio.durationSeconds =
+          typeof payload.durationSeconds === 'number' &&
+          Number.isInteger(payload.durationSeconds) &&
+          payload.durationSeconds >= 0
+            ? payload.durationSeconds
+            : null;
+        if (payload.source !== undefined) currentAudio.source = payload.source.trim() || null;
+        if (payload.credit !== undefined) currentAudio.credit = payload.credit.trim() || null;
+        if (payload.licenseStatus !== undefined) currentAudio.licenseStatus = payload.licenseStatus;
+        await manager.save(Audio, currentAudio);
+
+        return {
+          success: true,
+          templateReferencesUpdated: templateResult.affected || 0,
+          invitationReferencesUpdated: invitationResult.affected || 0,
+          previousFileRetained: true,
+        };
+      });
+    } catch (error) {
+      try {
+        await this.uploadService.deleteFile(upload.fileUrl);
+      } catch (cleanupError) {
+        this.logger.error(
+          `Failed to clean up replacement audio after transaction failure: ${upload.fileUrl}`,
+          cleanupError instanceof Error ? cleanupError.stack : String(cleanupError),
+        );
+      }
+      throw error;
+    }
   }
 
   async uploadAudio(

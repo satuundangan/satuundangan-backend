@@ -2354,6 +2354,11 @@ export class AdminService {
       where,
       order: { title: 'ASC' },
     });
+    const allTrackUrls = await this.audioRepo.find({ select: { url: true } });
+    const urlUseCount = allTrackUrls.reduce((counts, track) => {
+      if (track.url) counts.set(track.url, (counts.get(track.url) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
     return Promise.all(
       tracks.map(async (track) => {
         const [templateUseCount, invitationUseCount] = await Promise.all([
@@ -2364,6 +2369,7 @@ export class AdminService {
           ...track,
           templateUseCount,
           invitationUseCount,
+          sameUrlTrackCount: track.url ? urlUseCount.get(track.url) || 1 : 0,
           sourceStatus: track.source?.trim() ? 'recorded' : 'unknown',
           licenseStatus: track.licenseStatus || 'unknown',
           durationStatus:

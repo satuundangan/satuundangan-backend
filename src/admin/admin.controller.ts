@@ -41,6 +41,10 @@ import { AuditLogQueryDto, UpdateAdminRoleDto } from './dto/admin-security.dto';
 import { CreatePromoCodeDto } from '../promo/dto/create-promo-code.dto';
 import { UpdatePromoCodeDto } from '../promo/dto/update-promo-code.dto';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
+import {
+  UpdateAudioMetadataDto,
+  UploadAudioMetadataDto,
+} from './dto/audio-metadata.dto';
 
 function requireAdminReason(req: { headers?: Record<string, unknown> }) {
   const reason = String(req?.headers?.['x-admin-reason'] ?? '').trim();
@@ -368,6 +372,14 @@ export class AdminController {
     return this.service.createAudio(body);
   }
 
+  @Patch('audio/:id')
+  updateAudioMetadata(
+    @Param('id') id: string,
+    @Body() dto: UpdateAudioMetadataDto,
+  ) {
+    return this.service.updateAudioMetadata(id, dto);
+  }
+
   @Post('audio/upload')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -388,7 +400,7 @@ export class AdminController {
       }),
     )
     file: Express.Multer.File,
-    @Body() body: { title?: string; category?: string },
+    @Body() body: UploadAudioMetadataDto,
   ) {
     return this.service.uploadAudio(file, body);
   }

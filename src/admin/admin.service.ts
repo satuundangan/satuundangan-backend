@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -222,6 +223,12 @@ export class AdminService {
         .from(Invitation, 'inv')
         .where('inv.userId = user.id')
         .andWhere('inv.isPublished = true');
+    const hasCompletedInvitation = (sub: any) =>
+      sub
+        .select('inv.id')
+        .from(Invitation, 'inv')
+        .where('inv.userId = user.id')
+        .andWhere('inv.eventCompletedAt IS NOT NULL');
     const hasPendingPayment = (sub: any) =>
       sub
         .select('pay.id')
@@ -256,6 +263,11 @@ export class AdminService {
       case 'published':
         qb.andWhere(
           `EXISTS ${hasPublishedInvitation(qb.subQuery())!.getQuery()}`,
+        );
+        break;
+      case 'event_completed':
+        qb.andWhere(
+          `EXISTS ${hasCompletedInvitation(qb.subQuery())!.getQuery()}`,
         );
         break;
     }
@@ -375,6 +387,7 @@ export class AdminService {
       accountPaymentStats,
       emailPaymentStats,
       pendingPaymentCount,
+      completionStats,
     ] = await Promise.all([
       this.invitationRepo.find({
         where: { user: { id } },
@@ -384,6 +397,9 @@ export class AdminService {
           slug: true,
           isPublished: true,
           publishedAt: true,
+          eventCompletedAt: true,
+          eventCompletedByAdminId: true,
+          eventCompletionReason: true,
           dateTime: true,
           createdAt: true,
           updatedAt: true,
@@ -481,6 +497,13 @@ export class AdminService {
         .leftJoin('payment.invitation', 'invitation')
         .andWhere("payment.status = 'pending'")
         .getCount(),
+      this.invitationRepo
+        .createQueryBuilder('invitation')
+        .select('COUNT(invitation.id)', 'count')
+        .addSelect('MAX(invitation.eventCompletedAt)', 'latestAt')
+        .where('invitation.userId = :id', { id })
+        .andWhere('invitation.eventCompletedAt IS NOT NULL')
+        .getRawOne(),
     ]);
 
     const timeline = [
@@ -542,6 +565,16 @@ export class AdminService {
             : 'isPublished=true; waktu terbit historis tidak diketahui',
           timestampUnknown: !inv.publishedAt,
         })),
+      ...invitations
+        .filter((inv) => inv.eventCompletedAt)
+        .map((inv) => ({
+          type: 'wedding_completed',
+          at: inv.eventCompletedAt,
+          invitationId: inv.id,
+          actorId: inv.eventCompletedByAdminId,
+          label: `${inv.title || `Undangan #${inv.id}`} dikonfirmasi selesai`,
+          evidence: `Konfirmasi admin #${inv.eventCompletedByAdminId}: ${inv.eventCompletionReason}`,
+        })),
       ...activities.map((activity) => ({
         type: 'activity',
         at: activity.createdAt,
@@ -566,7 +599,9 @@ export class AdminService {
       },
       lifecycle: {
         stage:
-          publishedInvitationCount > 0
+          Number(completionStats?.count || 0) > 0
+            ? 'event_completed'
+            : publishedInvitationCount > 0
             ? 'published'
             : pendingPaymentCount > 0
               ? 'checkout_pending'
@@ -580,8 +615,14 @@ export class AdminService {
                       ? 'verified_no_invitation'
                       : 'unverified',
         evidence:
-          'Derived from recorded verification, owned invitations, and eligible payment records. No wedding-completion event exists.',
-        weddingCompletion: null,
+          'Derived from recorded verification, owned invitations, eligible payment records, and admin-confirmed event completion. Planned wedding dates are not treated as proof of completion.',
+        weddingCompletion: Number(completionStats?.count || 0)
+          ? {
+              confirmedInvitationCount: Number(completionStats.count),
+              latestAt: completionStats.latestAt,
+              evidence: 'Explicit admin confirmation; historical records remain unknown.',
+            }
+          : null,
       },
       invitations,
       payments: payments.map((payment) => ({
@@ -618,6 +659,7 @@ export class AdminService {
         paidTransactionCountByFallback: fallbackPaidCount,
         spendByAccount: accountSpend,
         spendByFallback: fallbackSpend,
+        completedInvitationCount: Number(completionStats?.count || 0),
         fallbackLinkMayNotIdentifyTheAccountOwner: true,
       },
       timeline: timeline.sort((a, b) => {
@@ -629,9 +671,54 @@ export class AdminService {
         'Legacy signup timestamps have not been validated against historical event sources.',
         'No reliable login history exists before lastLoginAt tracking was deployed.',
         'Publication timestamps are recorded for new transitions; legacy publication times remain unknown.',
-        'No wedding completion event is currently stored.',
+        'Wedding completion is recorded only after explicit admin confirmation; legacy rows remain unknown.',
         'Detail lists are capped to the latest 50 invitations, 100 payments and 50 activity records; summary totals use all matching records.',
       ],
+    };
+  }
+
+  async completeCustomerEvent(
+    userId: number,
+    invitationId: number,
+    reason: string,
+    adminUser: { id?: number },
+  ) {
+    const normalizedReason = String(reason || '').trim();
+    if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+      throw new BadRequestException('Alasan konfirmasi harus 5–500 karakter.');
+    }
+    const actorId = Number(adminUser?.id);
+    if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+      throw new BadRequestException('Identitas admin yang mengonfirmasi tidak valid.');
+    }
+
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: invitationId, user: { id: userId } },
+    });
+    if (!invitation) {
+      throw new NotFoundException('Undangan milik pelanggan tidak ditemukan.');
+    }
+    if (!invitation.isPublished) {
+      throw new BadRequestException(
+        'Hanya undangan yang sudah terbit yang dapat dikonfirmasi selesai.',
+      );
+    }
+    if (invitation.eventCompletedAt) {
+      throw new ConflictException(
+        'Acara pada undangan ini sudah pernah dikonfirmasi selesai.',
+      );
+    }
+
+    invitation.eventCompletedAt = new Date();
+    invitation.eventCompletedByAdminId = actorId;
+    invitation.eventCompletionReason = normalizedReason;
+    await this.invitationRepo.save(invitation);
+
+    return {
+      invitationId: invitation.id,
+      eventCompletedAt: invitation.eventCompletedAt,
+      eventCompletedByAdminId: invitation.eventCompletedByAdminId,
+      eventCompletionReason: invitation.eventCompletionReason,
     };
   }
 

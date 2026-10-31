@@ -45,6 +45,7 @@ import {
   UpdateAudioMetadataDto,
   UploadAudioMetadataDto,
 } from './dto/audio-metadata.dto';
+import { CompleteCustomerEventDto } from './dto/complete-customer-event.dto';
 
 function requireAdminReason(req: { headers?: Record<string, unknown> }) {
   const reason = String(req?.headers?.['x-admin-reason'] ?? '').trim();
@@ -88,6 +89,17 @@ export class AdminController {
   @Get('users/:id/customer')
   getCustomerDetail(@Param('id', ParseIntPipe) id: number) {
     return this.service.getCustomerDetail(id);
+  }
+
+  @Post('users/:id/invitations/:invitationId/event-completion')
+  completeCustomerEvent(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+    @Body() dto: CompleteCustomerEventDto,
+    @Req() req: any,
+  ) {
+    requireAdminReason(req);
+    return this.service.completeCustomerEvent(id, invitationId, dto.reason, req.user);
   }
 
   @Get('users/:id')

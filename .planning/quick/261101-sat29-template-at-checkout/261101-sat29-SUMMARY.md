@@ -11,4 +11,6 @@
 - Tests were not run.
 
 ## Deployment
-- Not pushed or deployed yet. Intended target is `development` only.
+- Commit `bfed78a` was fast-forward pushed to `development`.
+- No production branch or production deployment was changed.
+- GitHub Actions deployment status was not independently verified after the push.

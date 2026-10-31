@@ -13,4 +13,5 @@
 - Tests were not run.
 
 ## Deployment
-- Not pushed yet. Intended target is `development` only.
+- Backend commit `b0ccf32` and frontend commit `97e4cb8` were pushed to `development`.
+- Production branch `master` was not changed. Workflow completion was not independently verified after the push.

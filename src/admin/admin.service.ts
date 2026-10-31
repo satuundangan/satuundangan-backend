@@ -2548,14 +2548,18 @@ export class AdminService {
   }
 
   async createBank(payload: Partial<Bank>) {
-    const bank = this.bankRepo.create(payload);
+    const bank = this.bankRepo.create({ ...payload, isActive: payload.isActive ?? true });
     return this.bankRepo.save(bank);
   }
 
   async updateBank(id: string, payload: Partial<Bank>) {
     const bank = await this.bankRepo.findOne({ where: { id } });
     if (!bank) throw new NotFoundException('Bank not found');
-    Object.assign(bank, payload);
+    Object.assign(bank, payload, {
+      name: payload.name?.trim() ?? bank.name,
+      code: payload.code?.trim() ?? bank.code,
+      isActive: payload.isActive ?? bank.isActive,
+    });
     return this.bankRepo.save(bank);
   }
 

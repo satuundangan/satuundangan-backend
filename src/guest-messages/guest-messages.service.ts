@@ -75,7 +75,7 @@ export class GuestMessagesService {
     // sync RSVP status on guest if linked
     if (guest) {
       guest.rsvpStatus = dto.rsvpStatus;
-      guest.pax = dto.totalGuests || 1;
+      guest.pax = dto.totalGuests;
       await this.guestRepo.save(guest);
     }
 

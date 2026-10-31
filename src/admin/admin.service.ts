@@ -2,9 +2,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, LessThan } from 'typeorm';
+import { Repository, ILike, LessThan, In } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
@@ -18,6 +19,7 @@ import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
+import { TemplateDesignRevision } from './entities/template-design-revision.entity';
 import { ActivityLog, LogLevel } from './entities/activity-log.entity';
 import {
   CreateTemplateDesignDto,
@@ -27,6 +29,10 @@ import {
   CreatePaletteColorDto,
   UpdatePaletteColorDto,
 } from './dto/palette-color.dto';
+import {
+  UpdateAudioMetadataDto,
+  UploadAudioMetadataDto,
+} from './dto/audio-metadata.dto';
 import { DashboardStatsQueryDto } from './dto/dashboard-stats-query.dto';
 import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
@@ -36,6 +42,8 @@ import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Invitation)
@@ -47,6 +55,8 @@ export class AdminService {
     private readonly templateDesignRepo: Repository<TemplateDesign>,
     @InjectRepository(TemplateDesignSection)
     private readonly templateDesignSectionRepo: Repository<TemplateDesignSection>,
+    @InjectRepository(TemplateDesignRevision)
+    private readonly templateDesignRevisionRepo: Repository<TemplateDesignRevision>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
     @InjectRepository(Payment)
@@ -2085,6 +2095,91 @@ export class AdminService {
     return this.transformTemplateDesign(template);
   }
 
+  async getTemplateDesignRevisions(id: number) {
+    const template = await this.templateDesignRepo.findOne({ where: { id } });
+    if (!template) throw new NotFoundException('Template design not found');
+    const [revisions, invitationCount] = await Promise.all([
+      this.templateDesignRevisionRepo.find({
+        where: { templateId: id },
+        order: { version: 'DESC' },
+      }),
+      this.invitationRepo.count({ where: { templateDesign: { id } } }),
+    ]);
+    return {
+      templateId: id,
+      currentInvitationCount: invitationCount,
+      revisions: revisions.map(({ id: revisionId, version, templateName, createdAt, actorEmail }) => ({
+        id: revisionId,
+        version,
+        templateName,
+        createdAt,
+        actorEmail,
+      })),
+    };
+  }
+
+  async rollbackTemplateDesignRevision(
+    id: number,
+    revisionId: string,
+    actor?: { id?: number; email?: string },
+  ) {
+    const revision = await this.templateDesignRevisionRepo.findOne({
+      where: { id: revisionId, templateId: id },
+    });
+    if (!revision) throw new NotFoundException('Template revision not found');
+    return this.updateTemplateDesign(
+      id,
+      revision.snapshot as UpdateTemplateDesignDto,
+      actor,
+    );
+  }
+
+  private async saveTemplateDesignRevisionBeforeUpdate(
+    template: TemplateDesign,
+    actor?: { id?: number; email?: string },
+  ) {
+    const latest = await this.templateDesignRevisionRepo.findOne({
+      where: { templateId: template.id },
+      order: { version: 'DESC' },
+    });
+    const revision = this.templateDesignRevisionRepo.create({
+      templateId: template.id,
+      templateName: template.name,
+      version: (latest?.version || 0) + 1,
+      snapshot: {
+        name: template.name,
+        slug: template.slug,
+        componentKey: template.componentKey,
+        previewUrl: template.previewUrl,
+        thumbnailUrl: template.thumbnailUrl,
+        isActive: template.isPublished,
+        category: template.category?.name || null,
+        price: Number(template.price),
+        paletteId: template.palette?.id || null,
+        paletteColors: template.paletteColors || [],
+        description: template.description,
+        seoTitle: template.seoTitle,
+        seoDescription: template.seoDescription,
+        tags: template.tags,
+        filterGroup: template.filterGroup,
+        sectionOptions: template.sectionOptions,
+        sampleContent: template.sampleContent,
+        designConfig: template.designConfig,
+        defaultMusic: template.defaultMusic,
+        defaultAudioStart: template.defaultAudioStart,
+        defaultAudioEnd: template.defaultAudioEnd,
+        sections: (template.sections || []).map((section) => ({
+          sectionId: section.section.id,
+          order: section.order,
+          is_enabled: section.is_enabled,
+        })),
+      },
+      actorId: actor?.id ?? null,
+      actorEmail: actor?.email ?? null,
+    });
+    await this.templateDesignRevisionRepo.save(revision);
+  }
+
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
     try {
       const { category: categoryName, paletteId, sections, ...rest } = payload;
@@ -2146,7 +2241,11 @@ export class AdminService {
     }
   }
 
-  async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
+  async updateTemplateDesign(
+    id: number,
+    payload: UpdateTemplateDesignDto,
+    actor?: { id?: number; email?: string },
+  ) {
     try {
       const template = await this.templateDesignRepo.findOne({
         where: { id },
@@ -2164,25 +2263,38 @@ export class AdminService {
           throw new BadRequestException('Slug template sudah digunakan');
       }
 
-      if (categoryName) {
-        const found = await this.categoryRepo.findOne({
-          where: { name: categoryName },
-        });
-        if (!found)
-          throw new BadRequestException(`Category '${categoryName}' not found`);
-        template.category = found;
+      let nextCategory: Category | null | undefined;
+      if (categoryName !== undefined) {
+        if (categoryName === null) {
+          nextCategory = null;
+        } else {
+          const found = await this.categoryRepo.findOne({
+            where: { name: categoryName },
+          });
+          if (!found)
+            throw new BadRequestException(
+              `Category '${categoryName}' not found`,
+            );
+          nextCategory = found;
+        }
       }
 
+      let nextPalette: PaletteColor | null | undefined;
       if (paletteId !== undefined) {
         if (paletteId === null) {
-          template.palette = null;
+          nextPalette = null;
         } else if (paletteId) {
           const foundPalette = await this.paletteColorRepo.findOne({
             where: { id: paletteId },
           });
-          if (foundPalette) template.palette = foundPalette;
+          if (foundPalette) nextPalette = foundPalette;
         }
       }
+
+      await this.saveTemplateDesignRevisionBeforeUpdate(template, actor);
+
+      if (nextCategory !== undefined) template.category = nextCategory;
+      if (nextPalette !== undefined) template.palette = nextPalette;
 
       const data = this.normalizeTemplateDesignPayload(rest);
       Object.assign(template, data);
@@ -2248,6 +2360,35 @@ export class AdminService {
       order: { label: 'ASC' },
     });
 
+    const links = sections.length
+      ? await this.templateDesignSectionRepo.find({
+          where: {
+            section: { id: In(sections.map((section) => section.id)) },
+            is_enabled: true,
+          },
+          relations: ['section', 'templateDesign'],
+        })
+      : [];
+    const rendererCoverageBySection = new Map<
+      string,
+      Map<string, { templateCount: number; publishedTemplateCount: number }>
+    >();
+    for (const link of links) {
+      const template = link.templateDesign;
+      const sectionId = link.section?.id;
+      const renderer = template?.componentKey?.trim() || template?.slug?.trim();
+      if (!sectionId || !renderer) continue;
+      const coverage = rendererCoverageBySection.get(sectionId) || new Map();
+      const rendererCounts = coverage.get(renderer) || {
+        templateCount: 0,
+        publishedTemplateCount: 0,
+      };
+      rendererCounts.templateCount += 1;
+      if (template.isPublished) rendererCounts.publishedTemplateCount += 1;
+      coverage.set(renderer, rendererCounts);
+      rendererCoverageBySection.set(sectionId, coverage);
+    }
+
     console.log(
       `[DEBUG] listSections found ${sections.length} items. Raw first item:`,
       sections[0],
@@ -2257,14 +2398,26 @@ export class AdminService {
       sections.map(async (s) => {
         const raw = s as any;
         const isActive = s.is_active ?? raw.is_published ?? true;
-        const [templateUseCount, enabledTemplateUseCount] = await Promise.all([
+        const [templateUseCount, enabledTemplateUseCount, samplePreviewSection] = await Promise.all([
           this.templateDesignSectionRepo.count({
             where: { section: { id: s.id } },
           }),
           this.templateDesignSectionRepo.count({
             where: { section: { id: s.id }, is_enabled: true },
           }),
+          this.templateDesignSectionRepo
+            .createQueryBuilder('templateSection')
+            .innerJoinAndSelect('templateSection.templateDesign', 'template')
+            .innerJoin('templateSection.section', 'section')
+            .where('section.id = :sectionId', { sectionId: s.id })
+            .andWhere('templateSection.is_enabled = :enabled', { enabled: true })
+            .andWhere('template.isPublished = :published', { published: true })
+            .andWhere('template.previewUrl IS NOT NULL')
+            .andWhere("template.previewUrl <> ''")
+            .orderBy('template.name', 'ASC')
+            .getOne(),
         ]);
+        const sampleTemplate = samplePreviewSection?.templateDesign;
         return {
           id: s.id,
           label: s.label,
@@ -2272,6 +2425,20 @@ export class AdminService {
           is_active: isActive,
           templateUseCount,
           enabledTemplateUseCount,
+          rendererCoverage: Array.from(
+            rendererCoverageBySection.get(s.id)?.entries() || [],
+          ).map(([renderer, counts]) => ({
+            renderer,
+            ...counts,
+            packageSupport: 'unknown',
+          })),
+          samplePreviewTemplate: sampleTemplate
+            ? {
+                id: sampleTemplate.id,
+                name: sampleTemplate.name,
+                previewUrl: sampleTemplate.previewUrl,
+              }
+            : null,
         };
       }),
     );
@@ -2347,6 +2514,11 @@ export class AdminService {
       where,
       order: { title: 'ASC' },
     });
+    const allTrackUrls = await this.audioRepo.find({ select: { url: true } });
+    const urlUseCount = allTrackUrls.reduce((counts, track) => {
+      if (track.url) counts.set(track.url, (counts.get(track.url) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
     return Promise.all(
       tracks.map(async (track) => {
         const [templateUseCount, invitationUseCount] = await Promise.all([
@@ -2357,9 +2529,15 @@ export class AdminService {
           ...track,
           templateUseCount,
           invitationUseCount,
-          sourceStatus: 'unknown',
-          licenseStatus: 'unknown',
-          durationStatus: 'unknown',
+          sameUrlTrackCount: track.url ? urlUseCount.get(track.url) || 1 : 0,
+          sourceStatus: track.source?.trim() ? 'recorded' : 'unknown',
+          licenseStatus: track.licenseStatus || 'unknown',
+          durationStatus:
+            track.durationSeconds !== null &&
+            Number.isInteger(track.durationSeconds) &&
+            track.durationSeconds >= 0
+              ? 'recorded'
+              : 'unknown',
           usageMatch:
             'Exact URL match only; filename and historical URL aliases are not inferred.',
         };
@@ -2368,13 +2546,87 @@ export class AdminService {
   }
 
   async createAudio(payload: Partial<Audio>) {
-    const audio = this.audioRepo.create(payload);
+    const audio = this.audioRepo.create({
+      ...payload,
+      licenseStatus: payload.licenseStatus || 'unknown',
+    });
     return this.audioRepo.save(audio);
+  }
+
+  async updateAudioMetadata(id: string, payload: UpdateAudioMetadataDto) {
+    const audio = await this.audioRepo.findOne({ where: { id } });
+    if (!audio) throw new NotFoundException('Audio not found');
+    if (payload.source !== undefined) audio.source = payload.source?.trim() || null;
+    if (payload.credit !== undefined) audio.credit = payload.credit?.trim() || null;
+    if (payload.licenseStatus !== undefined) audio.licenseStatus = payload.licenseStatus;
+    return this.audioRepo.save(audio);
+  }
+
+  async replaceAudio(
+    id: string,
+    file: Express.Multer.File,
+    payload: UploadAudioMetadataDto,
+  ) {
+    const audio = await this.audioRepo.findOne({ where: { id } });
+    if (!audio) throw new NotFoundException('Audio not found');
+    const upload = await this.uploadService.uploadFile(file);
+
+    try {
+      return await this.audioRepo.manager.transaction(async (manager) => {
+        const currentAudio = await manager.findOne(Audio, {
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!currentAudio) throw new NotFoundException('Audio not found');
+        const previousUrl = currentAudio.url;
+        const templateResult = await manager.update(
+          TemplateDesign,
+          { defaultMusic: previousUrl },
+          { defaultMusic: upload.fileUrl },
+        );
+        const invitationResult = await manager.update(
+          Invitation,
+          { musicChoice: previousUrl },
+          { musicChoice: upload.fileUrl },
+        );
+
+        currentAudio.url = upload.fileUrl;
+        currentAudio.format = file.mimetype || null;
+        currentAudio.fileSizeBytes = Number.isFinite(file.size) ? file.size : null;
+        currentAudio.durationSeconds =
+          typeof payload.durationSeconds === 'number' &&
+          Number.isInteger(payload.durationSeconds) &&
+          payload.durationSeconds >= 0
+            ? payload.durationSeconds
+            : null;
+        if (payload.source !== undefined) currentAudio.source = payload.source.trim() || null;
+        if (payload.credit !== undefined) currentAudio.credit = payload.credit.trim() || null;
+        if (payload.licenseStatus !== undefined) currentAudio.licenseStatus = payload.licenseStatus;
+        await manager.save(Audio, currentAudio);
+
+        return {
+          success: true,
+          templateReferencesUpdated: templateResult.affected || 0,
+          invitationReferencesUpdated: invitationResult.affected || 0,
+          previousFileRetained: true,
+        };
+      });
+    } catch (error) {
+      try {
+        await this.uploadService.deleteFile(upload.fileUrl);
+      } catch (cleanupError) {
+        this.logger.error(
+          `Failed to clean up replacement audio after transaction failure: ${upload.fileUrl}`,
+          cleanupError instanceof Error ? cleanupError.stack : String(cleanupError),
+        );
+      }
+      throw error;
+    }
   }
 
   async uploadAudio(
     file: Express.Multer.File,
-    payload: { title?: string; category?: string },
+    payload: UploadAudioMetadataDto,
   ) {
     const upload = await this.uploadService.uploadFile(file);
     const fallbackTitle = file.originalname
@@ -2386,6 +2638,17 @@ export class AdminService {
       title: payload.title?.trim() || fallbackTitle,
       category: payload.category?.trim() || 'romantic',
       url: upload.fileUrl,
+      format: file.mimetype || null,
+      fileSizeBytes: Number.isFinite(file.size) ? file.size : null,
+      durationSeconds:
+        typeof payload.durationSeconds === 'number' &&
+        Number.isInteger(payload.durationSeconds) &&
+        payload.durationSeconds >= 0
+          ? payload.durationSeconds
+          : null,
+      source: payload.source?.trim() || null,
+      credit: payload.credit?.trim() || null,
+      licenseStatus: payload.licenseStatus || 'unknown',
     });
 
     return this.audioRepo.save(audio);
@@ -2412,7 +2675,17 @@ export class AdminService {
     const where = q
       ? [{ name: ILike(`%${q}%`) }, { code: ILike(`%${q}%`) }]
       : undefined;
-    const banks = await this.bankRepo.find({ where, order: { name: 'ASC' } });
+    const [banks, allCodes] = await Promise.all([
+      this.bankRepo.find({ where, order: { name: 'ASC' } }),
+      this.bankRepo.find({ select: { code: true } }),
+    ]);
+    const codeUseCount = allCodes.reduce((counts, bank) => {
+      const normalizedCode = bank.code?.trim().toLocaleLowerCase();
+      if (normalizedCode) {
+        counts.set(normalizedCode, (counts.get(normalizedCode) || 0) + 1);
+      }
+      return counts;
+    }, new Map<string, number>());
     return Promise.all(
       banks.map(async (bank) => {
         const [bankAccountResult, walletResult] = await Promise.all([
@@ -2437,6 +2710,9 @@ export class AdminService {
           ...bank,
           bankAccountUseCount: Number(bankAccountResult?.count || 0),
           walletUseCount: Number(walletResult?.count || 0),
+          duplicateCodeCount: bank.code?.trim()
+            ? codeUseCount.get(bank.code.trim().toLocaleLowerCase()) || 1
+            : 0,
           usageMatch:
             'Exact current name match in invitation snapshots; aliases are not inferred.',
         };
@@ -2445,14 +2721,23 @@ export class AdminService {
   }
 
   async createBank(payload: Partial<Bank>) {
-    const bank = this.bankRepo.create(payload);
+    const bank = this.bankRepo.create({
+      ...payload,
+      name: payload.name?.trim(),
+      code: payload.code?.trim(),
+      isActive: payload.isActive ?? true,
+    });
     return this.bankRepo.save(bank);
   }
 
   async updateBank(id: string, payload: Partial<Bank>) {
     const bank = await this.bankRepo.findOne({ where: { id } });
     if (!bank) throw new NotFoundException('Bank not found');
-    Object.assign(bank, payload);
+    Object.assign(bank, payload, {
+      name: payload.name?.trim() ?? bank.name,
+      code: payload.code?.trim() ?? bank.code,
+      isActive: payload.isActive ?? bank.isActive,
+    });
     return this.bankRepo.save(bank);
   }
 
@@ -2497,7 +2782,26 @@ export class AdminService {
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data, total, page, limit };
+    const usageRows = data.length
+      ? await this.templateDesignRepo
+          .createQueryBuilder('template')
+          .select('palette.id', 'paletteId')
+          .addSelect('COUNT(template.id)', 'templateUseCount')
+          .innerJoin('template.palette', 'palette')
+          .where('palette.id IN (:...paletteIds)', {
+            paletteIds: data.map((palette) => palette.id),
+          })
+          .groupBy('palette.id')
+          .getRawMany()
+      : [];
+    const usageByPalette = new Map(
+      usageRows.map((row) => [row.paletteId, Number(row.templateUseCount || 0)]),
+    );
+    const dataWithUsage = data.map((palette) => ({
+      ...palette,
+      templateUseCount: usageByPalette.get(palette.id) || 0,
+    }));
+    return { data: dataWithUsage, total, page, limit };
   }
 
   async createPaletteColor(payload: CreatePaletteColorDto) {
@@ -2515,6 +2819,14 @@ export class AdminService {
   async deletePaletteColor(id: string) {
     const palette = await this.paletteColorRepo.findOne({ where: { id } });
     if (!palette) throw new NotFoundException('Palette color not found');
+    const templateUseCount = await this.templateDesignRepo.count({
+      where: { palette: { id } },
+    });
+    if (templateUseCount > 0) {
+      throw new BadRequestException(
+        `Palet masih dipakai oleh ${templateUseCount} template. Lepaskan palet dari template terlebih dahulu sebelum menghapus master ini.`,
+      );
+    }
     await this.paletteColorRepo.remove(palette);
     return { success: true };
   }

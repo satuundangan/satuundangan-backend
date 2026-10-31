@@ -19,9 +19,14 @@ export class CategoryService {
     private readonly templateRepo: Repository<TemplateDesign>,
   ) {}
 
-  async findAll(query: PaginationQueryDto = {}) {
+  async findAll(query: PaginationQueryDto = {}, includeInactive = false) {
     const { page = 1, limit = 20, q } = query;
-    const where = q ? { name: ILike(`%${q}%`) } : undefined;
+    const activeFilter = includeInactive ? {} : { isActive: true };
+    const where = q
+      ? [{ name: ILike(`%${q}%`), ...activeFilter }]
+      : includeInactive
+        ? undefined
+        : activeFilter;
 
     const [data, total] = await this.categoryRepo.findAndCount({
       where,
@@ -62,9 +67,11 @@ export class CategoryService {
     return { data: enriched, total, page, limit };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, includeInactive = false) {
     const category = await this.categoryRepo.findOne({ where: { id } });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category || (!includeInactive && category.isActive === false)) {
+      throw new NotFoundException('Category not found');
+    }
     return category;
   }
 
@@ -74,12 +81,12 @@ export class CategoryService {
     });
     if (existing)
       throw new BadRequestException('Category with this name already exists');
-    const category = this.categoryRepo.create(dto);
+    const category = this.categoryRepo.create({ ...dto, isActive: dto.isActive ?? true });
     return this.categoryRepo.save(category);
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
-    const category = await this.findOne(id);
+    const category = await this.findOne(id, true);
     if (dto.name && dto.name !== category.name) {
       const existing = await this.categoryRepo.findOne({
         where: { name: dto.name },
@@ -92,7 +99,7 @@ export class CategoryService {
   }
 
   async remove(id: string) {
-    const category = await this.findOne(id);
+    const category = await this.findOne(id, true);
     const templateCount = await this.templateRepo.count({
       where: { category: { id } },
     });

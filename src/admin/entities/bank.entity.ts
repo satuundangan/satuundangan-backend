@@ -13,4 +13,7 @@ export class Bank {
 
   @Column()
   logo: string;
+
+  @Column({ default: true })
+  isActive: boolean;
 }

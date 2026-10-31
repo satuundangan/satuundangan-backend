@@ -2742,6 +2742,8 @@ export class AdminService {
     const audio = this.audioRepo.create({
       ...payload,
       licenseStatus: payload.licenseStatus || 'unknown',
+      playbackCheckResult: null,
+      playbackCheckAt: null,
     });
     return this.audioRepo.save(audio);
   }
@@ -2752,6 +2754,10 @@ export class AdminService {
     if (payload.source !== undefined) audio.source = payload.source?.trim() || null;
     if (payload.credit !== undefined) audio.credit = payload.credit?.trim() || null;
     if (payload.licenseStatus !== undefined) audio.licenseStatus = payload.licenseStatus;
+    if (payload.playbackCheckResult !== undefined) {
+      audio.playbackCheckResult = payload.playbackCheckResult;
+      audio.playbackCheckAt = new Date();
+    }
     return this.audioRepo.save(audio);
   }
 
@@ -2787,6 +2793,8 @@ export class AdminService {
         currentAudio.format = file.mimetype || null;
         currentAudio.fileSizeBytes = Number.isFinite(file.size) ? file.size : null;
         currentAudio.contentSha256 = this.audioContentSha256(file);
+        currentAudio.playbackCheckResult = null;
+        currentAudio.playbackCheckAt = null;
         currentAudio.durationSeconds =
           typeof payload.durationSeconds === 'number' &&
           Number.isInteger(payload.durationSeconds) &&

@@ -319,6 +319,7 @@ export class AdminService {
         hasWeddingPlannerAccess: true,
         instagramHandle: true,
         createdAt: true,
+        registeredAt: true,
         updatedAt: true,
         lastLoginAt: true,
       },
@@ -484,6 +485,16 @@ export class AdminService {
     ]);
 
     const timeline = [
+      ...(user.registeredAt
+        ? [
+            {
+              type: 'account_registered',
+              at: user.registeredAt,
+              label: 'Akun terdaftar',
+              evidence: 'registeredAt; dicatat saat registrasi mandiri',
+            },
+          ]
+        : []),
       ...(user.lastLoginAt
         ? [
             {
@@ -560,6 +571,9 @@ export class AdminService {
         activityTimestampAccuracy: user.createdAt
           ? 'legacy_accuracy_unverified'
           : 'unknown',
+        registrationTimestampAccuracy: user.registeredAt
+          ? 'tracked_since_deployment'
+          : 'unknown',
         lastLoginAtAccuracy: user.lastLoginAt
           ? 'tracked_since_deployment'
           : 'unknown',
@@ -627,6 +641,7 @@ export class AdminService {
       }),
       limitations: [
         'Legacy signup timestamps have not been validated against historical event sources.',
+        'Registration timestamps are captured for new self-service email and Google accounts; existing and admin-created accounts remain unknown.',
         'No reliable login history exists before lastLoginAt tracking was deployed.',
         'Publication timestamps are recorded for new transitions; legacy publication times remain unknown.',
         'No wedding completion event is currently stored.',
@@ -642,7 +657,7 @@ export class AdminService {
       });
       if (existing) throw new BadRequestException('Email already exists');
     }
-    const user = this.userRepo.create(payload);
+    const user = this.userRepo.create({ ...payload, registeredAt: null });
     if (payload.password) {
       user.password = await bcrypt.hash(payload.password, 10);
       user.provider = user.provider || 'local';
@@ -664,6 +679,7 @@ export class AdminService {
       payload.provider = payload.provider || 'local';
     }
     const { isEmailVerified, ...rest } = payload as any;
+    delete rest.registeredAt;
     if (typeof isEmailVerified === 'boolean') {
       user.emailVerifiedAt = isEmailVerified
         ? user.emailVerifiedAt || new Date()

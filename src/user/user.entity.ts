@@ -76,6 +76,10 @@ export class User {
   @CreateDateColumn({ type: 'datetime' })
   createdAt: Date;
 
+  // Captured only for self-service registrations; legacy and admin-created users remain unknown.
+  @Column({ type: 'datetime', nullable: true })
+  registeredAt: Date | null;
+
   @UpdateDateColumn({ type: 'datetime' })
   updatedAt: Date;
 

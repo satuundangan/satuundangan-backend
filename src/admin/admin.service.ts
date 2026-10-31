@@ -19,6 +19,7 @@ import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
+import { TemplateDesignRevision } from './entities/template-design-revision.entity';
 import { ActivityLog, LogLevel } from './entities/activity-log.entity';
 import {
   CreateTemplateDesignDto,
@@ -54,6 +55,8 @@ export class AdminService {
     private readonly templateDesignRepo: Repository<TemplateDesign>,
     @InjectRepository(TemplateDesignSection)
     private readonly templateDesignSectionRepo: Repository<TemplateDesignSection>,
+    @InjectRepository(TemplateDesignRevision)
+    private readonly templateDesignRevisionRepo: Repository<TemplateDesignRevision>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
     @InjectRepository(Payment)
@@ -2092,6 +2095,91 @@ export class AdminService {
     return this.transformTemplateDesign(template);
   }
 
+  async getTemplateDesignRevisions(id: number) {
+    const template = await this.templateDesignRepo.findOne({ where: { id } });
+    if (!template) throw new NotFoundException('Template design not found');
+    const [revisions, invitationCount] = await Promise.all([
+      this.templateDesignRevisionRepo.find({
+        where: { templateId: id },
+        order: { version: 'DESC' },
+      }),
+      this.invitationRepo.count({ where: { templateDesign: { id } } }),
+    ]);
+    return {
+      templateId: id,
+      currentInvitationCount: invitationCount,
+      revisions: revisions.map(({ id: revisionId, version, templateName, createdAt, actorEmail }) => ({
+        id: revisionId,
+        version,
+        templateName,
+        createdAt,
+        actorEmail,
+      })),
+    };
+  }
+
+  async rollbackTemplateDesignRevision(
+    id: number,
+    revisionId: string,
+    actor?: { id?: number; email?: string },
+  ) {
+    const revision = await this.templateDesignRevisionRepo.findOne({
+      where: { id: revisionId, templateId: id },
+    });
+    if (!revision) throw new NotFoundException('Template revision not found');
+    return this.updateTemplateDesign(
+      id,
+      revision.snapshot as UpdateTemplateDesignDto,
+      actor,
+    );
+  }
+
+  private async saveTemplateDesignRevisionBeforeUpdate(
+    template: TemplateDesign,
+    actor?: { id?: number; email?: string },
+  ) {
+    const latest = await this.templateDesignRevisionRepo.findOne({
+      where: { templateId: template.id },
+      order: { version: 'DESC' },
+    });
+    const revision = this.templateDesignRevisionRepo.create({
+      templateId: template.id,
+      templateName: template.name,
+      version: (latest?.version || 0) + 1,
+      snapshot: {
+        name: template.name,
+        slug: template.slug,
+        componentKey: template.componentKey,
+        previewUrl: template.previewUrl,
+        thumbnailUrl: template.thumbnailUrl,
+        isActive: template.isPublished,
+        category: template.category?.name || null,
+        price: Number(template.price),
+        paletteId: template.palette?.id || null,
+        paletteColors: template.paletteColors || [],
+        description: template.description,
+        seoTitle: template.seoTitle,
+        seoDescription: template.seoDescription,
+        tags: template.tags,
+        filterGroup: template.filterGroup,
+        sectionOptions: template.sectionOptions,
+        sampleContent: template.sampleContent,
+        designConfig: template.designConfig,
+        defaultMusic: template.defaultMusic,
+        defaultAudioStart: template.defaultAudioStart,
+        defaultAudioEnd: template.defaultAudioEnd,
+        sections: (template.sections || []).map((section) => ({
+          sectionId: section.section.id,
+          order: section.order,
+          is_enabled: section.is_enabled,
+        })),
+      },
+      actorId: actor?.id ?? null,
+      actorEmail: actor?.email ?? null,
+    });
+    await this.templateDesignRevisionRepo.save(revision);
+  }
+
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
     try {
       const { category: categoryName, paletteId, sections, ...rest } = payload;
@@ -2153,7 +2241,11 @@ export class AdminService {
     }
   }
 
-  async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
+  async updateTemplateDesign(
+    id: number,
+    payload: UpdateTemplateDesignDto,
+    actor?: { id?: number; email?: string },
+  ) {
     try {
       const template = await this.templateDesignRepo.findOne({
         where: { id },
@@ -2171,25 +2263,38 @@ export class AdminService {
           throw new BadRequestException('Slug template sudah digunakan');
       }
 
-      if (categoryName) {
-        const found = await this.categoryRepo.findOne({
-          where: { name: categoryName },
-        });
-        if (!found)
-          throw new BadRequestException(`Category '${categoryName}' not found`);
-        template.category = found;
+      let nextCategory: Category | null | undefined;
+      if (categoryName !== undefined) {
+        if (categoryName === null) {
+          nextCategory = null;
+        } else {
+          const found = await this.categoryRepo.findOne({
+            where: { name: categoryName },
+          });
+          if (!found)
+            throw new BadRequestException(
+              `Category '${categoryName}' not found`,
+            );
+          nextCategory = found;
+        }
       }
 
+      let nextPalette: PaletteColor | null | undefined;
       if (paletteId !== undefined) {
         if (paletteId === null) {
-          template.palette = null;
+          nextPalette = null;
         } else if (paletteId) {
           const foundPalette = await this.paletteColorRepo.findOne({
             where: { id: paletteId },
           });
-          if (foundPalette) template.palette = foundPalette;
+          if (foundPalette) nextPalette = foundPalette;
         }
       }
+
+      await this.saveTemplateDesignRevisionBeforeUpdate(template, actor);
+
+      if (nextCategory !== undefined) template.category = nextCategory;
+      if (nextPalette !== undefined) template.palette = nextPalette;
 
       const data = this.normalizeTemplateDesignPayload(rest);
       Object.assign(template, data);

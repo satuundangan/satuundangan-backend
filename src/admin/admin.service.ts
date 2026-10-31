@@ -935,7 +935,18 @@ export class AdminService {
       });
     }
     if (category && category !== 'all') {
-      qb.andWhere('category.name = :categoryName', { categoryName: category });
+      if (this.isUuid(category)) {
+        qb.andWhere('category.id = :categoryId', { categoryId: category });
+      } else {
+        const normalizedCategory = category.normalize('NFKC').trim().replace(/\s+/gu, ' ');
+        qb.andWhere(
+          '(LOWER(TRIM(category.name)) = LOWER(:categoryName) OR JSON_CONTAINS(category.aliases, :categoryNameJson))',
+          {
+            categoryName: normalizedCategory,
+            categoryNameJson: JSON.stringify(normalizedCategory),
+          },
+        );
+      }
     }
 
     if (paymentStatus && paymentStatus !== 'all') {
@@ -1893,7 +1904,9 @@ export class AdminService {
         const newObj = { ...obj };
         filterEntries.forEach(([key, value]) => {
           if (key === 'category') {
-            newObj.category = { ...newObj.category, name: ILike(`%${value}%`) };
+            newObj.category = this.isUuid(String(value))
+              ? { ...newObj.category, id: value }
+              : { ...newObj.category, name: ILike(`%${value}%`) };
           } else if (key === 'isActive') {
             newObj.isPublished = value === 'true';
           } else if (typeof value === 'string') {
@@ -2079,7 +2092,8 @@ export class AdminService {
         ]
       : {};
 
-    where = this.applyFilters(where, filters);
+    const resolvedFilters = await this.resolveTemplateCategoryFilter(filters);
+    where = this.applyFilters(where, resolvedFilters);
 
     let order: any = { [sortBy]: sortOrder };
     if (sortBy === 'category') {
@@ -2099,6 +2113,38 @@ export class AdminService {
       page,
       limit,
     };
+  }
+
+  private isUuid(value: string) {
+    return /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value);
+  }
+
+  private async resolveTemplateCategoryFilter(filtersStr?: string) {
+    if (!filtersStr) return filtersStr;
+    try {
+      const filters = JSON.parse(filtersStr);
+      const categoryName = filters?.category;
+      if (typeof categoryName !== 'string' || this.isUuid(categoryName)) {
+        return filtersStr;
+      }
+      const normalizedName = categoryName
+        .normalize('NFKC')
+        .trim()
+        .replace(/\s+/gu, ' ');
+      const category = await this.categoryRepo
+        .createQueryBuilder('category')
+        .where('LOWER(TRIM(category.name)) = LOWER(:name)', {
+          name: normalizedName,
+        })
+        .orWhere('JSON_CONTAINS(category.aliases, :nameJson)', {
+          nameJson: JSON.stringify(normalizedName),
+        })
+        .getOne();
+      if (category) filters.category = category.id;
+      return JSON.stringify(filters);
+    } catch {
+      return filtersStr;
+    }
   }
 
   async getTemplateDesign(id: number) {

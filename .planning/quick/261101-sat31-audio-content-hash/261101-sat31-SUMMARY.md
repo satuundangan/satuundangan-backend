@@ -18,4 +18,6 @@
 - Gift-catalog consistency is still open under ADM-053.
 
 ## Deployment
-- Not pushed yet. Intended target is `development` only.
+- Backend commit `b1aa197` and frontend commit `96680a1` were pushed to `development`.
+- Backend `deploy-dev.yml` targets service `backend-dev` on `development`; frontend workflow selects Cloudflare Pages project `satuundangan-development` for `development`.
+- Production branch `master` was not changed. Workflow completion was not independently verified after the push.

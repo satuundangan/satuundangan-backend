@@ -63,4 +63,8 @@ export class UpdateAudioMetadataDto {
   @IsOptional()
   @IsIn(AUDIO_LICENSE_STATUSES)
   licenseStatus?: AudioLicenseStatus;
+
+  @IsOptional()
+  @IsIn(['playable', 'failed', 'timeout'])
+  playbackCheckResult?: 'playable' | 'failed' | 'timeout';
 }

@@ -26,6 +26,12 @@ export class Audio {
   @Column({ type: 'char', length: 64, nullable: true })
   contentSha256: string | null;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  playbackCheckResult: 'playable' | 'failed' | 'timeout' | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  playbackCheckAt: Date | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   source: string | null;
 

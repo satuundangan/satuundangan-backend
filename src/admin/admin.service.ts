@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, LessThan } from 'typeorm';
+import { Repository, ILike, LessThan, In } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
@@ -2360,6 +2360,35 @@ export class AdminService {
       order: { label: 'ASC' },
     });
 
+    const links = sections.length
+      ? await this.templateDesignSectionRepo.find({
+          where: {
+            section: { id: In(sections.map((section) => section.id)) },
+            is_enabled: true,
+          },
+          relations: ['section', 'templateDesign'],
+        })
+      : [];
+    const rendererCoverageBySection = new Map<
+      string,
+      Map<string, { templateCount: number; publishedTemplateCount: number }>
+    >();
+    for (const link of links) {
+      const template = link.templateDesign;
+      const sectionId = link.section?.id;
+      const renderer = template?.componentKey?.trim() || template?.slug?.trim();
+      if (!sectionId || !renderer) continue;
+      const coverage = rendererCoverageBySection.get(sectionId) || new Map();
+      const rendererCounts = coverage.get(renderer) || {
+        templateCount: 0,
+        publishedTemplateCount: 0,
+      };
+      rendererCounts.templateCount += 1;
+      if (template.isPublished) rendererCounts.publishedTemplateCount += 1;
+      coverage.set(renderer, rendererCounts);
+      rendererCoverageBySection.set(sectionId, coverage);
+    }
+
     console.log(
       `[DEBUG] listSections found ${sections.length} items. Raw first item:`,
       sections[0],
@@ -2396,6 +2425,13 @@ export class AdminService {
           is_active: isActive,
           templateUseCount,
           enabledTemplateUseCount,
+          rendererCoverage: Array.from(
+            rendererCoverageBySection.get(s.id)?.entries() || [],
+          ).map(([renderer, counts]) => ({
+            renderer,
+            ...counts,
+            packageSupport: 'unknown',
+          })),
           samplePreviewTemplate: sampleTemplate
             ? {
                 id: sampleTemplate.id,

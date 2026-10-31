@@ -2069,16 +2069,10 @@ export class AdminService {
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .leftJoin('payment.invitation', 'invitation')
-        .select(
-          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
-          'templateId',
-        )
+        .select('payment.templateDesignIdSnapshot', 'templateId')
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
         .addSelect('COALESCE(SUM(payment.amount), 0)', 'grossAmount')
-        .where(
-          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId) IS NOT NULL',
-        )
+        .where("payment.purpose = 'invitation'")
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount > 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -2092,21 +2086,13 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy(
-          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
-        )
+        .groupBy('payment.templateDesignIdSnapshot')
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .leftJoin('payment.invitation', 'invitation')
-        .select(
-          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
-          'templateId',
-        )
+        .select('payment.templateDesignIdSnapshot', 'templateId')
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
-        .where(
-          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId) IS NOT NULL',
-        )
+        .where("payment.purpose = 'invitation'")
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount = 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -2120,22 +2106,20 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy(
-          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
-        )
+        .groupBy('payment.templateDesignIdSnapshot')
         .getRawMany(),
     ]);
 
-    const toMap = (rows: any[], countField: string) =>
-      new Map(
-        rows.map((row) => [
-          Number(row.templateId),
-          {
-            count: Number(row[countField] || 0),
-            grossAmount: Number(row.grossAmount || 0),
-          },
-        ]),
-      );
+    const toMap = (rows: any[], countField: string) => {
+      const result = new Map<number | null, { count: number; grossAmount: number }>();
+      for (const row of rows) {
+        result.set(row.templateId == null ? null : Number(row.templateId), {
+          count: Number(row[countField] || 0),
+          grossAmount: Number(row.grossAmount || 0),
+        });
+      }
+      return result;
+    };
     const invitationsByTemplate = new Map(
       invitationRows.map((row) => [
         Number(row.templateId),
@@ -2167,7 +2151,12 @@ export class AdminService {
         grossAmount:
           'Jumlah Payment.amount dari transaksi berbayar yang memenuhi syarat; refund dan biaya tidak dikurangkan.',
         attribution:
-          'Transaksi baru memakai snapshot template saat checkout. Payment lama tanpa snapshot memakai template undangan saat ini.',
+          'Metrik per template hanya memakai snapshot saat checkout. Payment invitation tanpa snapshot masuk ke ringkasan tidak teratribusi; template undangan saat ini tidak dipakai sebagai tebakan.',
+      },
+      unattributed: {
+        paidCount: paidByTemplate.get(null)?.count || 0,
+        freeCount: freeByTemplate.get(null)?.count || 0,
+        grossAmount: paidByTemplate.get(null)?.grossAmount || 0,
       },
       data: templates.map((template) => {
         const invitationMetric = invitationsByTemplate.get(template.id);

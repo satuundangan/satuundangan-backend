@@ -66,7 +66,7 @@ export class Payment {
   invitationId: number;
 
   // Template selected when this invitation checkout was created. Legacy rows
-  // fall back to the invitation's current template in admin reporting.
+  // without this snapshot stay unattributed in historical template reporting.
   @Column({ type: 'int', nullable: true })
   templateDesignIdSnapshot: number | null;
 

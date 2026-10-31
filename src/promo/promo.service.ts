@@ -7,6 +7,9 @@ import { Payment } from '../payment/payment.entity';
 import { CreatePromoCodeDto } from './dto/create-promo-code.dto';
 import { UpdatePromoCodeDto } from './dto/update-promo-code.dto';
 
+const ELIGIBLE_PAID_PROMO_PAYMENT =
+  "p.status = 'settlement' AND p.purpose = 'invitation' AND p.amount > 0";
+
 export type PromoComputedStatus =
   | 'scheduled'
   | 'active'
@@ -49,7 +52,7 @@ export class PromoService {
       validUntil: Date | string | null;
       maxUses: number | null;
     },
-    redemptionsCount: number,
+    usedCount: number,
     now: Date = new Date(),
   ): PromoComputedStatus {
     if (!promo.isActive) {
@@ -61,7 +64,7 @@ export class PromoService {
     if (promo.validUntil && new Date(promo.validUntil) < now) {
       return 'expired';
     }
-    if (promo.maxUses !== null && redemptionsCount >= promo.maxUses) {
+    if (promo.maxUses !== null && usedCount >= promo.maxUses) {
       return 'exhausted';
     }
     return 'active';
@@ -258,19 +261,19 @@ export class PromoService {
         .createQueryBuilder('p')
         .select('p.promoCodeId', 'promoCodeId')
         .addSelect(
-          "COUNT(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN 1 END)",
+          `COUNT(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} THEN 1 END)`,
           'redemptions_count',
         )
         .addSelect(
-          "COUNT(CASE WHEN p.status = 'pending' THEN 1 END)",
+          "COUNT(CASE WHEN p.status = 'pending' AND p.purpose = 'invitation' THEN 1 END)",
           'pending_reservations_count',
         )
         .addSelect(
-          "COALESCE(SUM(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN p.discountAmount ELSE 0 END), 0)",
+          `COALESCE(SUM(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} AND p.discountAmount > 0 THEN p.discountAmount ELSE 0 END), 0)`,
           'total_discount_amount',
         )
         .addSelect(
-          "COALESCE(SUM(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN p.amount ELSE 0 END), 0)",
+          `COALESCE(SUM(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} THEN p.amount ELSE 0 END), 0)`,
           'total_gross_revenue',
         )
         .where('p.promoCodeId IN (:...promoIds)', { promoIds })
@@ -297,13 +300,10 @@ export class PromoService {
         total_gross_revenue: 0,
       };
 
-      const computed_status = this.computePromoStatus(
-        promo,
-        stats.redemptions_count,
-      );
+      const computed_status = this.computePromoStatus(promo, promo.usedCount);
       const remaining_slots =
         promo.maxUses !== null
-          ? Math.max(0, promo.maxUses - stats.redemptions_count)
+          ? Math.max(0, promo.maxUses - promo.usedCount)
           : null;
 
       return {
@@ -313,6 +313,7 @@ export class PromoService {
         discount_value: promo.discountValue,
         max_uses: promo.maxUses,
         used_count: promo.usedCount,
+        reserved_slots_count: promo.usedCount,
         valid_from: promo.validFrom,
         valid_until: promo.validUntil,
         is_active: promo.isActive,
@@ -356,6 +357,11 @@ export class PromoService {
     let totalDiscountGranted = 0;
     let totalGrossRevenue = 0;
     let totalActivePromo = 0;
+    let totalPendingReservations = 0;
+    const totalReservedSlots = promos.reduce(
+      (total, promo) => total + Number(promo.usedCount || 0),
+      0,
+    );
 
     const promoIds = promos.map((p) => p.id);
 
@@ -363,48 +369,35 @@ export class PromoService {
       const rawMetrics = await this.paymentRepo
         .createQueryBuilder('p')
         .select(
-          "COUNT(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN 1 END)",
+          `COUNT(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} THEN 1 END)`,
           'total_redemptions',
         )
         .addSelect(
-          "COALESCE(SUM(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN p.discountAmount ELSE 0 END), 0)",
+          `COALESCE(SUM(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} AND p.discountAmount > 0 THEN p.discountAmount ELSE 0 END), 0)`,
           'total_discount_granted',
         )
         .addSelect(
-          "COALESCE(SUM(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN p.amount ELSE 0 END), 0)",
+          `COALESCE(SUM(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} THEN p.amount ELSE 0 END), 0)`,
           'total_gross_revenue',
         )
-        .where('p.promoCodeId IS NOT NULL')
+        .addSelect(
+          "COUNT(CASE WHEN p.status = 'pending' AND p.purpose = 'invitation' THEN 1 END)",
+          'total_pending_reservations',
+        )
+        .where('p.promoCodeId IN (:...promoIds)', { promoIds })
         .getRawOne();
 
       if (rawMetrics) {
         totalRedemptions = Number(rawMetrics.total_redemptions || 0);
         totalDiscountGranted = Number(rawMetrics.total_discount_granted || 0);
         totalGrossRevenue = Number(rawMetrics.total_gross_revenue || 0);
-      }
-
-      const redemptionCountsRaw = await this.paymentRepo
-        .createQueryBuilder('p')
-        .select('p.promoCodeId', 'promoCodeId')
-        .addSelect(
-          "COUNT(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN 1 END)",
-          'redemptions_count',
-        )
-        .where('p.promoCodeId IN (:...promoIds)', { promoIds })
-        .groupBy('p.promoCodeId')
-        .getRawMany();
-
-      const redemptionsMap = new Map<number, number>();
-      for (const row of redemptionCountsRaw) {
-        redemptionsMap.set(
-          Number(row.promoCodeId),
-          Number(row.redemptions_count || 0),
+        totalPendingReservations = Number(
+          rawMetrics.total_pending_reservations || 0,
         );
       }
 
       totalActivePromo = promos.filter((promo) => {
-        const count = redemptionsMap.get(promo.id) || 0;
-        return this.computePromoStatus(promo, count) === 'active';
+        return this.computePromoStatus(promo, promo.usedCount) === 'active';
       }).length;
     }
 
@@ -414,6 +407,13 @@ export class PromoService {
       total_redemptions: totalRedemptions,
       total_discount_granted: totalDiscountGranted,
       total_gross_revenue: totalGrossRevenue,
+      total_reserved_slots_count: totalReservedSlots,
+      total_pending_reservations: totalPendingReservations,
+      // Keep the names consumed by the admin frontend while preserving the
+      // original API fields above for existing clients.
+      total_promos: totalPromoCodes,
+      total_active_promos: totalActivePromo,
+      total_discount_amount: totalDiscountGranted,
     };
   }
 
@@ -426,19 +426,19 @@ export class PromoService {
     const rawStats = await this.paymentRepo
       .createQueryBuilder('p')
       .select(
-        "COUNT(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN 1 END)",
+        `COUNT(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} THEN 1 END)`,
         'redemptions_count',
       )
       .addSelect(
-        "COUNT(CASE WHEN p.status = 'pending' THEN 1 END)",
+        "COUNT(CASE WHEN p.status = 'pending' AND p.purpose = 'invitation' THEN 1 END)",
         'pending_reservations_count',
       )
       .addSelect(
-        "COALESCE(SUM(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN p.discountAmount ELSE 0 END), 0)",
+        `COALESCE(SUM(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} AND p.discountAmount > 0 THEN p.discountAmount ELSE 0 END), 0)`,
         'total_discount_amount',
       )
       .addSelect(
-        "COALESCE(SUM(CASE WHEN p.status IN ('settlement', 'capture', 'success') THEN p.amount ELSE 0 END), 0)",
+        `COALESCE(SUM(CASE WHEN ${ELIGIBLE_PAID_PROMO_PAYMENT} THEN p.amount ELSE 0 END), 0)`,
         'total_gross_revenue',
       )
       .where('p.promoCodeId = :id', { id })
@@ -453,10 +453,10 @@ export class PromoService {
     );
     const total_gross_revenue = Number(rawStats?.total_gross_revenue || 0);
 
-    const computed_status = this.computePromoStatus(promo, redemptions_count);
+    const computed_status = this.computePromoStatus(promo, promo.usedCount);
     const remaining_slots =
       promo.maxUses !== null
-        ? Math.max(0, promo.maxUses - redemptions_count)
+        ? Math.max(0, promo.maxUses - promo.usedCount)
         : null;
 
     const orders = await this.paymentRepo.find({
@@ -502,6 +502,7 @@ export class PromoService {
       discount_value: promo.discountValue,
       max_uses: promo.maxUses,
       used_count: promo.usedCount,
+      reserved_slots_count: promo.usedCount,
       valid_from: promo.validFrom,
       valid_until: promo.validUntil,
       is_active: promo.isActive,
@@ -520,6 +521,7 @@ export class PromoService {
         pending_reservations_count,
         total_discount_amount,
         total_gross_revenue,
+        reserved_slots_count: promo.usedCount,
       },
       orders: formattedOrders,
     };

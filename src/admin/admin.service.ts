@@ -1943,11 +1943,16 @@ export class AdminService {
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .innerJoin('payment.invitation', 'invitation')
-        .select('invitation.templateDesignId', 'templateId')
+        .leftJoin('payment.invitation', 'invitation')
+        .select(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+          'templateId',
+        )
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
         .addSelect('COALESCE(SUM(payment.amount), 0)', 'grossAmount')
-        .where('invitation.templateDesignId IS NOT NULL')
+        .where(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId) IS NOT NULL',
+        )
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount > 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -1961,14 +1966,21 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy('invitation.templateDesignId')
+        .groupBy(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+        )
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .innerJoin('payment.invitation', 'invitation')
-        .select('invitation.templateDesignId', 'templateId')
+        .leftJoin('payment.invitation', 'invitation')
+        .select(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+          'templateId',
+        )
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
-        .where('invitation.templateDesignId IS NOT NULL')
+        .where(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId) IS NOT NULL',
+        )
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount = 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -1982,7 +1994,9 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy('invitation.templateDesignId')
+        .groupBy(
+          'COALESCE(payment.templateDesignIdSnapshot, invitation.templateDesignId)',
+        )
         .getRawMany(),
     ]);
 
@@ -2027,7 +2041,7 @@ export class AdminService {
         grossAmount:
           'Jumlah Payment.amount dari transaksi berbayar yang memenuhi syarat; refund dan biaya tidak dikurangkan.',
         attribution:
-          'Template memakai relasi undangan saat ini. Riwayat template saat transaksi tidak tersedia untuk data lama.',
+          'Transaksi baru memakai snapshot template saat checkout. Payment lama tanpa snapshot memakai template undangan saat ini.',
       },
       data: templates.map((template) => {
         const invitationMetric = invitationsByTemplate.get(template.id);

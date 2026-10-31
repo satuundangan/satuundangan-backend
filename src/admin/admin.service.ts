@@ -2506,7 +2506,8 @@ export class AdminService {
             ? {
                 id: sampleTemplate.id,
                 name: sampleTemplate.name,
-                previewUrl: sampleTemplate.previewUrl,
+                slug: sampleTemplate.slug,
+                componentKey: sampleTemplate.componentKey,
               }
             : null,
         };

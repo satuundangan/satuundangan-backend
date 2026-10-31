@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   Injectable,
   NotFoundException,
@@ -2522,15 +2523,30 @@ export class AdminService {
   }
 
   // Audio
+  private audioContentSha256(file: Express.Multer.File): string {
+    if (!Buffer.isBuffer(file.buffer)) {
+      throw new BadRequestException('Isi file audio tidak dapat dibaca.');
+    }
+    return createHash('sha256').update(file.buffer).digest('hex');
+  }
+
   async listAudio(q?: string) {
     const where = q ? { title: ILike(`%${q}%`) } : undefined;
     const tracks = await this.audioRepo.find({
       where,
       order: { title: 'ASC' },
     });
-    const allTrackUrls = await this.audioRepo.find({ select: { url: true } });
-    const urlUseCount = allTrackUrls.reduce((counts, track) => {
+    const allTracks = await this.audioRepo.find({
+      select: { url: true, contentSha256: true },
+    });
+    const urlUseCount = allTracks.reduce((counts, track) => {
       if (track.url) counts.set(track.url, (counts.get(track.url) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+    const contentUseCount = allTracks.reduce((counts, track) => {
+      if (track.contentSha256) {
+        counts.set(track.contentSha256, (counts.get(track.contentSha256) || 0) + 1);
+      }
       return counts;
     }, new Map<string, number>());
     return Promise.all(
@@ -2544,6 +2560,10 @@ export class AdminService {
           templateUseCount,
           invitationUseCount,
           sameUrlTrackCount: track.url ? urlUseCount.get(track.url) || 1 : 0,
+          sameContentTrackCount: track.contentSha256
+            ? contentUseCount.get(track.contentSha256) || 1
+            : null,
+          contentHashStatus: track.contentSha256 ? 'checked' : 'unknown',
           sourceStatus: track.source?.trim() ? 'recorded' : 'unknown',
           licenseStatus: track.licenseStatus || 'unknown',
           durationStatus:
@@ -2607,6 +2627,7 @@ export class AdminService {
         currentAudio.url = upload.fileUrl;
         currentAudio.format = file.mimetype || null;
         currentAudio.fileSizeBytes = Number.isFinite(file.size) ? file.size : null;
+        currentAudio.contentSha256 = this.audioContentSha256(file);
         currentAudio.durationSeconds =
           typeof payload.durationSeconds === 'number' &&
           Number.isInteger(payload.durationSeconds) &&
@@ -2654,6 +2675,7 @@ export class AdminService {
       url: upload.fileUrl,
       format: file.mimetype || null,
       fileSizeBytes: Number.isFinite(file.size) ? file.size : null,
+      contentSha256: this.audioContentSha256(file),
       durationSeconds:
         typeof payload.durationSeconds === 'number' &&
         Number.isInteger(payload.durationSeconds) &&

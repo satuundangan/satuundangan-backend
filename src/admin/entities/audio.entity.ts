@@ -23,6 +23,9 @@ export class Audio {
   @Column({ type: 'int', nullable: true })
   durationSeconds: number | null;
 
+  @Column({ type: 'char', length: 64, nullable: true })
+  contentSha256: string | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   source: string | null;
 

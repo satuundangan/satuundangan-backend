@@ -50,6 +50,21 @@ describe('GuestMessagesService personal RSVP', () => {
     );
   });
 
+  it('syncs a non-attending personal RSVP with zero guests', async () => {
+    await service.create({
+      invitationId: 10,
+      guestName: 'Tamu Contoh',
+      message: 'Mohon maaf, tidak dapat hadir.',
+      rsvpStatus: 'tidak',
+      totalGuests: 0,
+      guestSlug: 'private-token',
+    });
+
+    expect(guestRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ rsvpStatus: 'tidak', pax: 0 }),
+    );
+  });
+
   it('keeps a public RSVP unlinked to the guest list', async () => {
     await service.create({
       invitationId: 10,

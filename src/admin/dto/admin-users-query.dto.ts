@@ -18,6 +18,7 @@ export class AdminUsersQueryDto extends PaginationQueryDto {
     'checkout_pending',
     'paid',
     'published',
+    'event_completed',
   ])
   lifecycle?:
     | 'all'
@@ -25,7 +26,8 @@ export class AdminUsersQueryDto extends PaginationQueryDto {
     | 'draft'
     | 'checkout_pending'
     | 'paid'
-    | 'published';
+    | 'published'
+    | 'event_completed';
 
   @IsOptional()
   @IsString()

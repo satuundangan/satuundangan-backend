@@ -2497,7 +2497,26 @@ export class AdminService {
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data, total, page, limit };
+    const usageRows = data.length
+      ? await this.templateDesignRepo
+          .createQueryBuilder('template')
+          .select('palette.id', 'paletteId')
+          .addSelect('COUNT(template.id)', 'templateUseCount')
+          .innerJoin('template.palette', 'palette')
+          .where('palette.id IN (:...paletteIds)', {
+            paletteIds: data.map((palette) => palette.id),
+          })
+          .groupBy('palette.id')
+          .getRawMany()
+      : [];
+    const usageByPalette = new Map(
+      usageRows.map((row) => [row.paletteId, Number(row.templateUseCount || 0)]),
+    );
+    const dataWithUsage = data.map((palette) => ({
+      ...palette,
+      templateUseCount: usageByPalette.get(palette.id) || 0,
+    }));
+    return { data: dataWithUsage, total, page, limit };
   }
 
   async createPaletteColor(payload: CreatePaletteColorDto) {
@@ -2515,6 +2534,14 @@ export class AdminService {
   async deletePaletteColor(id: string) {
     const palette = await this.paletteColorRepo.findOne({ where: { id } });
     if (!palette) throw new NotFoundException('Palette color not found');
+    const templateUseCount = await this.templateDesignRepo.count({
+      where: { palette: { id } },
+    });
+    if (templateUseCount > 0) {
+      throw new BadRequestException(
+        `Palet masih dipakai oleh ${templateUseCount} template. Lepaskan palet dari template terlebih dahulu sebelum menghapus master ini.`,
+      );
+    }
     await this.paletteColorRepo.remove(palette);
     return { success: true };
   }

@@ -2369,14 +2369,26 @@ export class AdminService {
       sections.map(async (s) => {
         const raw = s as any;
         const isActive = s.is_active ?? raw.is_published ?? true;
-        const [templateUseCount, enabledTemplateUseCount] = await Promise.all([
+        const [templateUseCount, enabledTemplateUseCount, samplePreviewSection] = await Promise.all([
           this.templateDesignSectionRepo.count({
             where: { section: { id: s.id } },
           }),
           this.templateDesignSectionRepo.count({
             where: { section: { id: s.id }, is_enabled: true },
           }),
+          this.templateDesignSectionRepo
+            .createQueryBuilder('templateSection')
+            .innerJoinAndSelect('templateSection.templateDesign', 'template')
+            .innerJoin('templateSection.section', 'section')
+            .where('section.id = :sectionId', { sectionId: s.id })
+            .andWhere('templateSection.is_enabled = :enabled', { enabled: true })
+            .andWhere('template.isPublished = :published', { published: true })
+            .andWhere('template.previewUrl IS NOT NULL')
+            .andWhere("template.previewUrl <> ''")
+            .orderBy('template.name', 'ASC')
+            .getOne(),
         ]);
+        const sampleTemplate = samplePreviewSection?.templateDesign;
         return {
           id: s.id,
           label: s.label,
@@ -2384,6 +2396,13 @@ export class AdminService {
           is_active: isActive,
           templateUseCount,
           enabledTemplateUseCount,
+          samplePreviewTemplate: sampleTemplate
+            ? {
+                id: sampleTemplate.id,
+                name: sampleTemplate.name,
+                previewUrl: sampleTemplate.previewUrl,
+              }
+            : null,
         };
       }),
     );

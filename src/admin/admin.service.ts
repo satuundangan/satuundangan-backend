@@ -2515,7 +2515,17 @@ export class AdminService {
     const where = q
       ? [{ name: ILike(`%${q}%`) }, { code: ILike(`%${q}%`) }]
       : undefined;
-    const banks = await this.bankRepo.find({ where, order: { name: 'ASC' } });
+    const [banks, allCodes] = await Promise.all([
+      this.bankRepo.find({ where, order: { name: 'ASC' } }),
+      this.bankRepo.find({ select: { code: true } }),
+    ]);
+    const codeUseCount = allCodes.reduce((counts, bank) => {
+      const normalizedCode = bank.code?.trim().toLocaleLowerCase();
+      if (normalizedCode) {
+        counts.set(normalizedCode, (counts.get(normalizedCode) || 0) + 1);
+      }
+      return counts;
+    }, new Map<string, number>());
     return Promise.all(
       banks.map(async (bank) => {
         const [bankAccountResult, walletResult] = await Promise.all([
@@ -2540,6 +2550,9 @@ export class AdminService {
           ...bank,
           bankAccountUseCount: Number(bankAccountResult?.count || 0),
           walletUseCount: Number(walletResult?.count || 0),
+          duplicateCodeCount: bank.code?.trim()
+            ? codeUseCount.get(bank.code.trim().toLocaleLowerCase()) || 1
+            : 0,
           usageMatch:
             'Exact current name match in invitation snapshots; aliases are not inferred.',
         };
@@ -2548,7 +2561,12 @@ export class AdminService {
   }
 
   async createBank(payload: Partial<Bank>) {
-    const bank = this.bankRepo.create({ ...payload, isActive: payload.isActive ?? true });
+    const bank = this.bankRepo.create({
+      ...payload,
+      name: payload.name?.trim(),
+      code: payload.code?.trim(),
+      isActive: payload.isActive ?? true,
+    });
     return this.bankRepo.save(bank);
   }
 

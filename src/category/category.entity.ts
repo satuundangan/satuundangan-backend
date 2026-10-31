@@ -12,6 +12,9 @@ export class Category {
   @Column()
   color: string;
 
+  @Column({ default: true })
+  isActive: boolean;
+
   @OneToMany(() => TemplateDesign, (template) => template.category)
   templates: TemplateDesign[];
 }

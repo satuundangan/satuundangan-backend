@@ -128,6 +128,9 @@ export class Invitation {
   @Column({ default: false })
   isPublished: boolean;
 
+  @Column({ type: 'datetime', nullable: true })
+  publishedAt: Date | null;
+
   @Column({ default: true })
   isGuestPublic: boolean;
 

@@ -185,7 +185,11 @@ export class PaymentService {
     }
 
     if (grossAmount === 0) {
+      const wasPublished = invitation.isPublished;
       invitation.isPublished = true;
+      if (!wasPublished && !invitation.publishedAt) {
+        invitation.publishedAt = new Date();
+      }
       invitation.package = pkg;
       await this.invitationRepo.save(invitation);
 
@@ -443,7 +447,11 @@ export class PaymentService {
             where: { id: payment.invitationId },
           });
           if (invitation) {
+            const wasPublished = invitation.isPublished;
             invitation.isPublished = true;
+            if (!wasPublished && !invitation.publishedAt) {
+              invitation.publishedAt = new Date();
+            }
             if (payment.package) {
               invitation.package = payment.package;
             }
@@ -635,7 +643,11 @@ export class PaymentService {
       payment.settlementTime = new Date();
       await this.dataSource.transaction(async (manager) => {
         if (payment.invitation) {
+          const wasPublished = payment.invitation.isPublished;
           payment.invitation.isPublished = true;
+          if (!wasPublished && !payment.invitation.publishedAt) {
+            payment.invitation.publishedAt = new Date();
+          }
           if (payment.package) {
             payment.invitation.package = payment.package;
           }

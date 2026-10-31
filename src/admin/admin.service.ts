@@ -383,6 +383,7 @@ export class AdminService {
           title: true,
           slug: true,
           isPublished: true,
+          publishedAt: true,
           dateTime: true,
           createdAt: true,
           updatedAt: true,
@@ -529,17 +530,18 @@ export class AdminService {
                 ? 'owned_invitation'
                 : 'payer_email_match',
         })),
-      ...(publishedInvitationCount
-        ? [
-            {
-              type: 'invitation_published',
-              at: null,
-              label: `${publishedInvitationCount} undangan berstatus terbit`,
-              evidence: 'isPublished=true; timestamp terbit tidak tersedia',
-              timestampUnknown: true,
-            },
-          ]
-        : []),
+      ...invitations
+        .filter((inv) => inv.publishedAt || inv.isPublished)
+        .map((inv) => ({
+          type: 'invitation_published',
+          at: inv.publishedAt,
+          invitationId: inv.id,
+          label: `${inv.title || `Undangan #${inv.id}`} pertama diterbitkan`,
+          evidence: inv.publishedAt
+            ? 'publishedAt; waktu penerbitan pertama dicatat sejak pelacakan aktif'
+            : 'isPublished=true; waktu terbit historis tidak diketahui',
+          timestampUnknown: !inv.publishedAt,
+        })),
       ...activities.map((activity) => ({
         type: 'activity',
         at: activity.createdAt,
@@ -626,6 +628,7 @@ export class AdminService {
       limitations: [
         'Legacy signup timestamps have not been validated against historical event sources.',
         'No reliable login history exists before lastLoginAt tracking was deployed.',
+        'Publication timestamps are recorded for new transitions; legacy publication times remain unknown.',
         'No wedding completion event is currently stored.',
         'Detail lists are capped to the latest 50 invitations, 100 payments and 50 activity records; summary totals use all matching records.',
       ],
@@ -1087,6 +1090,9 @@ export class AdminService {
     delete dataToUpdate.reason;
 
     Object.assign(inv, dataToUpdate);
+    if (!oldPublished && inv.isPublished && !inv.publishedAt) {
+      inv.publishedAt = new Date();
+    }
     const saved = await this.invitationRepo.save(inv);
 
     // Audit logs for critical changes
@@ -1645,6 +1651,9 @@ export class AdminService {
     const inv = payment.invitation;
     const oldPublished = inv.isPublished;
     inv.isPublished = true;
+    if (!oldPublished && !inv.publishedAt) {
+      inv.publishedAt = new Date();
+    }
     if (payment.package) {
       inv.package = payment.package;
     }

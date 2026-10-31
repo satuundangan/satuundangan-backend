@@ -299,6 +299,7 @@ export class InvitationService {
       }
     }
 
+    const wasPublished = invitation.isPublished;
     if (dto.isPublished === true && !invitation.isPublished) {
       await this.assertEmailVerified(user.id);
     }
@@ -345,6 +346,10 @@ export class InvitationService {
     }
 
     Object.assign(invitation, dto);
+
+    if (dto.isPublished === true && !wasPublished && !invitation.publishedAt) {
+      invitation.publishedAt = new Date();
+    }
 
     if (nextSubdomain !== undefined) {
       invitation.subdomain = nextSubdomain;

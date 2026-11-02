@@ -298,3 +298,122 @@ export function parseEmailList(raw?: string): string[] {
     .filter((x) => x.includes('@'));
   return [...new Set(emails)];
 }
+
+export function formatUptime(seconds: number): string {
+  const s = Math.floor(Math.max(0, seconds));
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} hari`);
+  if (hours > 0 || days > 0) parts.push(`${hours} jam`);
+  if (mins > 0 || hours > 0 || days > 0) parts.push(`${mins} mnt`);
+  parts.push(`${secs} dtk`);
+  return parts.join(' ');
+}
+
+export function parseTelegramCommand(text?: string): {
+  command: string;
+  args: string;
+} | null {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/')) return null;
+
+  const firstSpace = trimmed.indexOf(' ');
+  let cmdToken =
+    firstSpace === -1 ? trimmed.slice(1) : trimmed.slice(1, firstSpace);
+  const args = firstSpace === -1 ? '' : trimmed.slice(firstSpace + 1).trim();
+
+  const atIdx = cmdToken.indexOf('@');
+  if (atIdx !== -1) {
+    cmdToken = cmdToken.slice(0, atIdx);
+  }
+
+  return {
+    command: cmdToken.toLowerCase(),
+    args,
+  };
+}
+
+export interface HealthReportInput {
+  worst: string;
+  checkedAt: string;
+  services: Array<{
+    key: string;
+    label: string;
+    status: string;
+    message: string;
+    latencyMs: number | null;
+  }>;
+  webCheck?: {
+    ok: boolean;
+    status: number | null;
+    latencyMs: number;
+    error?: string;
+  };
+  memory?: {
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+  };
+  uptimeSeconds?: number;
+  now?: Date;
+}
+
+const STATUS_ICONS: Record<string, string> = {
+  available: '✅',
+  configured: 'ℹ️',
+  unknown: '❓',
+  degraded: '⚠️',
+  error: '❌',
+};
+
+export function buildHealthReportMessage(input: HealthReportInput): string {
+  const now = input.now ?? new Date();
+  const overallIcon =
+    input.worst === 'available' || input.worst === 'configured'
+      ? '🟢'
+      : input.worst === 'degraded'
+        ? '🟡'
+        : '🔴';
+
+  const lines: string[] = [
+    `🏥 <b>Status Kesehatan Sistem SatuUndangan</b>`,
+    formatWib(now),
+    '',
+    `<b>Kondisi Keseluruhan:</b> ${overallIcon} <b>${input.worst.toUpperCase()}</b>`,
+    '',
+    `<b>Layanan Utama:</b>`,
+  ];
+
+  for (const s of input.services) {
+    const icon = STATUS_ICONS[s.status] || '•';
+    const latency = s.latencyMs !== null ? ` (${s.latencyMs} ms)` : '';
+    lines.push(`${icon} <b>${s.label}:</b> ${s.message}${latency}`);
+  }
+
+  if (input.webCheck) {
+    const web = input.webCheck;
+    const webIcon = web.ok ? '✅' : '❌';
+    const webStatus = web.ok
+      ? `HTTP ${web.status} (${web.latencyMs} ms)`
+      : `FAIL (${web.status || web.error || 'unknown'})`;
+    lines.push('', `🌐 <b>Web Publik:</b> ${webIcon} ${webStatus}`);
+  }
+
+  if (input.memory || input.uptimeSeconds !== undefined) {
+    lines.push('', `<b>Server & Runtime:</b>`);
+    if (input.uptimeSeconds !== undefined) {
+      lines.push(`⏱️ <b>Uptime:</b> ${formatUptime(input.uptimeSeconds)}`);
+    }
+    if (input.memory) {
+      lines.push(
+        `💾 <b>Memory Node:</b> RSS ${input.memory.rssMb} MB | Heap ${input.memory.heapUsedMb}/${input.memory.heapTotalMb} MB`,
+      );
+    }
+  }
+
+  return lines.join('\n');
+}

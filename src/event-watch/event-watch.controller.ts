@@ -35,4 +35,9 @@ export class EventWatchController {
   sendTestMessage() {
     return this.service.sendTestMessage();
   }
+
+  @Post('event-watch/test-health')
+  sendTestHealth() {
+    return this.service.sendTestHealth();
+  }
 }

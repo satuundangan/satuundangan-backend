@@ -24,9 +24,16 @@ export class EventWatchScheduler {
       return;
     }
     try {
-      const result = await this.service.runDailyDigest();
+      // 1. Send daily morning system health report
+      const healthResult = await this.service.runDailyHealthReport();
       this.logger.log(
-        `eventWatch.dailyDigest done: sent=${result.sent} count=${result.count} channel=${result.channel}`,
+        `eventWatch.dailyHealth done: sent=${healthResult.sent} channel=${healthResult.channel}`,
+      );
+
+      // 2. Send customer events digest (H-7/H-1/Hari-H)
+      const eventResult = await this.service.runDailyDigest();
+      this.logger.log(
+        `eventWatch.dailyDigest done: sent=${eventResult.sent} count=${eventResult.count} channel=${eventResult.channel}`,
       );
     } catch (err) {
       this.logger.error('eventWatch.dailyDigest failed', err as Error);

@@ -12,6 +12,9 @@ import {
   selectUpcomingEvents,
   SmokeResult,
   toTelegramHtml,
+  formatUptime,
+  parseTelegramCommand,
+  buildHealthReportMessage,
 } from './event-watch.utils';
 
 describe('parseEventDate', () => {
@@ -328,5 +331,96 @@ describe('list parsers', () => {
       'c@d.com',
     ]);
     expect(parseEmailList(undefined)).toEqual([]);
+  });
+});
+
+describe('formatUptime', () => {
+  it('formats seconds into days, hours, minutes, and seconds', () => {
+    expect(formatUptime(0)).toBe('0 dtk');
+    expect(formatUptime(45)).toBe('45 dtk');
+    expect(formatUptime(125)).toBe('2 mnt 5 dtk');
+    expect(formatUptime(3665)).toBe('1 jam 1 mnt 5 dtk');
+    expect(formatUptime(90065)).toBe('1 hari 1 jam 1 mnt 5 dtk');
+  });
+});
+
+describe('parseTelegramCommand', () => {
+  it('returns null for empty or non-command text', () => {
+    expect(parseTelegramCommand(undefined)).toBeNull();
+    expect(parseTelegramCommand('')).toBeNull();
+    expect(parseTelegramCommand('halo bot')).toBeNull();
+  });
+
+  it('parses simple commands', () => {
+    expect(parseTelegramCommand('/health')).toEqual({
+      command: 'health',
+      args: '',
+    });
+    expect(parseTelegramCommand('  /STATUS  ')).toEqual({
+      command: 'status',
+      args: '',
+    });
+  });
+
+  it('parses commands with arguments', () => {
+    expect(parseTelegramCommand('/cek dilan-milea')).toEqual({
+      command: 'cek',
+      args: 'dilan-milea',
+    });
+  });
+
+  it('strips bot username suffix in group chats', () => {
+    expect(parseTelegramCommand('/events@SatuUndanganBot')).toEqual({
+      command: 'events',
+      args: '',
+    });
+    expect(parseTelegramCommand('/cek@SatuUndanganBot romeo-juliet')).toEqual({
+      command: 'cek',
+      args: 'romeo-juliet',
+    });
+  });
+});
+
+describe('buildHealthReportMessage', () => {
+  it('generates a formatted health report with services, web, memory, and uptime', () => {
+    const fixedNow = new Date('2026-11-02T01:00:00.000Z'); // 08:00 WIB
+    const text = buildHealthReportMessage({
+      worst: 'available',
+      checkedAt: fixedNow.toISOString(),
+      services: [
+        {
+          key: 'database',
+          label: 'Database',
+          status: 'available',
+          message: 'Query uji berhasil (4 ms)',
+          latencyMs: 4,
+        },
+        {
+          key: 'storage',
+          label: 'Penyimpanan file (R2)',
+          status: 'available',
+          message: 'Bucket ok',
+          latencyMs: 45,
+        },
+      ],
+      webCheck: {
+        ok: true,
+        status: 200,
+        latencyMs: 120,
+      },
+      memory: {
+        rssMb: 150,
+        heapUsedMb: 60,
+        heapTotalMb: 90,
+      },
+      uptimeSeconds: 3660,
+      now: fixedNow,
+    });
+
+    expect(text).toContain('Status Kesehatan Sistem SatuUndangan');
+    expect(text).toContain('Database:</b> Query uji berhasil (4 ms)');
+    expect(text).toContain('Web Publik:</b> ✅ HTTP 200 (120 ms)');
+    expect(text).toContain('Uptime:</b> 1 jam 1 mnt 0 dtk');
+    expect(text).toContain('Memory Node:</b> RSS 150 MB | Heap 60/90 MB');
   });
 });

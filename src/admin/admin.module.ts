@@ -79,5 +79,6 @@ import { MaintenanceController } from './security/maintenance.controller';
     PublicAudioController,
     TelemetryController,
   ],
+  exports: [AdminHealthService],
 })
 export class AdminModule {}

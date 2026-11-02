@@ -106,6 +106,36 @@ export class GuestMessagesService {
     });
   }
 
+  /**
+   * Wishes shown on the public invitation page. Only published messages, and only
+   * the fields a guest may see: no guest link, token or invitation internals.
+   */
+  async findPublicByInvitationId(
+    invitationId: number,
+  ): Promise<
+    Pick<
+      GuestMessage,
+      'id' | 'guestName' | 'message' | 'rsvpStatus' | 'totalGuests' | 'createdAt'
+    >[]
+  > {
+    const messages = await this.guestMessageRepo.find({
+      where: [
+        { invitation: { id: invitationId }, status: 'published' },
+        { invitation: { id: invitationId }, status: IsNull() },
+      ],
+      order: { createdAt: 'DESC' },
+      take: 200,
+    });
+    return messages.map((m) => ({
+      id: m.id,
+      guestName: m.guestName,
+      message: m.message,
+      rsvpStatus: m.rsvpStatus,
+      totalGuests: m.totalGuests,
+      createdAt: m.createdAt,
+    }));
+  }
+
   async getAll(): Promise<GuestMessage[]> {
     const messages = await this.guestMessageRepo.find({
       order: { createdAt: 'DESC' },

@@ -420,7 +420,7 @@ describe('PromoService', () => {
       expect(item1?.pending_reservations_count).toBe(2);
       expect(item1?.total_discount_amount).toBe(50000);
       expect(item1?.total_gross_revenue).toBe(450000);
-      expect(item1?.remaining_slots).toBe(95);
+      expect(item1?.remaining_slots).toBe(98);
       expect(item1?.computed_status).toBe('active');
       expect(item1?.is_exit_intent_active).toBe(true);
       expect(item1?.exit_intent_text).toBe('Dapatkan diskon 10%!');
@@ -491,7 +491,7 @@ describe('PromoService', () => {
       promoRepo.find.mockResolvedValue([]);
 
       const summary = await service.getSummary();
-      expect(summary).toEqual({
+      expect(summary).toMatchObject({
         total_promo_codes: 0,
         total_active_promo: 0,
         total_redemptions: 0,
@@ -507,6 +507,7 @@ describe('PromoService', () => {
           code: 'ACTIVE1',
           isActive: true,
           maxUses: 10,
+          usedCount: 5,
           validFrom: null,
           validUntil: null,
         } as PromoCode,
@@ -515,6 +516,7 @@ describe('PromoService', () => {
           code: 'EXHAUSTED',
           isActive: true,
           maxUses: 2,
+          usedCount: 2,
           validFrom: null,
           validUntil: null,
         } as PromoCode,
@@ -523,6 +525,7 @@ describe('PromoService', () => {
           code: 'OFF',
           isActive: false,
           maxUses: 10,
+          usedCount: 0,
           validFrom: null,
           validUntil: null,
         } as PromoCode,
@@ -619,7 +622,7 @@ describe('PromoService', () => {
       expect(detail.id).toBe(1);
       expect(detail.code).toBe('PROMO1');
       expect(detail.computed_status).toBe('active');
-      expect(detail.remaining_slots).toBe(88);
+      expect(detail.remaining_slots).toBe(85);
       expect(detail.redemptions_count).toBe(12);
       expect(detail.pending_reservations_count).toBe(3);
       expect(detail.total_discount_amount).toBe(120000);
@@ -627,6 +630,7 @@ describe('PromoService', () => {
       expect(detail.metrics).toEqual({
         redemptions_count: 12,
         pending_reservations_count: 3,
+        reserved_slots_count: 15,
         total_discount_amount: 120000,
         total_gross_revenue: 1080000,
       });

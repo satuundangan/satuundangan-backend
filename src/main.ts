@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded, static as expressStatic } from 'express';
 import { join } from 'path';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,6 +12,14 @@ async function bootstrap() {
   // Trust proxy headers from Cloudflare & Docker reverse proxy
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', 1);
+
+  // Security headers via Helmet (hide X-Powered-By, XSS protection, anti-MIME sniffing)
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: false,
+    }),
+  );
 
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
@@ -39,16 +48,18 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
-  // Swagger config
-  const config = new DocumentBuilder()
-    .setTitle('Undangan Online API')
-    .setDescription('API dokumentasi untuk sistem undangan online ✨')
-    .setVersion('1.0')
-    .addBearerAuth() // Untuk JWT Authorization
-    .build();
+  // Swagger docs — hanya aktif di dev/local, dimatikan di production untuk mencegah reconnaissance
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Undangan Online API')
+      .setDescription('API dokumentasi untuk sistem undangan online ✨')
+      .setVersion('1.0')
+      .addBearerAuth() // Untuk JWT Authorization
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api-docs', app, document);
+  }
 
   // Serve local uploads when R2 is not configured (dev fallback)
   app.use('/uploads', expressStatic(join(process.cwd(), 'uploads')));

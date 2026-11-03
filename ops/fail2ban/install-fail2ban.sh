@@ -77,6 +77,7 @@ fi
 echo "🚀 Mengaktifkan & merestart service fail2ban..."
 systemctl enable fail2ban
 systemctl restart fail2ban
+sleep 2
 
 echo ""
 echo "✅ Fail2ban Berhasil Dikonfigurasi & Aktif!"

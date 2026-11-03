@@ -79,6 +79,10 @@ jobs:
                 else
                   echo -e "\nTELEGRAM_BOT_TOKEN=$TG_TOKEN" >> .env
                 fi
+                # Register telegram webhook to prod api
+                curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/setWebhook" \
+                  -H "Content-Type: application/json" \
+                  -d '{"url":"https://api.satuundangan.id/telegram/webhook"}' || true
               fi
             fi
             IMAGE=ghcr.io/satuundangan/satuundangan-backend   # must match docker-compose.yml (lowercase)

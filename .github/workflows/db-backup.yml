@@ -1,0 +1,80 @@
+name: Daily Database Backup
+
+on:
+  schedule:
+    # Setap hari jam 20:00 UTC = 03:00 WIB
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup-and-upload:
+    name: Backup MySQL & Upload to GitHub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Run Remote Backup on Server
+        run: |
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" "
+            mkdir -p ~/apps/satu-undangan/ops/backup
+            bash ~/apps/satu-undangan/ops/backup/backup-db.sh
+          " > backup_output.txt
+
+          cat backup_output.txt
+
+          BACKUP_PATH=$(grep "^FILE_PATH=" backup_output.txt | cut -d'=' -f2-)
+          BACKUP_NAME=$(grep "^FILE_NAME=" backup_output.txt | cut -d'=' -f2-)
+          BACKUP_SIZE=$(grep "^FILE_SIZE=" backup_output.txt | cut -d'=' -f2-)
+          DURATION=$(grep "^DURATION=" backup_output.txt | cut -d'=' -f2-)
+
+          if [ -z "$BACKUP_PATH" ] || [ -z "$BACKUP_NAME" ]; then
+            echo "❌ Error: Backup output parsing failed." >&2
+            exit 1
+          fi
+
+          echo "BACKUP_PATH=$BACKUP_PATH" >> "$GITHUB_ENV"
+          echo "BACKUP_NAME=$BACKUP_NAME" >> "$GITHUB_ENV"
+          echo "BACKUP_SIZE=$BACKUP_SIZE" >> "$GITHUB_ENV"
+          echo "DURATION=$DURATION" >> "$GITHUB_ENV"
+          echo "DATE_STAMP=$(date +'%Y-%m-%d')" >> "$GITHUB_ENV"
+
+      - name: Download Backup from Server
+        run: |
+          mkdir -p ./downloads
+          scp -i ~/.ssh/id_deploy -o StrictHostKeyChecking=no "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:$BACKUP_PATH" ./downloads/
+
+      - name: Upload Artifact to GitHub (7-Day Retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.BACKUP_NAME }}
+          path: ./downloads/${{ env.BACKUP_NAME }}
+          retention-days: 7
+
+      - name: Notify Telegram Ops Group
+        if: always()
+        run: |
+          TG_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          CHAT_ID="-5423429107"
+          JOB_STATUS="${{ job.status }}"
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            MSG="💾 <b>[Backup Database Sukses]</b>%0A%0A📦 <b>File:</b> <code>${{ env.BACKUP_NAME }}</code>%0A📊 <b>Ukuran:</b> ${{ env.BACKUP_SIZE }}%0A⏱️ <b>Durasi:</b> ${{ env.DURATION }}s%0A🕒 <b>Waktu:</b> $(date '+%d %b %Y %H:%M:%S UTC')%0A%0A☁️ <b>GitHub Artifact:</b> Disimpan 7 hari%0A🖥️ <b>Server Biznet:</b> Disimpan 2 hari"
+          else
+            MSG="🚨 <b>[ALERT] Backup Database Gagal!</b>%0A%0AStatus: <code>${JOB_STATUS}</code>%0ACek detail log pada tab GitHub Actions."
+          fi
+
+          if [ -n "$TG_TOKEN" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+              -d chat_id="${CHAT_ID}" \
+              -d parse_mode="HTML" \
+              -d text="${MSG}" || true
+          fi

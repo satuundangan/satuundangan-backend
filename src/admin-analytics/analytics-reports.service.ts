@@ -26,12 +26,40 @@ const MP_MAX_AGE_MS = 72 * 3_600_000; // GA4 Measurement Protocol ignores older 
 const MP_MAX_ATTEMPTS = 5;
 const GA4_FUNNEL_EVENTS: Array<{ event: string; label: string }> = [
   { event: 'page_view', label: 'Kunjungan halaman marketing' },
+  { event: 'template_previewed', label: 'Preview template' },
   { event: 'template_personalization_continue', label: 'Lanjut dari pemilihan template' },
   { event: 'create_form_submitted', label: 'Form undangan terkirim' },
   { event: 'draft_saved', label: 'Draft Studio tersimpan' },
+  { event: 'checkout_started', label: 'Checkout dimulai' },
   { event: 'sign_up', label: 'Registrasi berhasil' },
   { event: 'purchase', label: 'Purchase (server, terverifikasi)' },
 ];
+
+function buildGa4FunnelRows(rows: Array<{ dimensions: Record<string, string>; metrics: Record<string, number | null> }>, dimension?: string) {
+  const groups = new Map<string, Map<string, Record<string, number | null>>>();
+  for (const row of rows) {
+    const event = row.dimensions.eventName;
+    if (!GA4_FUNNEL_EVENTS.some((step) => step.event === event)) continue;
+    const value = dimension ? row.dimensions[dimension] || '(not set)' : '';
+    const events = groups.get(value) ?? new Map<string, Record<string, number | null>>();
+    events.set(event, row.metrics);
+    groups.set(value, events);
+  }
+
+  const stepsFor = (events: Map<string, Record<string, number | null>>) =>
+    GA4_FUNNEL_EVENTS.map(({ event, label }) => {
+      const metrics = events.get(event);
+      return {
+        event,
+        label,
+        events: metrics ? metrics.eventCount : null,
+        users: metrics ? metrics.totalUsers : null,
+      };
+    });
+
+  if (!dimension) return stepsFor(groups.get('') ?? new Map());
+  return [...groups.entries()].map(([value, events]) => ({ value, steps: stepsFor(events) }));
+}
 
 @Injectable()
 export class AnalyticsReportsService {
@@ -72,23 +100,25 @@ export class AnalyticsReportsService {
     let upstream: any = this.notConnected();
     if (this.ga4Ready()) {
       try {
-        const report = await this.ga4.customReport({
+        const options = {
           startDate: period.startDate,
           endDate: period.endDate,
-          dimensions: ['eventName'],
           metrics: ['eventCount', 'totalUsers'],
           filters: [{ filter: { fieldName: 'eventName', inListFilter: { values: GA4_FUNNEL_EVENTS.map((e) => e.event) } } }],
-          limit: 20,
-        });
-        const byEvent = new Map(report.rows.map((row) => [row.dimensions.eventName, row.metrics]));
+          limit: 5000,
+        };
+        const [overall, byTemplate, byDevice] = await Promise.all([
+          this.ga4.customReport({ ...options, dimensions: ['eventName'] }),
+          this.ga4.customReport({ ...options, dimensions: ['eventName', 'contentGroup'] }),
+          this.ga4.customReport({ ...options, dimensions: ['eventName', 'deviceCategory'] }),
+        ]);
+        const steps = buildGa4FunnelRows(overall.rows);
         upstream = {
-          status: 'ready',
-          steps: GA4_FUNNEL_EVENTS.map(({ event, label }) => ({
-            event,
-            label,
-            events: byEvent.get(event)?.eventCount ?? 0,
-            users: byEvent.get(event)?.totalUsers ?? 0,
-          })),
+          status: overall.rows.length ? 'ready' : 'no_data',
+          steps,
+          byTemplate: buildGa4FunnelRows(byTemplate.rows, 'contentGroup'),
+          byDevice: buildGa4FunnelRows(byDevice.rows, 'deviceCategory'),
+          ...(overall.rows.length ? {} : { emptyReason: 'GA4 tidak mengembalikan baris event untuk periode ini.' }),
         };
       } catch {
         upstream = { status: 'error', message: 'Event GA4 belum dapat dimuat.' };
@@ -102,6 +132,8 @@ export class AnalyticsReportsService {
         denominator: 'Undangan yang dibuat pada periode (WIB). Setiap undangan dihitung sekali per tahap.',
         window: `Tidak ada batas waktu konversi; kohort dianggap matang setelah ${funnel.cohort.maturityDays} hari sejak undangan dibuat.`,
         order: 'Urutan tahap tidak kaku: editor anonim dapat menyimpan draft sebelum registrasi, sehingga tahap GA4 di atas tidak dijumlahkan dengan tahap backend.',
+        ga4: 'Event count dan users adalah agregat GA4 per tahap, bukan urutan konversi per orang. Users pada beberapa template dapat berasal dari orang yang sama; nilai antar-template tidak boleh dijumlahkan.',
+        template: 'Template hanya ditampilkan bila event membawa content_group template/<id>. Baris (not set) berarti template tidak tersedia atau belum teratribusi.',
         paid: 'Dibayar = order Midtrans berstatus success dengan nominal > 0. Aktivasi gratis dipisah.',
       },
     };
@@ -219,6 +251,9 @@ export class AnalyticsReportsService {
             value: amount,
             currency: 'IDR',
             payment_purpose: payment.purpose,
+            ...(payment.purpose === 'invitation' && Number.isInteger(payment.templateDesignIdSnapshot) && payment.templateDesignIdSnapshot! > 0
+              ? { content_group: `template/${payment.templateDesignIdSnapshot}` }
+              : {}),
             items: [{ ...item, price: amount, quantity: 1 }],
             engagement_time_msec: 1,
           },

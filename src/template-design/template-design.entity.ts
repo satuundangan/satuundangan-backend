@@ -38,7 +38,7 @@ export class TemplateDesign {
     nullable: true,
     onDelete: 'SET NULL',
   })
-  category: Category;
+  category: Category | null;
 
   @ManyToOne(() => PaletteColor, { nullable: true, onDelete: 'SET NULL' })
   palette?: PaletteColor | null;

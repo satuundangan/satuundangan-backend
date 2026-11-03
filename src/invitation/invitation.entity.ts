@@ -128,6 +128,18 @@ export class Invitation {
   @Column({ default: false })
   isPublished: boolean;
 
+  @Column({ type: 'datetime', nullable: true })
+  publishedAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  eventCompletedAt: Date | null;
+
+  @Column({ type: 'int', nullable: true })
+  eventCompletedByAdminId: number | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  eventCompletionReason: string | null;
+
   @Column({ default: true })
   isGuestPublic: boolean;
 

@@ -7,6 +7,7 @@ import { Guest } from '../dashboard-user/guest/guest.entity';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { TemplateDesignSection } from '../template-design/template-design-section.entity';
+import { TemplateDesignRevision } from './entities/template-design-revision.entity';
 import { Category } from '../category/category.entity';
 import { Payment } from '../payment/payment.entity';
 import { Section } from './entities/section.entity';
@@ -60,6 +61,7 @@ describe('AdminService - getDashboardStats', () => {
         { provide: getRepositoryToken(GuestMessage), useValue: {} },
         { provide: getRepositoryToken(TemplateDesign), useValue: {} },
         { provide: getRepositoryToken(TemplateDesignSection), useValue: {} },
+        { provide: getRepositoryToken(TemplateDesignRevision), useValue: {} },
         { provide: getRepositoryToken(Category), useValue: {} },
         { provide: getRepositoryToken(Payment), useValue: {} },
         { provide: getRepositoryToken(Section), useValue: {} },
@@ -284,6 +286,7 @@ describe('AdminService - getDashboardStats', () => {
           { provide: getRepositoryToken(GuestMessage), useValue: {} },
           { provide: getRepositoryToken(TemplateDesign), useValue: {} },
           { provide: getRepositoryToken(TemplateDesignSection), useValue: {} },
+          { provide: getRepositoryToken(TemplateDesignRevision), useValue: {} },
           { provide: getRepositoryToken(Category), useValue: {} },
           { provide: getRepositoryToken(Payment), useValue: mockPaymentRepo },
           { provide: getRepositoryToken(Section), useValue: {} },

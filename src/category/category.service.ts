@@ -19,9 +19,15 @@ export class CategoryService {
     private readonly templateRepo: Repository<TemplateDesign>,
   ) {}
 
-  async findAll(query: PaginationQueryDto = {}) {
+  async findAll(query: PaginationQueryDto = {}, includeInactive = false) {
     const { page = 1, limit = 20, q } = query;
-    const where = q ? { name: ILike(`%${q}%`) } : undefined;
+    const normalizedQuery = q?.trim().replace(/\s+/gu, ' ');
+    const activeFilter = includeInactive ? {} : { isActive: true };
+    const where = normalizedQuery
+      ? [{ name: ILike(`%${normalizedQuery}%`), ...activeFilter }]
+      : includeInactive
+        ? undefined
+        : activeFilter;
 
     const [data, total] = await this.categoryRepo.findAndCount({
       where,
@@ -62,37 +68,49 @@ export class CategoryService {
     return { data: enriched, total, page, limit };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, includeInactive = false) {
     const category = await this.categoryRepo.findOne({ where: { id } });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category || (!includeInactive && category.isActive === false)) {
+      throw new NotFoundException('Category not found');
+    }
     return category;
   }
 
   async create(dto: CreateCategoryDto) {
-    const existing = await this.categoryRepo.findOne({
-      where: { name: dto.name },
+    const name = this.normalizeName(dto.name);
+    if (await this.findNameConflict(name)) {
+      throw new BadRequestException('Kategori dengan nama ini sudah ada.');
+    }
+    const category = this.categoryRepo.create({
+      ...dto,
+      name,
+      aliases: [],
+      isActive: dto.isActive ?? true,
     });
-    if (existing)
-      throw new BadRequestException('Category with this name already exists');
-    const category = this.categoryRepo.create(dto);
     return this.categoryRepo.save(category);
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
-    const category = await this.findOne(id);
-    if (dto.name && dto.name !== category.name) {
-      const existing = await this.categoryRepo.findOne({
-        where: { name: dto.name },
-      });
-      if (existing)
-        throw new BadRequestException('Category with this name already exists');
+    const category = await this.findOne(id, true);
+    if (dto.name !== undefined) {
+      const name = this.normalizeName(dto.name);
+      if (name !== category.name && (await this.findNameConflict(name, id))) {
+        throw new BadRequestException('Kategori dengan nama ini sudah ada.');
+      }
+      if (name !== category.name) {
+        category.aliases = Array.from(
+          new Set([...(category.aliases || []), category.name]),
+        );
+      }
+      category.name = name;
     }
-    Object.assign(category, dto);
+    if (dto.color !== undefined) category.color = dto.color;
+    if (dto.isActive !== undefined) category.isActive = dto.isActive;
     return this.categoryRepo.save(category);
   }
 
   async remove(id: string) {
-    const category = await this.findOne(id);
+    const category = await this.findOne(id, true);
     const templateCount = await this.templateRepo.count({
       where: { category: { id } },
     });
@@ -105,6 +123,30 @@ export class CategoryService {
   }
 
   async findByName(name: string) {
-    return this.categoryRepo.findOne({ where: { name } });
+    const normalizedName = this.normalizeName(name);
+    return this.categoryRepo
+      .createQueryBuilder('category')
+      .where('LOWER(TRIM(category.name)) = LOWER(:name)', {
+        name: normalizedName,
+      })
+      .orWhere('JSON_CONTAINS(category.aliases, :nameJson)', {
+        nameJson: JSON.stringify(normalizedName),
+      })
+      .getOne();
+  }
+
+  private normalizeName(value: string) {
+    return value.normalize('NFKC').trim().replace(/\s+/gu, ' ');
+  }
+
+  private findNameConflict(name: string, excludeId?: string) {
+    const query = this.categoryRepo
+      .createQueryBuilder('category')
+      .where(
+        '(LOWER(TRIM(category.name)) = LOWER(:name) OR JSON_CONTAINS(category.aliases, :nameJson))',
+        { name, nameJson: JSON.stringify(name) },
+      );
+    if (excludeId) query.andWhere('category.id <> :excludeId', { excludeId });
+    return query.getOne();
   }
 }

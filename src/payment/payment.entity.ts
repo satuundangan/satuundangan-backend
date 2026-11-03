@@ -65,6 +65,11 @@ export class Payment {
   @Column({ nullable: true })
   invitationId: number;
 
+  // Template selected when this invitation checkout was created. Legacy rows
+  // without this snapshot stay unattributed in historical template reporting.
+  @Column({ type: 'int', nullable: true })
+  templateDesignIdSnapshot: number | null;
+
   @ManyToOne(() => PromoCode, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'promoCodeId' })
   promoCode: PromoCode | null;

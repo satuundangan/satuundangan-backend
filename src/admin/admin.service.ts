@@ -1,10 +1,13 @@
+import { createHash } from 'node:crypto';
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, LessThan } from 'typeorm';
+import { Repository, ILike, LessThan, In } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
@@ -18,6 +21,7 @@ import { Section } from './entities/section.entity';
 import { Audio } from './entities/audio.entity';
 import { Bank } from './entities/bank.entity';
 import { PaletteColor } from './entities/palette-color.entity';
+import { TemplateDesignRevision } from './entities/template-design-revision.entity';
 import { ActivityLog, LogLevel } from './entities/activity-log.entity';
 import {
   CreateTemplateDesignDto,
@@ -27,6 +31,10 @@ import {
   CreatePaletteColorDto,
   UpdatePaletteColorDto,
 } from './dto/palette-color.dto';
+import {
+  UpdateAudioMetadataDto,
+  UploadAudioMetadataDto,
+} from './dto/audio-metadata.dto';
 import { DashboardStatsQueryDto } from './dto/dashboard-stats-query.dto';
 import { UploadService } from '../modules/upload/upload.service';
 import * as bcrypt from 'bcrypt';
@@ -36,6 +44,8 @@ import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Invitation)
@@ -47,6 +57,8 @@ export class AdminService {
     private readonly templateDesignRepo: Repository<TemplateDesign>,
     @InjectRepository(TemplateDesignSection)
     private readonly templateDesignSectionRepo: Repository<TemplateDesignSection>,
+    @InjectRepository(TemplateDesignRevision)
+    private readonly templateDesignRevisionRepo: Repository<TemplateDesignRevision>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
     @InjectRepository(Payment)
@@ -211,6 +223,12 @@ export class AdminService {
         .from(Invitation, 'inv')
         .where('inv.userId = user.id')
         .andWhere('inv.isPublished = true');
+    const hasCompletedInvitation = (sub: any) =>
+      sub
+        .select('inv.id')
+        .from(Invitation, 'inv')
+        .where('inv.userId = user.id')
+        .andWhere('inv.eventCompletedAt IS NOT NULL');
     const hasPendingPayment = (sub: any) =>
       sub
         .select('pay.id')
@@ -245,6 +263,11 @@ export class AdminService {
       case 'published':
         qb.andWhere(
           `EXISTS ${hasPublishedInvitation(qb.subQuery())!.getQuery()}`,
+        );
+        break;
+      case 'event_completed':
+        qb.andWhere(
+          `EXISTS ${hasCompletedInvitation(qb.subQuery())!.getQuery()}`,
         );
         break;
     }
@@ -308,6 +331,7 @@ export class AdminService {
         hasWeddingPlannerAccess: true,
         instagramHandle: true,
         createdAt: true,
+        registeredAt: true,
         updatedAt: true,
         lastLoginAt: true,
       },
@@ -364,6 +388,7 @@ export class AdminService {
       accountPaymentStats,
       emailPaymentStats,
       pendingPaymentCount,
+      completionStats,
     ] = await Promise.all([
       this.invitationRepo.find({
         where: { user: { id } },
@@ -372,6 +397,10 @@ export class AdminService {
           title: true,
           slug: true,
           isPublished: true,
+          publishedAt: true,
+          eventCompletedAt: true,
+          eventCompletedByAdminId: true,
+          eventCompletionReason: true,
           dateTime: true,
           createdAt: true,
           updatedAt: true,
@@ -469,9 +498,26 @@ export class AdminService {
         .leftJoin('payment.invitation', 'invitation')
         .andWhere("payment.status = 'pending'")
         .getCount(),
+      this.invitationRepo
+        .createQueryBuilder('invitation')
+        .select('COUNT(invitation.id)', 'count')
+        .addSelect('MAX(invitation.eventCompletedAt)', 'latestAt')
+        .where('invitation.userId = :id', { id })
+        .andWhere('invitation.eventCompletedAt IS NOT NULL')
+        .getRawOne(),
     ]);
 
     const timeline = [
+      ...(user.registeredAt
+        ? [
+            {
+              type: 'account_registered',
+              at: user.registeredAt,
+              label: 'Akun terdaftar',
+              evidence: 'registeredAt; dicatat saat registrasi mandiri',
+            },
+          ]
+        : []),
       ...(user.lastLoginAt
         ? [
             {
@@ -518,17 +564,28 @@ export class AdminService {
                 ? 'owned_invitation'
                 : 'payer_email_match',
         })),
-      ...(publishedInvitationCount
-        ? [
-            {
-              type: 'invitation_published',
-              at: null,
-              label: `${publishedInvitationCount} undangan berstatus terbit`,
-              evidence: 'isPublished=true; timestamp terbit tidak tersedia',
-              timestampUnknown: true,
-            },
-          ]
-        : []),
+      ...invitations
+        .filter((inv) => inv.publishedAt || inv.isPublished)
+        .map((inv) => ({
+          type: 'invitation_published',
+          at: inv.publishedAt,
+          invitationId: inv.id,
+          label: `${inv.title || `Undangan #${inv.id}`} pertama diterbitkan`,
+          evidence: inv.publishedAt
+            ? 'publishedAt; waktu penerbitan pertama dicatat sejak pelacakan aktif'
+            : 'isPublished=true; waktu terbit historis tidak diketahui',
+          timestampUnknown: !inv.publishedAt,
+        })),
+      ...invitations
+        .filter((inv) => inv.eventCompletedAt)
+        .map((inv) => ({
+          type: 'wedding_completed',
+          at: inv.eventCompletedAt,
+          invitationId: inv.id,
+          actorId: inv.eventCompletedByAdminId,
+          label: `${inv.title || `Undangan #${inv.id}`} dikonfirmasi selesai`,
+          evidence: `Konfirmasi admin #${inv.eventCompletedByAdminId}: ${inv.eventCompletionReason}`,
+        })),
       ...activities.map((activity) => ({
         type: 'activity',
         at: activity.createdAt,
@@ -547,13 +604,18 @@ export class AdminService {
         activityTimestampAccuracy: user.createdAt
           ? 'legacy_accuracy_unverified'
           : 'unknown',
+        registrationTimestampAccuracy: user.registeredAt
+          ? 'tracked_since_deployment'
+          : 'unknown',
         lastLoginAtAccuracy: user.lastLoginAt
           ? 'tracked_since_deployment'
           : 'unknown',
       },
       lifecycle: {
         stage:
-          publishedInvitationCount > 0
+          Number(completionStats?.count || 0) > 0
+            ? 'event_completed'
+            : publishedInvitationCount > 0
             ? 'published'
             : pendingPaymentCount > 0
               ? 'checkout_pending'
@@ -567,8 +629,14 @@ export class AdminService {
                       ? 'verified_no_invitation'
                       : 'unverified',
         evidence:
-          'Derived from recorded verification, owned invitations, and eligible payment records. No wedding-completion event exists.',
-        weddingCompletion: null,
+          'Derived from recorded verification, owned invitations, eligible payment records, and admin-confirmed event completion. Planned wedding dates are not treated as proof of completion.',
+        weddingCompletion: Number(completionStats?.count || 0)
+          ? {
+              confirmedInvitationCount: Number(completionStats.count),
+              latestAt: completionStats.latestAt,
+              evidence: 'Explicit admin confirmation; historical records remain unknown.',
+            }
+          : null,
       },
       invitations,
       payments: payments.map((payment) => ({
@@ -605,6 +673,7 @@ export class AdminService {
         paidTransactionCountByFallback: fallbackPaidCount,
         spendByAccount: accountSpend,
         spendByFallback: fallbackSpend,
+        completedInvitationCount: Number(completionStats?.count || 0),
         fallbackLinkMayNotIdentifyTheAccountOwner: true,
       },
       timeline: timeline.sort((a, b) => {
@@ -614,10 +683,57 @@ export class AdminService {
       }),
       limitations: [
         'Legacy signup timestamps have not been validated against historical event sources.',
+        'Registration timestamps are captured for new self-service email and Google accounts; existing and admin-created accounts remain unknown.',
         'No reliable login history exists before lastLoginAt tracking was deployed.',
-        'No wedding completion event is currently stored.',
+        'Publication timestamps are recorded for new transitions; legacy publication times remain unknown.',
+        'Wedding completion is recorded only after explicit admin confirmation; legacy rows remain unknown.',
         'Detail lists are capped to the latest 50 invitations, 100 payments and 50 activity records; summary totals use all matching records.',
       ],
+    };
+  }
+
+  async completeCustomerEvent(
+    userId: number,
+    invitationId: number,
+    reason: string,
+    adminUser: { id?: number },
+  ) {
+    const normalizedReason = String(reason || '').trim();
+    if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+      throw new BadRequestException('Alasan konfirmasi harus 5–500 karakter.');
+    }
+    const actorId = Number(adminUser?.id);
+    if (!Number.isSafeInteger(actorId) || actorId <= 0) {
+      throw new BadRequestException('Identitas admin yang mengonfirmasi tidak valid.');
+    }
+
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: invitationId, user: { id: userId } },
+    });
+    if (!invitation) {
+      throw new NotFoundException('Undangan milik pelanggan tidak ditemukan.');
+    }
+    if (!invitation.isPublished) {
+      throw new BadRequestException(
+        'Hanya undangan yang sudah terbit yang dapat dikonfirmasi selesai.',
+      );
+    }
+    if (invitation.eventCompletedAt) {
+      throw new ConflictException(
+        'Acara pada undangan ini sudah pernah dikonfirmasi selesai.',
+      );
+    }
+
+    invitation.eventCompletedAt = new Date();
+    invitation.eventCompletedByAdminId = actorId;
+    invitation.eventCompletionReason = normalizedReason;
+    await this.invitationRepo.save(invitation);
+
+    return {
+      invitationId: invitation.id,
+      eventCompletedAt: invitation.eventCompletedAt,
+      eventCompletedByAdminId: invitation.eventCompletedByAdminId,
+      eventCompletionReason: invitation.eventCompletionReason,
     };
   }
 
@@ -628,7 +744,7 @@ export class AdminService {
       });
       if (existing) throw new BadRequestException('Email already exists');
     }
-    const user = this.userRepo.create(payload);
+    const user = this.userRepo.create({ ...payload, registeredAt: null });
     if (payload.password) {
       user.password = await bcrypt.hash(payload.password, 10);
       user.provider = user.provider || 'local';
@@ -650,6 +766,7 @@ export class AdminService {
       payload.provider = payload.provider || 'local';
     }
     const { isEmailVerified, ...rest } = payload as any;
+    delete rest.registeredAt;
     if (typeof isEmailVerified === 'boolean') {
       user.emailVerifiedAt = isEmailVerified
         ? user.emailVerifiedAt || new Date()
@@ -924,7 +1041,18 @@ export class AdminService {
       });
     }
     if (category && category !== 'all') {
-      qb.andWhere('category.name = :categoryName', { categoryName: category });
+      if (this.isUuid(category)) {
+        qb.andWhere('category.id = :categoryId', { categoryId: category });
+      } else {
+        const normalizedCategory = category.normalize('NFKC').trim().replace(/\s+/gu, ' ');
+        qb.andWhere(
+          '(LOWER(TRIM(category.name)) = LOWER(:categoryName) OR JSON_CONTAINS(category.aliases, :categoryNameJson))',
+          {
+            categoryName: normalizedCategory,
+            categoryNameJson: JSON.stringify(normalizedCategory),
+          },
+        );
+      }
     }
 
     if (paymentStatus && paymentStatus !== 'all') {
@@ -1065,6 +1193,9 @@ export class AdminService {
     delete dataToUpdate.reason;
 
     Object.assign(inv, dataToUpdate);
+    if (!oldPublished && inv.isPublished && !inv.publishedAt) {
+      inv.publishedAt = new Date();
+    }
     const saved = await this.invitationRepo.save(inv);
 
     // Audit logs for critical changes
@@ -1623,6 +1754,9 @@ export class AdminService {
     const inv = payment.invitation;
     const oldPublished = inv.isPublished;
     inv.isPublished = true;
+    if (!oldPublished && !inv.publishedAt) {
+      inv.publishedAt = new Date();
+    }
     if (payment.package) {
       inv.package = payment.package;
     }
@@ -1882,7 +2016,9 @@ export class AdminService {
         const newObj = { ...obj };
         filterEntries.forEach(([key, value]) => {
           if (key === 'category') {
-            newObj.category = { ...newObj.category, name: ILike(`%${value}%`) };
+            newObj.category = this.isUuid(String(value))
+              ? { ...newObj.category, id: value }
+              : { ...newObj.category, name: ILike(`%${value}%`) };
           } else if (key === 'isActive') {
             newObj.isPublished = value === 'true';
           } else if (typeof value === 'string') {
@@ -1933,11 +2069,10 @@ export class AdminService {
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .innerJoin('payment.invitation', 'invitation')
-        .select('invitation.templateDesignId', 'templateId')
+        .select('payment.templateDesignIdSnapshot', 'templateId')
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
         .addSelect('COALESCE(SUM(payment.amount), 0)', 'grossAmount')
-        .where('invitation.templateDesignId IS NOT NULL')
+        .where("payment.purpose = 'invitation'")
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount > 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -1951,14 +2086,13 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy('invitation.templateDesignId')
+        .groupBy('payment.templateDesignIdSnapshot')
         .getRawMany(),
       this.paymentRepo
         .createQueryBuilder('payment')
-        .innerJoin('payment.invitation', 'invitation')
-        .select('invitation.templateDesignId', 'templateId')
+        .select('payment.templateDesignIdSnapshot', 'templateId')
         .addSelect('COUNT(DISTINCT payment.id)', 'paymentCount')
-        .where('invitation.templateDesignId IS NOT NULL')
+        .where("payment.purpose = 'invitation'")
         .andWhere("payment.status = 'success'")
         .andWhere('payment.amount = 0')
         .andWhere('payment.settlementTime IS NOT NULL')
@@ -1972,20 +2106,20 @@ export class AdminService {
           'payment.settlementTime >= :start AND payment.settlementTime < :end',
           { start: period.start, end: period.effectiveEnd },
         )
-        .groupBy('invitation.templateDesignId')
+        .groupBy('payment.templateDesignIdSnapshot')
         .getRawMany(),
     ]);
 
-    const toMap = (rows: any[], countField: string) =>
-      new Map(
-        rows.map((row) => [
-          Number(row.templateId),
-          {
-            count: Number(row[countField] || 0),
-            grossAmount: Number(row.grossAmount || 0),
-          },
-        ]),
-      );
+    const toMap = (rows: any[], countField: string) => {
+      const result = new Map<number | null, { count: number; grossAmount: number }>();
+      for (const row of rows) {
+        result.set(row.templateId == null ? null : Number(row.templateId), {
+          count: Number(row[countField] || 0),
+          grossAmount: Number(row.grossAmount || 0),
+        });
+      }
+      return result;
+    };
     const invitationsByTemplate = new Map(
       invitationRows.map((row) => [
         Number(row.templateId),
@@ -2017,7 +2151,12 @@ export class AdminService {
         grossAmount:
           'Jumlah Payment.amount dari transaksi berbayar yang memenuhi syarat; refund dan biaya tidak dikurangkan.',
         attribution:
-          'Template memakai relasi undangan saat ini. Riwayat template saat transaksi tidak tersedia untuk data lama.',
+          'Metrik per template hanya memakai snapshot saat checkout. Payment invitation tanpa snapshot masuk ke ringkasan tidak teratribusi; template undangan saat ini tidak dipakai sebagai tebakan.',
+      },
+      unattributed: {
+        paidCount: paidByTemplate.get(null)?.count || 0,
+        freeCount: freeByTemplate.get(null)?.count || 0,
+        grossAmount: paidByTemplate.get(null)?.grossAmount || 0,
       },
       data: templates.map((template) => {
         const invitationMetric = invitationsByTemplate.get(template.id);
@@ -2054,7 +2193,8 @@ export class AdminService {
         ]
       : {};
 
-    where = this.applyFilters(where, filters);
+    const resolvedFilters = await this.resolveTemplateCategoryFilter(filters);
+    where = this.applyFilters(where, resolvedFilters);
 
     let order: any = { [sortBy]: sortOrder };
     if (sortBy === 'category') {
@@ -2076,6 +2216,38 @@ export class AdminService {
     };
   }
 
+  private isUuid(value: string) {
+    return /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value);
+  }
+
+  private async resolveTemplateCategoryFilter(filtersStr?: string) {
+    if (!filtersStr) return filtersStr;
+    try {
+      const filters = JSON.parse(filtersStr);
+      const categoryName = filters?.category;
+      if (typeof categoryName !== 'string' || this.isUuid(categoryName)) {
+        return filtersStr;
+      }
+      const normalizedName = categoryName
+        .normalize('NFKC')
+        .trim()
+        .replace(/\s+/gu, ' ');
+      const category = await this.categoryRepo
+        .createQueryBuilder('category')
+        .where('LOWER(TRIM(category.name)) = LOWER(:name)', {
+          name: normalizedName,
+        })
+        .orWhere('JSON_CONTAINS(category.aliases, :nameJson)', {
+          nameJson: JSON.stringify(normalizedName),
+        })
+        .getOne();
+      if (category) filters.category = category.id;
+      return JSON.stringify(filters);
+    } catch {
+      return filtersStr;
+    }
+  }
+
   async getTemplateDesign(id: number) {
     const template = await this.templateDesignRepo.findOne({
       where: { id },
@@ -2083,6 +2255,91 @@ export class AdminService {
     });
     if (!template) throw new NotFoundException('Template design not found');
     return this.transformTemplateDesign(template);
+  }
+
+  async getTemplateDesignRevisions(id: number) {
+    const template = await this.templateDesignRepo.findOne({ where: { id } });
+    if (!template) throw new NotFoundException('Template design not found');
+    const [revisions, invitationCount] = await Promise.all([
+      this.templateDesignRevisionRepo.find({
+        where: { templateId: id },
+        order: { version: 'DESC' },
+      }),
+      this.invitationRepo.count({ where: { templateDesign: { id } } }),
+    ]);
+    return {
+      templateId: id,
+      currentInvitationCount: invitationCount,
+      revisions: revisions.map(({ id: revisionId, version, templateName, createdAt, actorEmail }) => ({
+        id: revisionId,
+        version,
+        templateName,
+        createdAt,
+        actorEmail,
+      })),
+    };
+  }
+
+  async rollbackTemplateDesignRevision(
+    id: number,
+    revisionId: string,
+    actor?: { id?: number; email?: string },
+  ) {
+    const revision = await this.templateDesignRevisionRepo.findOne({
+      where: { id: revisionId, templateId: id },
+    });
+    if (!revision) throw new NotFoundException('Template revision not found');
+    return this.updateTemplateDesign(
+      id,
+      revision.snapshot as UpdateTemplateDesignDto,
+      actor,
+    );
+  }
+
+  private async saveTemplateDesignRevisionBeforeUpdate(
+    template: TemplateDesign,
+    actor?: { id?: number; email?: string },
+  ) {
+    const latest = await this.templateDesignRevisionRepo.findOne({
+      where: { templateId: template.id },
+      order: { version: 'DESC' },
+    });
+    const revision = this.templateDesignRevisionRepo.create({
+      templateId: template.id,
+      templateName: template.name,
+      version: (latest?.version || 0) + 1,
+      snapshot: {
+        name: template.name,
+        slug: template.slug,
+        componentKey: template.componentKey,
+        previewUrl: template.previewUrl,
+        thumbnailUrl: template.thumbnailUrl,
+        isActive: template.isPublished,
+        category: template.category?.name || null,
+        price: Number(template.price),
+        paletteId: template.palette?.id || null,
+        paletteColors: template.paletteColors || [],
+        description: template.description,
+        seoTitle: template.seoTitle,
+        seoDescription: template.seoDescription,
+        tags: template.tags,
+        filterGroup: template.filterGroup,
+        sectionOptions: template.sectionOptions,
+        sampleContent: template.sampleContent,
+        designConfig: template.designConfig,
+        defaultMusic: template.defaultMusic,
+        defaultAudioStart: template.defaultAudioStart,
+        defaultAudioEnd: template.defaultAudioEnd,
+        sections: (template.sections || []).map((section) => ({
+          sectionId: section.section.id,
+          order: section.order,
+          is_enabled: section.is_enabled,
+        })),
+      },
+      actorId: actor?.id ?? null,
+      actorEmail: actor?.email ?? null,
+    });
+    await this.templateDesignRevisionRepo.save(revision);
   }
 
   async createTemplateDesign(payload: CreateTemplateDesignDto) {
@@ -2146,7 +2403,11 @@ export class AdminService {
     }
   }
 
-  async updateTemplateDesign(id: number, payload: UpdateTemplateDesignDto) {
+  async updateTemplateDesign(
+    id: number,
+    payload: UpdateTemplateDesignDto,
+    actor?: { id?: number; email?: string },
+  ) {
     try {
       const template = await this.templateDesignRepo.findOne({
         where: { id },
@@ -2164,25 +2425,38 @@ export class AdminService {
           throw new BadRequestException('Slug template sudah digunakan');
       }
 
-      if (categoryName) {
-        const found = await this.categoryRepo.findOne({
-          where: { name: categoryName },
-        });
-        if (!found)
-          throw new BadRequestException(`Category '${categoryName}' not found`);
-        template.category = found;
+      let nextCategory: Category | null | undefined;
+      if (categoryName !== undefined) {
+        if (categoryName === null) {
+          nextCategory = null;
+        } else {
+          const found = await this.categoryRepo.findOne({
+            where: { name: categoryName },
+          });
+          if (!found)
+            throw new BadRequestException(
+              `Category '${categoryName}' not found`,
+            );
+          nextCategory = found;
+        }
       }
 
+      let nextPalette: PaletteColor | null | undefined;
       if (paletteId !== undefined) {
         if (paletteId === null) {
-          template.palette = null;
+          nextPalette = null;
         } else if (paletteId) {
           const foundPalette = await this.paletteColorRepo.findOne({
             where: { id: paletteId },
           });
-          if (foundPalette) template.palette = foundPalette;
+          if (foundPalette) nextPalette = foundPalette;
         }
       }
+
+      await this.saveTemplateDesignRevisionBeforeUpdate(template, actor);
+
+      if (nextCategory !== undefined) template.category = nextCategory;
+      if (nextPalette !== undefined) template.palette = nextPalette;
 
       const data = this.normalizeTemplateDesignPayload(rest);
       Object.assign(template, data);
@@ -2248,6 +2522,35 @@ export class AdminService {
       order: { label: 'ASC' },
     });
 
+    const links = sections.length
+      ? await this.templateDesignSectionRepo.find({
+          where: {
+            section: { id: In(sections.map((section) => section.id)) },
+            is_enabled: true,
+          },
+          relations: ['section', 'templateDesign'],
+        })
+      : [];
+    const rendererCoverageBySection = new Map<
+      string,
+      Map<string, { templateCount: number; publishedTemplateCount: number }>
+    >();
+    for (const link of links) {
+      const template = link.templateDesign;
+      const sectionId = link.section?.id;
+      const renderer = template?.componentKey?.trim() || template?.slug?.trim();
+      if (!sectionId || !renderer) continue;
+      const coverage = rendererCoverageBySection.get(sectionId) || new Map();
+      const rendererCounts = coverage.get(renderer) || {
+        templateCount: 0,
+        publishedTemplateCount: 0,
+      };
+      rendererCounts.templateCount += 1;
+      if (template.isPublished) rendererCounts.publishedTemplateCount += 1;
+      coverage.set(renderer, rendererCounts);
+      rendererCoverageBySection.set(sectionId, coverage);
+    }
+
     console.log(
       `[DEBUG] listSections found ${sections.length} items. Raw first item:`,
       sections[0],
@@ -2257,14 +2560,26 @@ export class AdminService {
       sections.map(async (s) => {
         const raw = s as any;
         const isActive = s.is_active ?? raw.is_published ?? true;
-        const [templateUseCount, enabledTemplateUseCount] = await Promise.all([
+        const [templateUseCount, enabledTemplateUseCount, samplePreviewSection] = await Promise.all([
           this.templateDesignSectionRepo.count({
             where: { section: { id: s.id } },
           }),
           this.templateDesignSectionRepo.count({
             where: { section: { id: s.id }, is_enabled: true },
           }),
+          this.templateDesignSectionRepo
+            .createQueryBuilder('templateSection')
+            .innerJoinAndSelect('templateSection.templateDesign', 'template')
+            .innerJoin('templateSection.section', 'section')
+            .where('section.id = :sectionId', { sectionId: s.id })
+            .andWhere('templateSection.is_enabled = :enabled', { enabled: true })
+            .andWhere('template.isPublished = :published', { published: true })
+            .andWhere('template.previewUrl IS NOT NULL')
+            .andWhere("template.previewUrl <> ''")
+            .orderBy('template.name', 'ASC')
+            .getOne(),
         ]);
+        const sampleTemplate = samplePreviewSection?.templateDesign;
         return {
           id: s.id,
           label: s.label,
@@ -2272,6 +2587,21 @@ export class AdminService {
           is_active: isActive,
           templateUseCount,
           enabledTemplateUseCount,
+          rendererCoverage: Array.from(
+            rendererCoverageBySection.get(s.id)?.entries() || [],
+          ).map(([renderer, counts]) => ({
+            renderer,
+            ...counts,
+            packageSupport: 'tier-neutral',
+          })),
+          samplePreviewTemplate: sampleTemplate
+            ? {
+                id: sampleTemplate.id,
+                name: sampleTemplate.name,
+                slug: sampleTemplate.slug,
+                componentKey: sampleTemplate.componentKey,
+              }
+            : null,
         };
       }),
     );
@@ -2341,12 +2671,32 @@ export class AdminService {
   }
 
   // Audio
+  private audioContentSha256(file: Express.Multer.File): string {
+    if (!Buffer.isBuffer(file.buffer)) {
+      throw new BadRequestException('Isi file audio tidak dapat dibaca.');
+    }
+    return createHash('sha256').update(file.buffer).digest('hex');
+  }
+
   async listAudio(q?: string) {
     const where = q ? { title: ILike(`%${q}%`) } : undefined;
     const tracks = await this.audioRepo.find({
       where,
       order: { title: 'ASC' },
     });
+    const allTracks = await this.audioRepo.find({
+      select: { url: true, contentSha256: true },
+    });
+    const urlUseCount = allTracks.reduce((counts, track) => {
+      if (track.url) counts.set(track.url, (counts.get(track.url) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+    const contentUseCount = allTracks.reduce((counts, track) => {
+      if (track.contentSha256) {
+        counts.set(track.contentSha256, (counts.get(track.contentSha256) || 0) + 1);
+      }
+      return counts;
+    }, new Map<string, number>());
     return Promise.all(
       tracks.map(async (track) => {
         const [templateUseCount, invitationUseCount] = await Promise.all([
@@ -2357,9 +2707,19 @@ export class AdminService {
           ...track,
           templateUseCount,
           invitationUseCount,
-          sourceStatus: 'unknown',
-          licenseStatus: 'unknown',
-          durationStatus: 'unknown',
+          sameUrlTrackCount: track.url ? urlUseCount.get(track.url) || 1 : 0,
+          sameContentTrackCount: track.contentSha256
+            ? contentUseCount.get(track.contentSha256) || 1
+            : null,
+          contentHashStatus: track.contentSha256 ? 'checked' : 'unknown',
+          sourceStatus: track.source?.trim() ? 'recorded' : 'unknown',
+          licenseStatus: track.licenseStatus || 'unknown',
+          durationStatus:
+            track.durationSeconds !== null &&
+            Number.isInteger(track.durationSeconds) &&
+            track.durationSeconds >= 0
+              ? 'recorded'
+              : 'unknown',
           usageMatch:
             'Exact URL match only; filename and historical URL aliases are not inferred.',
         };
@@ -2368,13 +2728,96 @@ export class AdminService {
   }
 
   async createAudio(payload: Partial<Audio>) {
-    const audio = this.audioRepo.create(payload);
+    const audio = this.audioRepo.create({
+      ...payload,
+      licenseStatus: payload.licenseStatus || 'unknown',
+      playbackCheckResult: null,
+      playbackCheckAt: null,
+    });
     return this.audioRepo.save(audio);
+  }
+
+  async updateAudioMetadata(id: string, payload: UpdateAudioMetadataDto) {
+    const audio = await this.audioRepo.findOne({ where: { id } });
+    if (!audio) throw new NotFoundException('Audio not found');
+    if (payload.source !== undefined) audio.source = payload.source?.trim() || null;
+    if (payload.credit !== undefined) audio.credit = payload.credit?.trim() || null;
+    if (payload.licenseStatus !== undefined) audio.licenseStatus = payload.licenseStatus;
+    if (payload.playbackCheckResult !== undefined) {
+      audio.playbackCheckResult = payload.playbackCheckResult;
+      audio.playbackCheckAt = new Date();
+    }
+    return this.audioRepo.save(audio);
+  }
+
+  async replaceAudio(
+    id: string,
+    file: Express.Multer.File,
+    payload: UploadAudioMetadataDto,
+  ) {
+    const audio = await this.audioRepo.findOne({ where: { id } });
+    if (!audio) throw new NotFoundException('Audio not found');
+    const upload = await this.uploadService.uploadFile(file);
+
+    try {
+      return await this.audioRepo.manager.transaction(async (manager) => {
+        const currentAudio = await manager.findOne(Audio, {
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!currentAudio) throw new NotFoundException('Audio not found');
+        const previousUrl = currentAudio.url;
+        const templateResult = await manager.update(
+          TemplateDesign,
+          { defaultMusic: previousUrl },
+          { defaultMusic: upload.fileUrl },
+        );
+        const invitationResult = await manager.update(
+          Invitation,
+          { musicChoice: previousUrl },
+          { musicChoice: upload.fileUrl },
+        );
+
+        currentAudio.url = upload.fileUrl;
+        currentAudio.format = file.mimetype || null;
+        currentAudio.fileSizeBytes = Number.isFinite(file.size) ? file.size : null;
+        currentAudio.contentSha256 = this.audioContentSha256(file);
+        currentAudio.playbackCheckResult = null;
+        currentAudio.playbackCheckAt = null;
+        currentAudio.durationSeconds =
+          typeof payload.durationSeconds === 'number' &&
+          Number.isInteger(payload.durationSeconds) &&
+          payload.durationSeconds >= 0
+            ? payload.durationSeconds
+            : null;
+        if (payload.source !== undefined) currentAudio.source = payload.source.trim() || null;
+        if (payload.credit !== undefined) currentAudio.credit = payload.credit.trim() || null;
+        if (payload.licenseStatus !== undefined) currentAudio.licenseStatus = payload.licenseStatus;
+        await manager.save(Audio, currentAudio);
+
+        return {
+          success: true,
+          templateReferencesUpdated: templateResult.affected || 0,
+          invitationReferencesUpdated: invitationResult.affected || 0,
+          previousFileRetained: true,
+        };
+      });
+    } catch (error) {
+      try {
+        await this.uploadService.deleteFile(upload.fileUrl);
+      } catch (cleanupError) {
+        this.logger.error(
+          `Failed to clean up replacement audio after transaction failure: ${upload.fileUrl}`,
+          cleanupError instanceof Error ? cleanupError.stack : String(cleanupError),
+        );
+      }
+      throw error;
+    }
   }
 
   async uploadAudio(
     file: Express.Multer.File,
-    payload: { title?: string; category?: string },
+    payload: UploadAudioMetadataDto,
   ) {
     const upload = await this.uploadService.uploadFile(file);
     const fallbackTitle = file.originalname
@@ -2386,6 +2829,18 @@ export class AdminService {
       title: payload.title?.trim() || fallbackTitle,
       category: payload.category?.trim() || 'romantic',
       url: upload.fileUrl,
+      format: file.mimetype || null,
+      fileSizeBytes: Number.isFinite(file.size) ? file.size : null,
+      contentSha256: this.audioContentSha256(file),
+      durationSeconds:
+        typeof payload.durationSeconds === 'number' &&
+        Number.isInteger(payload.durationSeconds) &&
+        payload.durationSeconds >= 0
+          ? payload.durationSeconds
+          : null,
+      source: payload.source?.trim() || null,
+      credit: payload.credit?.trim() || null,
+      licenseStatus: payload.licenseStatus || 'unknown',
     });
 
     return this.audioRepo.save(audio);
@@ -2412,7 +2867,17 @@ export class AdminService {
     const where = q
       ? [{ name: ILike(`%${q}%`) }, { code: ILike(`%${q}%`) }]
       : undefined;
-    const banks = await this.bankRepo.find({ where, order: { name: 'ASC' } });
+    const [banks, allCodes] = await Promise.all([
+      this.bankRepo.find({ where, order: { name: 'ASC' } }),
+      this.bankRepo.find({ select: { code: true } }),
+    ]);
+    const codeUseCount = allCodes.reduce((counts, bank) => {
+      const normalizedCode = bank.code?.trim().toLocaleLowerCase();
+      if (normalizedCode) {
+        counts.set(normalizedCode, (counts.get(normalizedCode) || 0) + 1);
+      }
+      return counts;
+    }, new Map<string, number>());
     return Promise.all(
       banks.map(async (bank) => {
         const [bankAccountResult, walletResult] = await Promise.all([
@@ -2437,6 +2902,9 @@ export class AdminService {
           ...bank,
           bankAccountUseCount: Number(bankAccountResult?.count || 0),
           walletUseCount: Number(walletResult?.count || 0),
+          duplicateCodeCount: bank.code?.trim()
+            ? codeUseCount.get(bank.code.trim().toLocaleLowerCase()) || 1
+            : 0,
           usageMatch:
             'Exact current name match in invitation snapshots; aliases are not inferred.',
         };
@@ -2445,14 +2913,23 @@ export class AdminService {
   }
 
   async createBank(payload: Partial<Bank>) {
-    const bank = this.bankRepo.create(payload);
+    const bank = this.bankRepo.create({
+      ...payload,
+      name: payload.name?.trim(),
+      code: payload.code?.trim(),
+      isActive: payload.isActive ?? true,
+    });
     return this.bankRepo.save(bank);
   }
 
   async updateBank(id: string, payload: Partial<Bank>) {
     const bank = await this.bankRepo.findOne({ where: { id } });
     if (!bank) throw new NotFoundException('Bank not found');
-    Object.assign(bank, payload);
+    Object.assign(bank, payload, {
+      name: payload.name?.trim() ?? bank.name,
+      code: payload.code?.trim() ?? bank.code,
+      isActive: payload.isActive ?? bank.isActive,
+    });
     return this.bankRepo.save(bank);
   }
 
@@ -2497,7 +2974,26 @@ export class AdminService {
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data, total, page, limit };
+    const usageRows = data.length
+      ? await this.templateDesignRepo
+          .createQueryBuilder('template')
+          .select('palette.id', 'paletteId')
+          .addSelect('COUNT(template.id)', 'templateUseCount')
+          .innerJoin('template.palette', 'palette')
+          .where('palette.id IN (:...paletteIds)', {
+            paletteIds: data.map((palette) => palette.id),
+          })
+          .groupBy('palette.id')
+          .getRawMany()
+      : [];
+    const usageByPalette = new Map(
+      usageRows.map((row) => [row.paletteId, Number(row.templateUseCount || 0)]),
+    );
+    const dataWithUsage = data.map((palette) => ({
+      ...palette,
+      templateUseCount: usageByPalette.get(palette.id) || 0,
+    }));
+    return { data: dataWithUsage, total, page, limit };
   }
 
   async createPaletteColor(payload: CreatePaletteColorDto) {
@@ -2515,6 +3011,14 @@ export class AdminService {
   async deletePaletteColor(id: string) {
     const palette = await this.paletteColorRepo.findOne({ where: { id } });
     if (!palette) throw new NotFoundException('Palette color not found');
+    const templateUseCount = await this.templateDesignRepo.count({
+      where: { palette: { id } },
+    });
+    if (templateUseCount > 0) {
+      throw new BadRequestException(
+        `Palet masih dipakai oleh ${templateUseCount} template. Lepaskan palet dari template terlebih dahulu sebelum menghapus master ini.`,
+      );
+    }
     await this.paletteColorRepo.remove(palette);
     return { success: true };
   }

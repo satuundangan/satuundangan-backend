@@ -41,6 +41,11 @@ import { AuditLogQueryDto, UpdateAdminRoleDto } from './dto/admin-security.dto';
 import { CreatePromoCodeDto } from '../promo/dto/create-promo-code.dto';
 import { UpdatePromoCodeDto } from '../promo/dto/update-promo-code.dto';
 import { AdminUsersQueryDto } from './dto/admin-users-query.dto';
+import {
+  UpdateAudioMetadataDto,
+  UploadAudioMetadataDto,
+} from './dto/audio-metadata.dto';
+import { CompleteCustomerEventDto } from './dto/complete-customer-event.dto';
 
 function requireAdminReason(req: { headers?: Record<string, unknown> }) {
   const reason = String(req?.headers?.['x-admin-reason'] ?? '').trim();
@@ -84,6 +89,17 @@ export class AdminController {
   @Get('users/:id/customer')
   getCustomerDetail(@Param('id', ParseIntPipe) id: number) {
     return this.service.getCustomerDetail(id);
+  }
+
+  @Post('users/:id/invitations/:invitationId/event-completion')
+  completeCustomerEvent(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+    @Body() dto: CompleteCustomerEventDto,
+    @Req() req: any,
+  ) {
+    requireAdminReason(req);
+    return this.service.completeCustomerEvent(id, invitationId, dto.reason, req.user);
   }
 
   @Get('users/:id')
@@ -318,6 +334,23 @@ export class AdminController {
     return this.service.getTemplateDesign(id);
   }
 
+  @Get('template-designs/:id/revisions')
+  getTemplateDesignRevisions(@Param('id', ParseIntPipe) id: number) {
+    return this.service.getTemplateDesignRevisions(id);
+  }
+
+  @Post('template-designs/:id/revisions/:revisionId/rollback')
+  rollbackTemplateDesignRevision(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('revisionId') revisionId: string,
+    @Req() req?: any,
+  ) {
+    return this.service.rollbackTemplateDesignRevision(id, revisionId, {
+      id: req?.user?.id,
+      email: req?.user?.email,
+    });
+  }
+
   @Post('template-designs')
   createTemplateDesign(@Body() dto: CreateTemplateDesignDto) {
     return this.service.createTemplateDesign(dto);
@@ -327,8 +360,12 @@ export class AdminController {
   updateTemplateDesign(
     @Param('id') id: number,
     @Body() dto: UpdateTemplateDesignDto,
+    @Req() req?: any,
   ) {
-    return this.service.updateTemplateDesign(id, dto);
+    return this.service.updateTemplateDesign(id, dto, {
+      id: req?.user?.id,
+      email: req?.user?.email,
+    });
   }
 
   @Delete('template-designs/:id')
@@ -368,6 +405,40 @@ export class AdminController {
     return this.service.createAudio(body);
   }
 
+  @Patch('audio/:id/replace')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES,
+      },
+    }),
+  )
+  replaceAudio(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: AUDIO_UPLOAD_MAX_FILE_SIZE_BYTES,
+          }),
+          new FileTypeValidator({ fileType: /^audio\/(mpeg|mp3)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @Body() body: UploadAudioMetadataDto,
+  ) {
+    return this.service.replaceAudio(id, file, body);
+  }
+
+  @Patch('audio/:id')
+  updateAudioMetadata(
+    @Param('id') id: string,
+    @Body() dto: UpdateAudioMetadataDto,
+  ) {
+    return this.service.updateAudioMetadata(id, dto);
+  }
+
   @Post('audio/upload')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -388,7 +459,7 @@ export class AdminController {
       }),
     )
     file: Express.Multer.File,
-    @Body() body: { title?: string; category?: string },
+    @Body() body: UploadAudioMetadataDto,
   ) {
     return this.service.uploadAudio(file, body);
   }

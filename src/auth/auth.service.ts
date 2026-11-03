@@ -56,6 +56,7 @@ export class AuthService {
       email: normalizedEmail,
       password: hashed,
       provider: 'local',
+      registeredAt: new Date(),
       isApproved: dto.agreedToTerms || false,
       emailVerificationTokenHash: this.hashToken(verificationToken),
       emailVerificationTokenExpiresAt: new Date(
@@ -318,12 +319,14 @@ export class AuthService {
   }
 
   async createUserFromGoogle(googleUser: any) {
+    const registeredAt = new Date();
     const newUser = this.userRepo.create({
       name: googleUser.name,
       email: googleUser.email,
       provider: 'google',
       avatar: googleUser.avatar,
-      emailVerifiedAt: new Date(),
+      emailVerifiedAt: registeredAt,
+      registeredAt,
     });
     return await this.userRepo.save(newUser);
   }

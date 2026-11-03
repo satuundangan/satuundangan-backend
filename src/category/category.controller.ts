@@ -27,12 +27,12 @@ export class CategoryController {
 
   @Get()
   findAll(@Query() query: PaginationQueryDto) {
-    return this.categoryService.findAll(query);
+    return this.categoryService.findAll(query, true);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.categoryService.findOne(id);
+    return this.categoryService.findOne(id, true);
   }
 
   @Patch(':id')

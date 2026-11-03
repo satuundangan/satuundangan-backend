@@ -211,6 +211,46 @@ describe('GuestMessagesService Drilldown & Moderation', () => {
     jest.clearAllMocks();
   });
 
+  describe('findPublicByInvitationId', () => {
+    it('returns only published messages and strips private fields', async () => {
+      guestMessageRepo.find.mockResolvedValue([
+        {
+          id: 7,
+          guestName: 'Olip',
+          message: 'Selamat',
+          rsvpStatus: 'hadir',
+          totalGuests: 2,
+          createdAt: new Date('2026-11-02T09:38:27Z'),
+          status: 'published',
+          guest: { id: 99, accessToken: 'secret-token', phone: '0812' },
+          invitation: { id: 10, user: { email: 'owner@example.com' } },
+        },
+      ]);
+
+      const res = await service.findPublicByInvitationId(10);
+
+      expect(guestMessageRepo.find).toHaveBeenCalledWith({
+        where: [
+          { invitation: { id: 10 }, status: 'published' },
+          { invitation: { id: 10 }, status: expect.anything() },
+        ],
+        order: { createdAt: 'DESC' },
+        take: 200,
+      });
+      expect(res).toEqual([
+        {
+          id: 7,
+          guestName: 'Olip',
+          message: 'Selamat',
+          rsvpStatus: 'hadir',
+          totalGuests: 2,
+          createdAt: new Date('2026-11-02T09:38:27Z'),
+        },
+      ]);
+      expect(JSON.stringify(res)).not.toMatch(/secret-token|owner@example|0812/);
+    });
+  });
+
   describe('findByInvitationId', () => {
     it('queries published and null status messages', async () => {
       guestMessageRepo.find.mockResolvedValue([

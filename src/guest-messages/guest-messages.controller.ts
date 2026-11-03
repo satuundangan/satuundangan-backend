@@ -70,6 +70,19 @@ export class GuestMessagesController {
     };
   }
 
+  @Get('guest-messages/public/:invitationId')
+  @ApiOperation({
+    summary: 'Public wishes for an invitation page (published, limited fields)',
+  })
+  @ApiParam({ name: 'invitationId', type: Number, example: 1 })
+  async getPublicMessages(
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+  ) {
+    const data =
+      await this.guestMessagesService.findPublicByInvitationId(invitationId);
+    return { success: true, data };
+  }
+
   @Get('guest-messages/invitation/:invitationId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

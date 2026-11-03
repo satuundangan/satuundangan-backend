@@ -46,6 +46,7 @@ jobs:
             cd ~/apps/satu-undangan
             mkdir -p ~/.ssh && chmod 700 ~/.ssh
             grep -qxF "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKrkXebsxqjarH0PShwvG4dFL5IoeaXVuqp45vGIaU+f fauzan@satuundangan" ~/.ssh/authorized_keys 2>/dev/null || echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKrkXebsxqjarH0PShwvG4dFL5IoeaXVuqp45vGIaU+f fauzan@satuundangan" >> ~/.ssh/authorized_keys
+            grep -qxF "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYxFJkSSmVW5bRXdMTD3/tkSpI4M9pCbZEdOj1ryw/w fauzan@satuundangan" ~/.ssh/authorized_keys 2>/dev/null || echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYxFJkSSmVW5bRXdMTD3/tkSpI4M9pCbZEdOj1ryw/w fauzan@satuundangan" >> ~/.ssh/authorized_keys
             chmod 600 ~/.ssh/authorized_keys
             if [ -f .env.dev ]; then
               if grep -q "^GEMINI_API_KEY=" .env.dev; then
@@ -57,6 +58,18 @@ jobs:
                 sed -i 's|^RESEND_API_KEY=.*|RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}|' .env.dev
               else
                 echo -e "\nRESEND_API_KEY=${{ secrets.RESEND_API_KEY }}" >> .env.dev
+              fi
+              TG_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'
+              if [ -n "$TG_TOKEN" ]; then
+                if grep -q "^TELEGRAM_BOT_TOKEN=" .env.dev; then
+                  sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=$TG_TOKEN|" .env.dev
+                else
+                  echo -e "\nTELEGRAM_BOT_TOKEN=$TG_TOKEN" >> .env.dev
+                fi
+                # Register telegram webhook to dev-api
+                curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/setWebhook" \
+                  -H "Content-Type: application/json" \
+                  -d '{"url":"https://api-dev.satuundangan.id/telegram/webhook"}' || true
               fi
             fi
             SERVICE=backend-dev

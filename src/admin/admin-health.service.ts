@@ -40,7 +40,7 @@ export class AdminHealthService {
       this.probe('database', 'Database', true, () => this.checkDatabase()),
       this.probe('storage', 'Penyimpanan file (R2)', true, () => this.checkStorage()),
       this.probe('payment', 'Payment gateway (Midtrans)', true, () => this.checkMidtrans()),
-      this.probe('email', 'Email (Cloudflare)', true, () => this.checkEmail()),
+      this.probe('email', 'Email (Resend)', true, () => this.checkEmail()),
       this.probe('analytics', 'Laporan GA4', false, async () => this.checkGa4()),
     ]);
     const value = this.summarize(services);
@@ -49,10 +49,12 @@ export class AdminHealthService {
   }
 
   private summarize(services: ServiceHealth[]) {
-    const worst = services.reduce<HealthStatus>(
-      (acc, item) => (SEVERITY[item.status] > SEVERITY[acc] ? item.status : acc),
-      'available',
-    );
+    const worst = services
+      .filter((s) => s.required)
+      .reduce<HealthStatus>(
+        (acc, item) => (SEVERITY[item.status] > SEVERITY[acc] ? item.status : acc),
+        'available',
+      );
     return { checkedAt: new Date().toISOString(), worst, services };
   }
 
@@ -121,11 +123,16 @@ export class AdminHealthService {
   }
 
   private async checkMidtrans() {
-    const serverKey = this.config.get<string>('MIDTRANS_SERVER_KEY');
+    const serverKey =
+      this.config.get<string>('MIDTRANS_SERVER_KEY') ||
+      this.config.get<string>('MERCHANT_SERVER_KEY') ||
+      this.config.get<string>('SERVER_KEY');
     if (!serverKey) {
       return { status: 'error' as HealthStatus, message: 'MIDTRANS_SERVER_KEY belum diisi.', method: 'env' };
     }
-    const production = this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true';
+    const production =
+      this.config.get<string>('MIDTRANS_IS_PRODUCTION') === 'true' ||
+      this.config.get<string>('NODE_ENV') === 'production';
     const base = production ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
     // A status lookup for an order that cannot exist: 404 proves the key is accepted without touching real data.
     const response = await fetch(`${base}/v2/health-${randomUUID()}/status`, {
@@ -143,10 +150,31 @@ export class AdminHealthService {
   }
 
   private async checkEmail() {
+    // 1. Resend is primary email provider in SatuUndangan
+    const resendKey = this.config.get<string>('RESEND_API_KEY');
+    if (resendKey) {
+      try {
+        const response = await fetch('https://api.resend.com/api-keys', {
+          headers: { Authorization: `Bearer ${resendKey}`, Accept: 'application/json' },
+          signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+        });
+        if (response.ok) {
+          return { status: 'available' as HealthStatus, message: 'Resend API key valid & aktif', method: 'GET /api-keys' };
+        }
+        if (response.status === 401 || response.status === 403) {
+          return { status: 'error' as HealthStatus, message: `Resend menolak API key (${response.status})`, method: 'GET /api-keys' };
+        }
+        return { status: 'degraded' as HealthStatus, message: `Resend membalas HTTP ${response.status}`, method: 'GET /api-keys' };
+      } catch (err) {
+        return { status: 'degraded' as HealthStatus, message: `Resend tidak dapat dihubungi: ${(err as Error)?.message || 'unknown'}`, method: 'GET /api-keys' };
+      }
+    }
+
+    // 2. Fallback to Cloudflare Email API if configured
     const accountId = this.config.get<string>('CLOUDFLARE_ACCOUNT_ID');
     const token = this.config.get<string>('CLOUDFLARE_API_TOKEN');
     if (!accountId || !token) {
-      return { status: 'error' as HealthStatus, message: 'Kredensial Cloudflare email belum lengkap.', method: 'env' };
+      return { status: 'error' as HealthStatus, message: 'Kredensial email (Resend / Cloudflare) belum dikonfigurasi.', method: 'env' };
     }
     const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`, {
       headers: { Authorization: `Bearer ${token}` },

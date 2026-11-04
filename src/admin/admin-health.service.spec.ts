@@ -59,4 +59,30 @@ describe('AdminHealthService', () => {
     await svc.check(true);
     expect(query).toHaveBeenCalledTimes(2);
   });
+
+  it('accepts SERVER_KEY as Midtrans key fallback and RESEND_API_KEY for email', async () => {
+    global.fetch = jest.fn().mockImplementation(async (url: string) => {
+      if (url.includes('midtrans.com')) {
+        return { status: 404, ok: false };
+      }
+      if (url.includes('resend.com')) {
+        return { status: 200, ok: true };
+      }
+      return { status: 200, ok: true };
+    }) as any;
+
+    const svc = new AdminHealthService(
+      config({ SERVER_KEY: 'Mid-server-test', RESEND_API_KEY: 're_test_123' }),
+      dataSource(jest.fn().mockResolvedValue([])),
+    );
+    const { services, worst } = await svc.check(true);
+    const by = Object.fromEntries(services.map((s) => [s.key, s]));
+
+    expect(by.payment.status).toBe('available');
+    expect(by.email.status).toBe('available');
+    expect(by.email.message).toContain('Resend');
+    // GA4 unconfigured (unknown) does not drag required services down from available
+    expect(by.analytics.status).toBe('unknown');
+    expect(worst).not.toBe('error');
+  });
 });

@@ -20,12 +20,22 @@ fi
 TG_TOKEN="${1:-}"
 TG_CHAT_ID="${2:-}"
 
-ENV_FILE="/home/ubuntu/apps/satu-undangan/.env"
-if [ -z "$TG_TOKEN" ] && [ -f "$ENV_FILE" ]; then
+ENV_FILE=""
+for candidate in \
+  "$HOME/apps/satu-undangan/.env" \
+  "/home/refda21/apps/satu-undangan/.env" \
+  "/home/ubuntu/apps/satu-undangan/.env"; do
+  if [ -f "$candidate" ]; then
+    ENV_FILE="$candidate"
+    break
+  fi
+done
+
+if [ -z "$TG_TOKEN" ] && [ -n "$ENV_FILE" ]; then
   TG_TOKEN=$(grep -E "^TELEGRAM_BOT_TOKEN=" "$ENV_FILE" | cut -d '=' -f2- | tr -d '"'\'' ' || true)
 fi
 
-if [ -z "$TG_CHAT_ID" ] && [ -f "$ENV_FILE" ]; then
+if [ -z "$TG_CHAT_ID" ] && [ -n "$ENV_FILE" ]; then
   # Ambil ID pertama dari daftar TELEGRAM_CHAT_IDS
   TG_CHAT_ID=$(grep -E "^TELEGRAM_CHAT_IDS=" "$ENV_FILE" | cut -d '=' -f2- | cut -d ',' -f1 | tr -d '"'\'' ' || true)
 fi
@@ -79,9 +89,23 @@ systemctl enable fail2ban
 systemctl restart fail2ban
 sleep 2
 
+# 8. Install Daily Security Digest Script & Cron (08:05 WIB = 01:05 UTC)
+echo "⏰ Mengonfigurasi Daily Security Digest Scheduler (08:05 WIB)..."
+mkdir -p /etc/fail2ban/scripts
+cp "${SCRIPT_DIR}/fail2ban-daily-report.sh" /etc/fail2ban/scripts/fail2ban-daily-report.sh
+chmod +x /etc/fail2ban/scripts/fail2ban-daily-report.sh
+
+cat << 'EOF' > /etc/cron.d/satuundangan-fail2ban-report
+# Daily Fail2ban Security Digest for SatuUndangan Ops (01:05 UTC = 08:05 WIB)
+5 1 * * * root /etc/fail2ban/scripts/fail2ban-daily-report.sh > /dev/null 2>&1
+EOF
+chmod 644 /etc/cron.d/satuundangan-fail2ban-report
+
 echo ""
-echo "✅ Fail2ban Berhasil Dikonfigurasi & Aktif!"
-echo "----------------------------------------"
+echo "✅ Fail2ban & Daily Digest Berhasil Dikonfigurasi & Aktif!"
+echo "--------------------------------------------------------"
 fail2ban-client status
-echo "----------------------------------------"
-echo "Setiap ada IP penyerang yang di-ban, bot Telegram akan mengirimkan notifikasi instan ke chat ID: ${TG_CHAT_ID}"
+echo "--------------------------------------------------------"
+echo "• Serangan SSH brute-force diblokir secara otomatis tanpa spamming notifikasi instan."
+echo "• Serangan Web exploit / probe Nginx tetap mengirimkan notifikasi instan ke Telegram."
+echo "• Rekapitulasi keamanan lengkap akan dikirim otomatis setiap pagi pukul 08:05 WIB ke chat ID: ${TG_CHAT_ID}"

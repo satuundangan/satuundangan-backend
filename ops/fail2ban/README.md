@@ -15,8 +15,10 @@ Panduan proteksi server production SatuUndangan di Biznet menggunakan **Fail2ban
    - Memblokir user agent bot perusak atau scraper agresif.
 4. **Anti Rate-Limit Abuse (`[nginx-limit-req]`)**:
    - Memblokir IP yang melanggar batas request rate-limiting Nginx.
-5. **🚨 Notifikasi Real-Time ke Telegram**:
-   - Setiap kali ada IP yang diban atau unban, Fail2ban otomatis mengirim pesan alert ke grup Telegram tim ops/developer.
+5. **🛡️ Rekap Keamanan Harian Otomatis (08:05 WIB)**:
+   - Serangan SSH brute-force diblokir di firewall secara senyap (*silent ban*) tanpa spamming notifikasi instan.
+   - Setiap pagi pukul 08:05 WIB, bot mengirimkan ringkasan rekap pertahanan: jumlah IP diblokir, percobaan yang dicegat, dan status UFW.
+   - Serangan langsung ke Web / Nginx (exploit probes / bad bots) tetap mengirimkan alert instan real-time.
 
 ---
 

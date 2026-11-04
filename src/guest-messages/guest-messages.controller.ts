@@ -24,6 +24,7 @@ import {
 } from './guest-messages.service';
 import { CreateGuestMessageDto } from './dto/create-guest-message.dto';
 import { ModerateGuestMessageDto } from './dto/moderate-guest-message.dto';
+import { NormalizeGuestMessagePipe } from './pipes/normalize-guest-message.pipe';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -40,7 +41,9 @@ export class GuestMessagesController {
     status: 201,
     description: 'The guest message has been successfully created.',
   })
-  async createMessage(@Body() dto: CreateGuestMessageDto) {
+  async createMessage(
+    @Body(new NormalizeGuestMessagePipe()) dto: CreateGuestMessageDto,
+  ) {
     const created = await this.guestMessagesService.create(dto);
     return {
       success: true,

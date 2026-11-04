@@ -66,10 +66,11 @@ export class GuestMessagesService {
         where: { id: dto.guestId, invitation: { id: dto.invitationId } },
       });
     } else if (dto.guestSlug) {
+      const cleanSlug = dto.guestSlug.trim();
       guest = await this.guestRepo.findOne({
         where: [
-          { accessToken: dto.guestSlug, invitation: { id: dto.invitationId } },
-          { slug: dto.guestSlug, invitation: { id: dto.invitationId } },
+          { accessToken: cleanSlug, invitation: { id: dto.invitationId } },
+          { slug: cleanSlug, invitation: { id: dto.invitationId } },
         ],
       });
     }

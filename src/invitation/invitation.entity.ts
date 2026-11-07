@@ -70,7 +70,7 @@ export const PACKAGE_FEATURES: Record<InvitationPackage, PackageFeatures> = {
     gallery: true,
     galleryLimit: 8,
     customMusic: false,
-    watermark: false,
+    watermark: true,
     whatsapp: true,
     subdomain: false,
   },

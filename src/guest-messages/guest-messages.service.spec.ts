@@ -2,7 +2,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { GuestMessagesService } from './guest-messages.service';
 
 describe('GuestMessagesService personal RSVP', () => {
-  const invitation = { id: 10 };
+  const invitation = { id: 10, isPublished: true };
   const guest = {
     id: 20,
     accessToken: 'private-token',
@@ -78,6 +78,22 @@ describe('GuestMessagesService personal RSVP', () => {
     expect(guestRepo.save).not.toHaveBeenCalled();
     expect(guestMessageRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ guest: null }),
+    );
+  });
+
+  it('throws ForbiddenException when invitation is not published (draft status)', async () => {
+    invitationRepo.findOne.mockResolvedValue({ id: 10, isPublished: false });
+
+    await expect(
+      service.create({
+        invitationId: 10,
+        guestName: 'Tamu',
+        message: 'Selamat!',
+        rsvpStatus: 'hadir',
+        totalGuests: 1,
+      }),
+    ).rejects.toThrow(
+      new ForbiddenException('Undangan belum aktif atau masih dalam status draft'),
     );
   });
 });
@@ -213,6 +229,7 @@ describe('GuestMessagesService Drilldown & Moderation', () => {
 
   describe('findPublicByInvitationId', () => {
     it('returns only published messages and strips private fields', async () => {
+      invitationRepo.findOne.mockResolvedValue({ id: 10, isPublished: true });
       guestMessageRepo.find.mockResolvedValue([
         {
           id: 7,
@@ -248,6 +265,22 @@ describe('GuestMessagesService Drilldown & Moderation', () => {
         },
       ]);
       expect(JSON.stringify(res)).not.toMatch(/secret-token|owner@example|0812/);
+    });
+
+    it('throws NotFoundException when invitation is not found', async () => {
+      invitationRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.findPublicByInvitationId(999)).rejects.toThrow(
+        new NotFoundException('Invitation not found'),
+      );
+    });
+
+    it('throws ForbiddenException when invitation is not published', async () => {
+      invitationRepo.findOne.mockResolvedValue({ id: 10, isPublished: false });
+
+      await expect(service.findPublicByInvitationId(10)).rejects.toThrow(
+        new ForbiddenException('Undangan belum aktif atau masih dalam status draft'),
+      );
     });
   });
 

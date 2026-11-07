@@ -87,6 +87,8 @@ export class InvitationService {
 
     const invitationData = {
       ...dto,
+      isPublished: false,
+      publishedAt: null,
       akadLocation: dto.akadLocation || {
         mapUrl: '',
         description: '',
@@ -126,9 +128,13 @@ export class InvitationService {
 
     const invitation = this.invitationRepo.create({
       ...invitationData,
+      isPublished: false,
+      publishedAt: null,
       user,
       expiredAt,
     });
+    invitation.isPublished = false;
+    invitation.publishedAt = null;
 
     // Slug generation logic (Auto-resolve duplicates)
     let baseSlug = dto.slug;
@@ -307,12 +313,7 @@ export class InvitationService {
     // Publishing and the paid tier are owned by payment settlement. Without
     // this, PATCH {isPublished: true, package: 'eksklusif'} skips checkout.
     const hasPaid = await this.hasSuccessfulPayment(invitation.id);
-    if (
-      dto.isPublished === true &&
-      !invitation.isPublished &&
-      !hasPaid &&
-      this.isProduction()
-    ) {
+    if (dto.isPublished === true && !invitation.isPublished && !hasPaid) {
       throw new ForbiddenException(
         'Selesaikan pembayaran untuk mempublikasikan undangan.',
       );
@@ -393,14 +394,6 @@ export class InvitationService {
       where: { invitationId, status: PaymentStatus.SUCCESS },
     });
     return count > 0;
-  }
-
-  // Same switch PaymentService uses for Midtrans production mode.
-  private isProduction(): boolean {
-    return (
-      this.configService.get<string>('MIDTRANS_IS_PRODUCTION') === 'true' ||
-      this.configService.get('NODE_ENV') === 'production'
-    );
   }
 
   private async assertEmailVerified(userId: number) {

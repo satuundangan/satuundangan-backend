@@ -59,6 +59,12 @@ export class GuestMessagesService {
       throw new NotFoundException('Invitation not found');
     }
 
+    if (!invitation.isPublished) {
+      throw new ForbiddenException(
+        'Undangan belum aktif atau masih dalam status draft',
+      );
+    }
+
     let guest: Guest | null = null;
 
     if (dto.guestId) {
@@ -119,6 +125,20 @@ export class GuestMessagesService {
       'id' | 'guestName' | 'message' | 'rsvpStatus' | 'totalGuests' | 'createdAt'
     >[]
   > {
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: invitationId },
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    if (!invitation.isPublished) {
+      throw new ForbiddenException(
+        'Undangan belum aktif atau masih dalam status draft',
+      );
+    }
+
     const messages = await this.guestMessageRepo.find({
       where: [
         { invitation: { id: invitationId }, status: 'published' },

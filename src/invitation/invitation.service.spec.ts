@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { InvitationService } from './invitation.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Invitation, InvitationPackage } from './invitation.entity';
+import { Invitation, InvitationPackage, PACKAGE_FEATURES } from './invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 import { InvitationActivity, ActivityAction } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
@@ -17,6 +17,7 @@ describe('InvitationService', () => {
   let activityRepo: any;
   let templateRepo: any;
   let userRepo: any;
+  let paymentRepo: any;
 
   beforeEach(async () => {
     invitationRepo = {
@@ -46,6 +47,10 @@ describe('InvitationService', () => {
       findOne: jest.fn(),
     };
 
+    paymentRepo = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InvitationService,
@@ -54,7 +59,7 @@ describe('InvitationService', () => {
         { provide: getRepositoryToken(InvitationActivity), useValue: activityRepo },
         { provide: getRepositoryToken(TemplateDesign), useValue: templateRepo },
         { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(Payment), useValue: { count: jest.fn().mockResolvedValue(0) } },
+        { provide: getRepositoryToken(Payment), useValue: paymentRepo },
         { provide: ConfigService, useValue: { get: jest.fn() } },
       ],
     }).compile();
@@ -303,6 +308,120 @@ describe('InvitationService', () => {
         (createArgs.expiredAt.getTime() - before.getTime()) / (1000 * 60 * 60 * 24),
       );
       expect(diffDays).toBe(366);
+    });
+
+    it('always enforces draft status (isPublished: false and publishedAt: null) even if dto specifies published', async () => {
+      const mockUser = { id: 1, email: 'test@example.com' } as User;
+      const dto: any = {
+        title: 'Budi & Ani',
+        coupleName: 'Budi & Ani',
+        slug: 'budi-ani',
+        package: InvitationPackage.BASIC,
+        mergeEvents: true,
+        isPublished: true,
+        is_published: true,
+        publishedAt: new Date(),
+      };
+
+      invitationRepo.findOne.mockResolvedValue(null);
+      invitationRepo.create.mockImplementation((data: any) => ({ ...data, id: 99 }));
+      invitationRepo.save.mockImplementation(async (inv: any) => inv);
+
+      const created = await service.create(dto, mockUser);
+
+      expect(invitationRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isPublished: false,
+          publishedAt: null,
+        }),
+      );
+      expect(created.isPublished).toBe(false);
+      expect(created.publishedAt).toBeNull();
+    });
+  });
+
+  describe('update (paywall enforcement on publishing)', () => {
+    const mockUser = { id: 1, email: 'test@example.com' } as User;
+
+    beforeEach(() => {
+      userRepo.findOne.mockResolvedValue({
+        id: 1,
+        emailVerifiedAt: new Date(),
+        provider: 'email',
+      });
+    });
+
+    it('throws ForbiddenException when updating isPublished: true without settlement payment', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 10,
+        isPublished: false,
+        user: { id: 1 },
+        package: InvitationPackage.BASIC,
+      });
+      paymentRepo.count.mockResolvedValue(0);
+
+      await expect(
+        service.update(10, { isPublished: true }, mockUser),
+      ).rejects.toThrow(
+        new ForbiddenException(
+          'Selesaikan pembayaran untuk mempublikasikan undangan.',
+        ),
+      );
+      expect(invitationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows publishing when invitation has successful payment settlement', async () => {
+      const existingInv = {
+        id: 10,
+        isPublished: false,
+        publishedAt: null,
+        user: { id: 1 },
+        package: InvitationPackage.PREMIUM,
+        mergeEvents: true,
+      };
+      invitationRepo.findOne.mockResolvedValue({ ...existingInv });
+      paymentRepo.count.mockResolvedValue(1);
+      invitationRepo.save.mockImplementation(async (inv: any) => inv);
+
+      const result = await service.update(10, { isPublished: true }, mockUser);
+
+      expect(result.isPublished).toBe(true);
+      expect(result.publishedAt).toBeInstanceOf(Date);
+      expect(invitationRepo.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('PACKAGE_FEATURES & Branding (Watermark)', () => {
+    it('enforces watermark: true on BASIC and watermark: false on PREMIUM & EKSKLUSIF', () => {
+      expect(PACKAGE_FEATURES[InvitationPackage.BASIC].watermark).toBe(true);
+      expect(PACKAGE_FEATURES[InvitationPackage.PREMIUM].watermark).toBe(false);
+      expect(PACKAGE_FEATURES[InvitationPackage.EKSKLUSIF].watermark).toBe(false);
+    });
+
+    it('returns show_branding: true for BASIC and false for PREMIUM in findBySlug response', async () => {
+      invitationRepo.findOne.mockResolvedValueOnce({
+        id: 1,
+        slug: 'basic-inv',
+        isPublished: true,
+        isGuestPublic: true,
+        package: InvitationPackage.BASIC,
+      });
+
+      const basicRes = await service.findBySlug('basic-inv');
+      expect(basicRes.show_branding).toBe(true);
+      expect(basicRes.is_published).toBe(true);
+
+      invitationRepo.findOne.mockResolvedValueOnce({
+        id: 2,
+        slug: 'premium-inv',
+        isPublished: true,
+        isGuestPublic: true,
+        package: InvitationPackage.PREMIUM,
+      });
+
+      const premiumRes = await service.findBySlug('premium-inv');
+      expect(premiumRes.show_branding).toBe(false);
+      expect(premiumRes.is_published).toBe(true);
     });
   });
 

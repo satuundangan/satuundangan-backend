@@ -44,6 +44,12 @@ export class Guest {
   @Column({ name: 'rsvp_status', nullable: true, default: 'belum' })
   rsvpStatus: string;
 
+  @Column({ name: 'pax', type: 'int', default: 1 })
+  pax: number;
+
+  @Column({ name: 'is_physical', type: 'boolean', default: false })
+  isPhysical: boolean;
+
   @Column({ name: 'first_visit_at', type: 'datetime', nullable: true })
   firstVisitAt: Date | null;
 

@@ -52,6 +52,13 @@ export class CreateGuestDto {
   @IsString()
   rsvpStatus?: string;
 
+  @IsOptional()
+  @IsNumber()
+  pax?: number;
+
+  @IsOptional()
+  isPhysical?: boolean;
+
   @IsNotEmpty()
   @IsNumber()
   invitationId: number;

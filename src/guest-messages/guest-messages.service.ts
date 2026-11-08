@@ -10,6 +10,7 @@ import { GuestMessage } from './guest-message.entity';
 import { CreateGuestMessageDto } from './dto/create-guest-message.dto';
 import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
+import * as xss from 'xss';
 
 export interface AdminGuestMessagesQuery {
   invitationId?: number;
@@ -82,8 +83,8 @@ export class GuestMessagesService {
     }
 
     const guestMessage = this.guestMessageRepo.create({
-      guestName: dto.guestName,
-      message: dto.message,
+      guestName: xss.filterXSS(dto.guestName),
+      message: xss.filterXSS(dto.message),
       rsvpStatus: dto.rsvpStatus,
       totalGuests: dto.totalGuests,
       status: 'published',
@@ -96,7 +97,7 @@ export class GuestMessagesService {
     // sync RSVP status on guest if linked
     if (guest) {
       guest.rsvpStatus = dto.rsvpStatus;
-      guest.pax = dto.totalGuests;
+      guest.pax = dto.rsvpStatus === 'hadir' ? dto.totalGuests : 0;
       await this.guestRepo.save(guest);
     }
 

@@ -124,9 +124,15 @@ export class PaymentService {
       isAdminTest &&
       Number(existingPendingPayment?.amount) !== ADMIN_TEST_PRICE;
 
+    const twentyThreeHoursAgo = new Date(Date.now() - 23 * 60 * 60 * 1000);
+    const isTokenValid =
+      existingPendingPayment &&
+      existingPendingPayment.createdAt > twentyThreeHoursAgo;
+
     if (
       !pendingPriceMismatch &&
-      (existingPendingPayment?.snapToken || existingPendingPayment?.redirectUrl)
+      isTokenValid &&
+      (existingPendingPayment.snapToken || existingPendingPayment.redirectUrl)
     ) {
       this.logger.log(
         `Resuming pending payment orderId=${existingPendingPayment.orderId} invitationId=${invitation.id}`,
@@ -386,15 +392,11 @@ export class PaymentService {
       const previousStatus = payment.status;
       const mappedStatus = this.mapMidtransStatus(payload);
 
-      // Terminal-state guard: a settled payment is never downgraded by a
-      // late expire/cancel/deny. Only detectable because the read above is
-      // locked+fresh.
-      if (
-        previousStatus === PaymentStatus.SUCCESS &&
-        mappedStatus !== PaymentStatus.SUCCESS
-      ) {
+      // Terminal-state guard: a settled payment is never modified by any
+      // subsequent webhook (duplicate settlement, late expire/cancel/deny).
+      if (previousStatus === PaymentStatus.SUCCESS) {
         this.logger.warn(
-          `Ignoring late ${payload.transaction_status} for settled payment orderId=${payment.orderId}`,
+          `Ignoring ${payload.transaction_status} for already settled payment orderId=${payment.orderId}`,
         );
         result = { orderId: payment.orderId, updatedStatus: previousStatus };
         return; // no writes

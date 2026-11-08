@@ -109,6 +109,43 @@ describe('PaymentService', () => {
   });
 
   describe('createTransaction', () => {
+    it('should ignore pending payments older than 23 hours and create a new transaction', async () => {
+      const invitationId = 1;
+      const mockUser = { id: 1, name: 'Test User', email: 'test@example.com' };
+      const mockInvitation = {
+        id: invitationId,
+        title: 'Wedding',
+        user: mockUser,
+        templateDesign: { price: 99000 },
+      };
+
+      const oldDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+      mockInvitationRepo.findOne.mockResolvedValue(mockInvitation);
+      mockPaymentRepo.findOne.mockResolvedValue({
+        id: 99,
+        orderId: 'INV-1-OLD',
+        status: PaymentStatus.PENDING,
+        snapToken: 'old-token',
+        createdAt: oldDate,
+      });
+      mockCreateTransaction.mockResolvedValue({
+        token: 'new-snap-token',
+        redirect_url: 'https://new-url',
+      });
+      mockPaymentRepo.create.mockReturnValue({ id: 100 });
+      mockPaymentRepo.save.mockResolvedValue({ id: 100 });
+
+      const result = await service.createTransaction(
+        invitationId,
+        mockUser as any,
+        InvitationPackage.BASIC,
+      );
+
+      expect(mockCreateTransaction).toHaveBeenCalled();
+      expect(result.token).toBe('new-snap-token');
+      expect((result as any).resumed).toBeUndefined();
+    });
+
     it('should create a paid transaction and return Midtrans redirect_url', async () => {
       const invitationId = 1;
       const mockUser = { id: 1, name: 'Test User', email: 'test@example.com' };
@@ -525,6 +562,36 @@ describe('PaymentService', () => {
       expect(mockPaymentRepo.save).not.toHaveBeenCalled();
       expect(mockPromoService.release).not.toHaveBeenCalled();
       expect(mockPayment.status).toBe(PaymentStatus.SUCCESS);
+    });
+
+    it('does not re-process duplicate settlement webhooks for invitations', async () => {
+      const mockPayment = {
+        id: 50,
+        orderId: 'INV-50-123',
+        status: PaymentStatus.SUCCESS,
+        invitationId: 50,
+      };
+
+      mockPaymentRepo.findOne.mockResolvedValue(mockPayment);
+      mockPaymentRepo.save.mockResolvedValue(mockPayment);
+      mockInvitationRepo.save.mockResolvedValue({});
+
+      const grossAmount = '99000.00';
+      const signature = require('crypto').createHash('sha512')
+        .update(`INV-50-123200${grossAmount}mock-midtrans-server-key`)
+        .digest('hex');
+
+      await service.handleMidtransNotification({
+        order_id: 'INV-50-123',
+        status_code: '200',
+        gross_amount: grossAmount,
+        signature_key: signature,
+        transaction_status: 'settlement',
+      });
+
+      expect(mockInvitationRepo.save).not.toHaveBeenCalled();
+      expect(mockPaymentRepo.save).not.toHaveBeenCalled();
+      expect(mockAffiliateService.creditCommission).not.toHaveBeenCalled();
     });
 
     describe('ai_credits idempotency', () => {

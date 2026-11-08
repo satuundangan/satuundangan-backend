@@ -105,7 +105,7 @@ export class EmailService {
     const defaultFrom =
       this.configService.get<string>('EMAIL_FROM_ADDRESS') ||
       this.configService.get<string>('RESEND_FROM_ADDRESS') ||
-      'SatuUndangan <onboarding@resend.dev>';
+      'SatuUndangan <noreply@satuundangan.id>';
 
     // 1. Try Resend if configured
     if (this.resendClient || resendApiKey) {
@@ -121,15 +121,19 @@ export class EmailService {
 
         if (error) {
           this.logger.error(
-            `Resend send failed to=${payload.to}: ${error.message} (code: ${error.name})`,
+            `Resend send failed to=${payload.to}: [${error.name}] ${error.message}`,
           );
         } else {
           this.logger.log(`Email sent via Resend to=${payload.to} id=${data?.id}`);
           return true;
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error(`Resend exception to=${payload.to}: ${msg}`);
+        const errName = err instanceof Error ? err.name : 'UnknownError';
+        const errMsg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `Resend exception to=${payload.to}: [${errName}] ${errMsg}`,
+          err instanceof Error ? err.stack : undefined,
+        );
       }
     }
 

@@ -306,14 +306,13 @@ export class InvitationService {
     }
 
     const wasPublished = invitation.isPublished;
-    if (dto.isPublished === true && !invitation.isPublished) {
-      await this.assertEmailVerified(user.id);
-    }
 
     // Publishing and the paid tier are owned by payment settlement. Without
     // this, PATCH {isPublished: true, package: 'eksklusif'} skips checkout.
+    // Legitimate settlement proves user authenticity: do not block publication on unverified email if paid.
     const hasPaid = await this.hasSuccessfulPayment(invitation.id);
     if (dto.isPublished === true && !invitation.isPublished && !hasPaid) {
+      await this.assertEmailVerified(user.id);
       throw new ForbiddenException(
         'Selesaikan pembayaran untuk mempublikasikan undangan.',
       );

@@ -389,6 +389,55 @@ describe('InvitationService', () => {
       expect(result.publishedAt).toBeInstanceOf(Date);
       expect(invitationRepo.save).toHaveBeenCalled();
     });
+
+    it('allows publishing when user is unverified but invitation has successful payment settlement', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 1,
+        emailVerifiedAt: null,
+        provider: 'email',
+      });
+      const existingInv = {
+        id: 10,
+        isPublished: false,
+        publishedAt: null,
+        user: { id: 1 },
+        package: InvitationPackage.PREMIUM,
+        mergeEvents: true,
+      };
+      invitationRepo.findOne.mockResolvedValue({ ...existingInv });
+      paymentRepo.count.mockResolvedValue(1);
+      invitationRepo.save.mockImplementation(async (inv: any) => inv);
+
+      const result = await service.update(10, { isPublished: true }, mockUser);
+
+      expect(result.isPublished).toBe(true);
+      expect(result.publishedAt).toBeInstanceOf(Date);
+      expect(invitationRepo.save).toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException for unverified email when updating isPublished: true without payment', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 1,
+        emailVerifiedAt: null,
+        provider: 'email',
+      });
+      invitationRepo.findOne.mockResolvedValue({
+        id: 10,
+        isPublished: false,
+        user: { id: 1 },
+        package: InvitationPackage.BASIC,
+      });
+      paymentRepo.count.mockResolvedValue(0);
+
+      await expect(
+        service.update(10, { isPublished: true }, mockUser),
+      ).rejects.toThrow(
+        new ForbiddenException(
+          'Verifikasi email diperlukan sebelum publish undangan.',
+        ),
+      );
+      expect(invitationRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('PACKAGE_FEATURES & Branding (Watermark)', () => {

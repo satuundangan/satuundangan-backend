@@ -13,7 +13,6 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { EmailVerifiedGuard } from '../auth/guards/email-verified.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../user/user.entity';
 import {
@@ -67,7 +66,7 @@ export class PaymentController {
   @Post('create')
   @ApiTags('Payment')
   @ApiOperation({ summary: 'Create a new payment transaction' })
-  @UseGuards(JwtAuthGuard, EmailVerifiedGuard)
+  @UseGuards(JwtAuthGuard)
   async createSnap(
     @Body()
     body: {
@@ -93,7 +92,7 @@ export class PaymentController {
   @Post('simulate')
   @ApiTags('Payment')
   @ApiOperation({ summary: 'Simulate payment status (Dev only)' })
-  @UseGuards(JwtAuthGuard, EmailVerifiedGuard)
+  @UseGuards(JwtAuthGuard)
   async simulate(
     @Body()
     body: {

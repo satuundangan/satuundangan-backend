@@ -11,6 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
+const sharp = require('sharp');
 
 @Injectable()
 export class UploadService {
@@ -47,18 +48,76 @@ export class UploadService {
     }
   }
 
+  private async processImage(file: Express.Multer.File): Promise<{
+    buffer: Buffer;
+    mimetype: string;
+    extension: string;
+  }> {
+    const isImage =
+      file.mimetype?.startsWith('image/') &&
+      !file.mimetype.includes('svg') &&
+      !file.mimetype.includes('gif');
+
+    if (!isImage) {
+      const ext = path.extname(file.originalname);
+      return {
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+        extension: ext,
+      };
+    }
+
+    try {
+      const optimizedBuffer = await sharp(file.buffer)
+        .rotate()
+        .resize(1920, 1920, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 80, effort: 4 })
+        .toBuffer();
+
+      const savedBytes = file.size - optimizedBuffer.length;
+      const pct = Math.round((savedBytes / file.size) * 100);
+      this.logger.log(
+        `Optimized image ${file.originalname}: ${file.size} -> ${optimizedBuffer.length} bytes (${pct > 0 ? `-${pct}%` : '+0%'})`,
+      );
+
+      return {
+        buffer: optimizedBuffer,
+        mimetype: 'image/webp',
+        extension: '.webp',
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Failed to optimize image ${file.originalname}, falling back to original: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      const ext = path.extname(file.originalname);
+      return {
+        buffer: file.buffer,
+        mimetype: file.mimetype,
+        extension: ext,
+      };
+    }
+  }
+
   async uploadFile(file: Express.Multer.File) {
     if (!file) {
       this.logger.warn('Upload rejected: no file provided');
       throw new InternalServerErrorException('No file provided for upload.');
     }
 
-    const fileKey = `${Date.now()}-${file.originalname}`;
+    const processed = await this.processImage(file);
+    const parsedPath = path.parse(file.originalname);
+    const sanitizedBase = parsedPath.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileKey = `${Date.now()}-${sanitizedBase}${processed.extension}`;
 
     if (this.isLocalMode) {
       const filePath = path.join(this.localUploadDir, fileKey);
-      fs.writeFileSync(filePath, file.buffer);
-      this.logger.log(`Local upload saved key=${fileKey} size=${file.size}`);
+      fs.writeFileSync(filePath, processed.buffer);
+      this.logger.log(
+        `Local upload saved key=${fileKey} size=${processed.buffer.length} mimetype=${processed.mimetype}`,
+      );
       const port = this.configService.get<string>('PORT') ?? '3000';
       return {
         fileUrl: `http://localhost:${port}/uploads/${encodeURIComponent(fileKey)}`,
@@ -67,19 +126,19 @@ export class UploadService {
     }
 
     this.logger.log(
-      `Uploading file to R2 key=${fileKey} size=${file.size} mimetype=${file.mimetype}`,
+      `Uploading file to R2 key=${fileKey} size=${processed.buffer.length} mimetype=${processed.mimetype}`,
     );
 
     try {
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: fileKey,
-        Body: file.buffer,
-        ContentType: file.mimetype,
+        Body: processed.buffer,
+        ContentType: processed.mimetype,
       });
 
       await this.s3Client!.send(command);
-      this.logger.log(`Upload successful key=${fileKey} size=${file.size}`);
+      this.logger.log(`Upload successful key=${fileKey} size=${processed.buffer.length}`);
 
       return {
         fileUrl: `${this.publicUrl}/${fileKey}`,
@@ -87,7 +146,7 @@ export class UploadService {
       };
     } catch (error) {
       this.logger.error(
-        `Error uploading to R2 key=${fileKey} size=${file.size}`,
+        `Error uploading to R2 key=${fileKey} size=${processed.buffer.length}`,
         error instanceof Error ? error.stack : String(error),
       );
       throw new InternalServerErrorException('Failed to upload file.');

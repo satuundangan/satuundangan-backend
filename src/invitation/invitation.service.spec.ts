@@ -545,4 +545,73 @@ describe('InvitationService', () => {
       expect(second.expiresAt).toBeNull();
     });
   });
+
+  describe('Zero-Risk Existing Paid Customer Protection (our-wedding)', () => {
+    it('ensures our-wedding findBySlug returns show_branding: false and is_published: true', async () => {
+      invitationRepo.findOne.mockResolvedValueOnce({
+        id: 34,
+        title: 'JanuaryWedding',
+        slug: 'our-wedding',
+        package: InvitationPackage.PREMIUM,
+        isPublished: true,
+        isGuestPublic: true,
+        groomName: 'Nelson Pereira',
+        brideName: 'Fransiska Tumbelaka',
+        templateDesign: { slug: 'light-modern', price: 49000 },
+        akadLocation: {
+          dateTime: '2027-01-02T04:00:00.000Z',
+          description: 'Gereja Katolik Santo Ambrosius',
+        },
+        resepsiLocation: {
+          dateTime: '2027-01-02T06:00:00.000Z',
+          description: 'Hotel Sol Marina Serpong',
+        },
+      });
+
+      const res = await service.findBySlug('our-wedding');
+      expect(res.id).toBe(34);
+      expect(res.slug).toBe('our-wedding');
+      expect(res.is_published).toBe(true);
+      expect(res.show_branding).toBe(false);
+      expect(res.package).toBe(InvitationPackage.PREMIUM);
+      expect(res.content.groomName).toBe('Nelson Pereira');
+      expect(res.content.brideName).toBe('Fransiska Tumbelaka');
+    });
+
+    it('allows owner of our-wedding to update content without being blocked by email or paywall checks', async () => {
+      const existingOurWedding = {
+        id: 34,
+        title: 'JanuaryWedding',
+        slug: 'our-wedding',
+        package: InvitationPackage.PREMIUM,
+        isPublished: true,
+        mergeEvents: false,
+        akadLocation: {
+          dateTime: '2027-01-02T04:00:00.000Z',
+          description: 'Gereja Katolik Santo Ambrosius',
+        },
+        resepsiLocation: {
+          dateTime: '2027-01-02T06:00:00.000Z',
+          description: 'Hotel Sol Marina Serpong',
+        },
+        user: { id: 100 },
+      };
+      invitationRepo.findOne.mockResolvedValue(existingOurWedding);
+      paymentRepo.count.mockResolvedValue(1); // Settled payment exists
+      invitationRepo.save.mockImplementation(async (inv: any) => inv);
+
+      const updateResult = await service.update(
+        34,
+        {
+          title: 'JanuaryWedding Updated',
+          groomName: 'Nelson Pereira',
+          brideName: 'Fransiska Tumbelaka',
+        },
+        { id: 100, email: 'nelson@example.com' } as User,
+      );
+
+      expect(updateResult.title).toBe('JanuaryWedding Updated');
+      expect(invitationRepo.save).toHaveBeenCalled();
+    });
+  });
 });

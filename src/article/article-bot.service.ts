@@ -753,9 +753,15 @@ export class ArticleBotService implements OnApplicationBootstrap {
       return;
     }
 
+    const configuredTargetStatus = (
+      this.configService.get<string>('AUTO_BLOG_TARGET_STATUS', 'published') || 'published'
+    ).toLowerCase();
+    const targetStatus: 'published' | 'draft' =
+      configuredTargetStatus === 'draft' ? 'draft' : 'published';
+
     try {
-      const result = await this.generateAndPublishNextArticle(undefined, 'draft', 'scheduled');
-      this.logger.log(`Draft artikel AI tersimpan: "${result.title}" (ID: ${result.id})`);
+      const result = await this.generateAndPublishNextArticle(undefined, targetStatus, 'scheduled');
+      this.logger.log(`✅ Successfully processed article via Auto-Blogger (${targetStatus}): "${result.title}" (ID: ${result.id})`);
     } catch (error) {
       this.logger.error(`❌ Failed daily automated blog generation: ${error.message}`, error.stack);
     }
@@ -914,7 +920,7 @@ export class ArticleBotService implements OnApplicationBootstrap {
    */
   async generateAndPublishNextArticle(
     customTopic?: string,
-    targetStatus: 'published' | 'draft' = 'draft',
+    targetStatus: 'published' | 'draft' = 'published',
     source: 'manual' | 'scheduled' = 'manual',
     authorId?: number,
   ) {
@@ -1017,6 +1023,15 @@ export class ArticleBotService implements OnApplicationBootstrap {
       targetSlug = `${targetSlug}-${categoryModifier}`;
     }
 
+    const resolvedAuthorId = await this.articleService.resolveAuthorId(
+      actorId || Number(this.configService.get<string>('AUTO_BLOG_AUTHOR_ID')) || undefined,
+    );
+
+    const sourceUrls =
+      Array.isArray(generated.sourceUrls) && generated.sourceUrls.length > 0
+        ? generated.sourceUrls
+        : ['https://satuundangan.id/blog'];
+
     // Save article to database
     const newArticle = await this.articleService.create(
       {
@@ -1030,8 +1045,10 @@ export class ArticleBotService implements OnApplicationBootstrap {
         focusKeyword: generated.focusKeyword || topicItem.keyword,
         status: targetStatus,
         generatedByAi: true,
+        sourceUrls,
+        editorialReviewed: targetStatus === 'published',
       },
-      await this.articleService.resolveAuthorId(actorId || Number(this.configService.get<string>('AUTO_BLOG_AUTHOR_ID')) || undefined),
+      resolvedAuthorId,
     );
 
     return newArticle;
@@ -1074,6 +1091,7 @@ Balas HANYA dalam format JSON valid dengan struktur:
   "metaTitle": "Title SEO untuk Google Search (50-60 karakter)",
   "metaDescription": "Deskripsi SEO yang memicu klik di Google (140-160 karakter)",
   "content": "Konten lengkap artikel dalam format HTML semantik",
+  "sourceUrls": ["https://satuundangan.id/blog"],
   "faqs": [
     { "question": "Pertanyaan 1?", "answer": "Jawaban 1..." },
     { "question": "Pertanyaan 2?", "answer": "Jawaban 2..." }
@@ -1083,14 +1101,16 @@ Balas HANYA dalam format JSON valid dengan struktur:
     // Prioritize fast and cost-effective flash models first
     const models = [
       'gemini-3.5-flash-lite',
-      'gemini-3.8-flash',
-      'gemini-3.7-flash',
+      'gemini-3.1-flash-lite',
       'gemini-flash-lite-latest',
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
       'gemini-flash-latest',
     ];
     let lastError: any = null;
 
-    for (const model of models) {
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const response = await axios.post(
@@ -1110,7 +1130,7 @@ Balas HANYA dalam format JSON valid dengan struktur:
             },
           },
           {
-            timeout: 60000,
+            timeout: 120000,
             headers: { 'Content-Type': 'application/json' },
           },
         );
@@ -1130,6 +1150,9 @@ Balas HANYA dalam format JSON valid dengan struktur:
       } catch (err) {
         lastError = err;
         this.logger.warn(`Model ${model} failed: ${err.message}. Trying fallback if available.`);
+        if (i < models.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       }
     }
 

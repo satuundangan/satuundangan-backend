@@ -14,6 +14,7 @@ describe('ArticleBotService', () => {
 
   const mockArticleRepo = {
     find: jest.fn(),
+    findOne: jest.fn().mockResolvedValue(null),
     count: jest.fn(),
     delete: jest.fn(),
     createQueryBuilder: jest.fn(),
@@ -21,6 +22,7 @@ describe('ArticleBotService', () => {
 
   const mockArticleService = {
     create: jest.fn(),
+    resolveAuthorId: jest.fn().mockResolvedValue(1),
   };
 
   const mockActivityRepo = {
@@ -314,5 +316,53 @@ describe('ArticleBotService', () => {
     expect(result.deletedCount).toBe(0);
     expect(result.deletedSlugs).toEqual([]);
     expect(mockArticleRepo.delete).not.toHaveBeenCalled();
+  });
+
+  it('handleDailyScheduledBlog publishes with published status by default', async () => {
+    const spy = jest
+      .spyOn(service, 'generateAndPublishNextArticle')
+      .mockResolvedValueOnce({ id: 99, title: 'Sample' } as any);
+
+    await service.handleDailyScheduledBlog();
+
+    expect(spy).toHaveBeenCalledWith(undefined, 'published', 'scheduled');
+  });
+
+  it('handleDailyScheduledBlog respects AUTO_BLOG_TARGET_STATUS=draft', async () => {
+    mockConfigService.get.mockImplementation((key: string, defaultVal?: string) => {
+      if (key === 'AUTO_BLOG_ENABLED') return 'true';
+      if (key === 'AUTO_BLOG_TARGET_STATUS') return 'draft';
+      return defaultVal;
+    });
+
+    const spy = jest
+      .spyOn(service, 'generateAndPublishNextArticle')
+      .mockResolvedValueOnce({ id: 99, title: 'Sample' } as any);
+
+    await service.handleDailyScheduledBlog();
+
+    expect(spy).toHaveBeenCalledWith(undefined, 'draft', 'scheduled');
+  });
+
+  it('generateAndPublishNextArticle passes editorialReviewed and sourceUrls when targetStatus is published', async () => {
+    jest.spyOn(service as any, 'callGeminiForArticle').mockResolvedValueOnce({
+      title: 'Judul Baru',
+      slug: 'judul-baru',
+      content: '<p>Konten</p>',
+      excerpt: 'Ringkasan',
+    });
+    mockArticleService.create.mockResolvedValueOnce({ id: 100, title: 'Judul Baru' });
+
+    await service.generateAndPublishNextArticle('Topik Test', 'published', 'manual');
+
+    expect(mockArticleService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'published',
+        generatedByAi: true,
+        editorialReviewed: true,
+        sourceUrls: expect.arrayContaining(['https://satuundangan.id/blog']),
+      }),
+      expect.any(Number),
+    );
   });
 });

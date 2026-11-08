@@ -57,6 +57,8 @@ export class GuestService {
       group: dto.group,
       statusSend: dto.statusSend,
       rsvpStatus: dto.rsvpStatus ?? 'belum',
+      pax: dto.pax ?? 1,
+      isPhysical: dto.isPhysical ?? false,
       invitation,
     });
 
@@ -214,6 +216,10 @@ export class GuestService {
       const group = (getVal(['Group', 'Kategori', 'grup']) || '').toString();
       const statusSend = (getVal(['Status Send']) || '').toString();
       const rsvpStatus = (getVal(['RSVP Status']) || 'belum').toString();
+      const rawPax = Number(getVal(['Pax', 'pax', 'PAX', 'Jumlah Pax']));
+      const pax = !isNaN(rawPax) && rawPax > 0 ? rawPax : 1;
+      const rawPhysical = (getVal(['Fisik', 'Undangan Fisik', 'fisik', 'isPhysical']) || '').toString().toLowerCase();
+      const isPhysical = rawPhysical === 'true' || rawPhysical === 'ya' || rawPhysical === '1' || rawPhysical === 'yes';
 
       const guest = this.guestRepo.create({
         name,
@@ -224,6 +230,8 @@ export class GuestService {
         group,
         statusSend,
         rsvpStatus,
+        pax,
+        isPhysical,
         invitation,
       });
 

@@ -22,10 +22,10 @@ export class Article {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar', length: 255 })
   title: string;
 
-  @Column({ unique: true })
+  @Column({ type: 'varchar', length: 255, unique: true })
   slug: string;
 
   @Column({ type: 'longtext', nullable: true })
@@ -34,26 +34,26 @@ export class Article {
   @Column({ type: 'text', nullable: true })
   excerpt: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
   coverImage: string;
 
   // SEO Fields
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   metaTitle: string;
 
   @Column({ type: 'text', nullable: true })
   metaDescription: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   focusKeyword: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
   ogImage: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
   canonicalUrl: string;
 
-  @Column({ default: 'draft' })
+  @Column({ type: 'varchar', length: 50, default: 'draft' })
   status: string;
 
   @Column({ type: 'datetime', nullable: true })
@@ -63,7 +63,7 @@ export class Article {
   @JoinColumn({ name: 'authorId' })
   author: User;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   authorId: number;
 
   @Column({ type: 'int', default: 1 })

@@ -1100,9 +1100,6 @@ Balas HANYA dalam format JSON valid dengan struktur:
 
     // Prioritize fast and cost-effective flash models first
     const models = [
-      'gemini-3.5-flash-lite',
-      'gemini-3.1-flash-lite',
-      'gemini-flash-lite-latest',
       'gemini-3.8-flash',
       'gemini-3.5-flash',
       'gemini-flash-latest',
@@ -1112,7 +1109,7 @@ Balas HANYA dalam format JSON valid dengan struktur:
     for (let i = 0; i < models.length; i++) {
       const model = models[i];
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
         const response = await axios.post(
           url,
           {
@@ -1131,7 +1128,10 @@ Balas HANYA dalam format JSON valid dengan struktur:
           },
           {
             timeout: 120000,
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
           },
         );
 

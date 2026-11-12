@@ -68,6 +68,12 @@ export class GuestController {
     return this.guestService.remove(id, user.id);
   }
 
+  // ✅ Bulk delete guests
+  @Post('bulk-delete')
+  bulkRemove(@Body('ids') ids: number[], @CurrentUser() user: any) {
+    return this.guestService.bulkRemove(ids, user.id);
+  }
+
   // ✅ Import guest via Excel
   @Post('import')
   @UseInterceptors(

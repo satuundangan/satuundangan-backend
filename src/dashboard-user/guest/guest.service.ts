@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, IsNull } from 'typeorm';
+import { Repository, Not, IsNull, In } from 'typeorm';
 import { Guest } from './guest.entity';
 import { Invitation } from '../../invitation/invitation.entity';
 import { CreateGuestDto } from './dto/create-guest.dto';
@@ -127,6 +127,36 @@ export class GuestService {
     }
 
     await this.guestRepo.remove(guest);
+  }
+
+  async bulkRemove(
+    ids: number[],
+    userId: number,
+  ): Promise<{ deleted: number }> {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return { deleted: 0 };
+    }
+    const numericIds = ids
+      .map((id) => Number(id))
+      .filter((id) => !isNaN(id) && id > 0);
+    if (numericIds.length === 0) {
+      return { deleted: 0 };
+    }
+
+    const guests = await this.guestRepo.find({
+      where: { id: In(numericIds) },
+      relations: ['invitation', 'invitation.user'],
+    });
+
+    const authorizedGuests = guests.filter(
+      (g) => g.invitation?.user?.id === userId,
+    );
+
+    if (authorizedGuests.length > 0) {
+      await this.guestRepo.remove(authorizedGuests);
+    }
+
+    return { deleted: authorizedGuests.length };
   }
 
   async importFromExcel(

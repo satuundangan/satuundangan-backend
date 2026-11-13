@@ -249,6 +249,20 @@ export class InvitationDesignSettingsDto {
   @IsOptional()
   @IsBoolean()
   hideRundown?: boolean;
+
+  @ApiPropertyOptional({
+    example: ['#588157', '#3A5A40', '#344E41', '#A3B18A'],
+    description: 'Array kode warna HEX untuk visual dress code swatches',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Matches(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, {
+    each: true,
+    message: 'Setiap warna dress code harus berformat HEX valid (contoh: #588157)',
+  })
+  dressCodeColors?: string[];
 }
 
 export class CreateInvitationDto {

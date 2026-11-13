@@ -189,6 +189,7 @@ export class Invitation {
     eventStartTime?: string;
     eventEndTime?: string;
     hideRundown?: boolean;
+    dressCodeColors?: string[];
   } | null;
 
   @Column({ default: 'default' })

@@ -173,4 +173,32 @@ describe('CreateInvitationDto - designSettings noir fields', () => {
       titleScale: 1,
     });
   });
+
+  it('accepts valid dressCodeColors array with HEX codes (SAT-63)', () => {
+    const { instance, dsErrors } = designSettingsResult({
+      dressCodeColors: ['#588157', '#3A5A40', '#A3B18A', '#fff', '#123456'],
+    });
+    expect(dsErrors).toHaveLength(0);
+    expect(instance.designSettings?.dressCodeColors).toEqual([
+      '#588157',
+      '#3A5A40',
+      '#A3B18A',
+      '#fff',
+      '#123456',
+    ]);
+  });
+
+  it('rejects invalid dressCodeColors entries that are not valid HEX (SAT-63)', () => {
+    const { childProps } = designSettingsResult({
+      dressCodeColors: ['#588157', 'not-a-hex-color'],
+    });
+    expect(childProps).toContain('dressCodeColors');
+  });
+
+  it('rejects dressCodeColors when not an array (SAT-63)', () => {
+    const { childProps } = designSettingsResult({
+      dressCodeColors: '#588157',
+    });
+    expect(childProps).toContain('dressCodeColors');
+  });
 });

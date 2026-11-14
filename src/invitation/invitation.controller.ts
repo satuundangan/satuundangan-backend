@@ -75,6 +75,21 @@ export class InvitationController {
     return this.invitationService.findBySlugForOwner(slug, user.id);
   }
 
+  @Get('slug/:slug/live-feed')
+  @ApiTags('Invitation')
+  @ApiOperation({
+    summary: 'Feed data real-time untuk Layar Sapa & Proyektor Panggung (SAT-64)',
+  })
+  @Header('Cache-Control', 'private, no-store')
+  getLiveScreenFeed(
+    @Param('slug') slug: string,
+    @Query('preview') preview?: string,
+  ) {
+    return this.invitationService.getLiveScreenFeed(slug, {
+      preview: preview === 'true',
+    });
+  }
+
   @Get('slug/:slug')
   @ApiTags('Invitation')
   @ApiOperation({ summary: 'Find an invitation by slug' })

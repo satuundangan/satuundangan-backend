@@ -3,6 +3,7 @@ import { InvitationService } from './invitation.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Invitation, InvitationPackage, PACKAGE_FEATURES } from './invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
+import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { InvitationActivity, ActivityAction } from '../dashboard/invitation-activity.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
 import { User } from '../user/user.entity';
@@ -14,6 +15,7 @@ describe('InvitationService', () => {
   let service: InvitationService;
   let invitationRepo: any;
   let guestRepo: any;
+  let guestMessageRepo: any;
   let activityRepo: any;
   let templateRepo: any;
   let userRepo: any;
@@ -31,7 +33,13 @@ describe('InvitationService', () => {
     guestRepo = {
       findOne: jest.fn(),
       find: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
       save: jest.fn().mockImplementation(async (g) => g),
+    };
+
+    guestMessageRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
     };
 
     activityRepo = {
@@ -56,6 +64,7 @@ describe('InvitationService', () => {
         InvitationService,
         { provide: getRepositoryToken(Invitation), useValue: invitationRepo },
         { provide: getRepositoryToken(Guest), useValue: guestRepo },
+        { provide: getRepositoryToken(GuestMessage), useValue: guestMessageRepo },
         { provide: getRepositoryToken(InvitationActivity), useValue: activityRepo },
         { provide: getRepositoryToken(TemplateDesign), useValue: templateRepo },
         { provide: getRepositoryToken(User), useValue: userRepo },
@@ -612,6 +621,140 @@ describe('InvitationService', () => {
 
       expect(updateResult.title).toBe('JanuaryWedding Updated');
       expect(invitationRepo.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('getLiveScreenFeed', () => {
+    it('should throw NotFoundException if slug does not exist', async () => {
+      invitationRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getLiveScreenFeed('non-existent-slug'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(invitationRepo.findOne).toHaveBeenCalledWith({
+        where: { slug: 'non-existent-slug' },
+        relations: ['templateDesign'],
+      });
+    });
+
+    it('should reject if unpublished without preview flag', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 10,
+        slug: 'unpublished-invitation',
+        isPublished: false,
+      });
+
+      await expect(
+        service.getLiveScreenFeed('unpublished-invitation'),
+      ).rejects.toThrow(
+        new ForbiddenException(
+          'Layar Sapa hanya aktif untuk undangan yang telah dipublikasikan',
+        ),
+      );
+
+      await expect(
+        service.getLiveScreenFeed('unpublished-invitation', { preview: false }),
+      ).rejects.toThrow(
+        new ForbiddenException(
+          'Layar Sapa hanya aktif untuk undangan yang telah dipublikasikan',
+        ),
+      );
+    });
+
+    it('should allow if unpublished with preview=true flag', async () => {
+      const mockInvitation = {
+        id: 20,
+        slug: 'preview-invitation',
+        title: 'Preview Wedding',
+        isPublished: false,
+        package: InvitationPackage.BASIC,
+        templateDesign: { slug: 'minimalist', price: 0 },
+      };
+
+      invitationRepo.findOne.mockResolvedValue(mockInvitation);
+      guestRepo.find.mockResolvedValue([]);
+      guestMessageRepo.find.mockResolvedValue([]);
+      guestRepo.count.mockResolvedValue(0);
+      guestMessageRepo.count.mockResolvedValue(0);
+
+      const result = await service.getLiveScreenFeed('preview-invitation', {
+        preview: true,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.invitation.slug).toBe('preview-invitation');
+      expect(result.recentCheckIns).toEqual([]);
+      expect(result.recentWishes).toEqual([]);
+      expect(result.stats).toEqual({
+        totalGuests: 0,
+        totalCheckedIn: 0,
+        totalWishes: 0,
+      });
+      expect(result.serverTime).toBeDefined();
+    });
+
+    it('should successfully return live feed (invitation, recentCheckIns, recentWishes, stats)', async () => {
+      const mockInvitation = {
+        id: 30,
+        slug: 'published-invitation',
+        title: 'Budi & Ani Wedding',
+        isPublished: true,
+        package: InvitationPackage.PREMIUM,
+        coupleName: 'Budi & Ani',
+        groomName: 'Budi',
+        brideName: 'Ani',
+        templateDesign: { slug: 'floral-classic', price: 49000 },
+      };
+
+      const mockRecentCheckIns = [
+        {
+          id: 1,
+          name: 'Hendra Kusuma',
+          pax: 2,
+          checkedInAt: new Date('2026-11-14T09:30:00Z'),
+        },
+        {
+          id: 2,
+          name: 'Siti Aminah',
+          pax: 1,
+          checkedInAt: new Date('2026-11-14T09:20:00Z'),
+        },
+      ];
+
+      const mockRecentWishes = [
+        {
+          id: 101,
+          guestName: 'Hendra Kusuma',
+          message: 'Selamat menempuh hidup baru!',
+          status: 'published',
+          createdAt: new Date('2026-11-14T09:35:00Z'),
+        },
+      ];
+
+      invitationRepo.findOne.mockResolvedValue(mockInvitation);
+      guestRepo.find.mockResolvedValue(mockRecentCheckIns);
+      guestMessageRepo.find.mockResolvedValue(mockRecentWishes);
+      guestRepo.count
+        .mockResolvedValueOnce(200) // totalGuests
+        .mockResolvedValueOnce(85); // totalCheckedIn
+      guestMessageRepo.count.mockResolvedValueOnce(60); // totalWishes
+
+      const result = await service.getLiveScreenFeed('published-invitation');
+
+      expect(result).toBeDefined();
+      expect(result.invitation.slug).toBe('published-invitation');
+      expect(result.invitation.content.coupleName).toBe('Budi & Ani');
+      expect(result.recentCheckIns).toEqual(mockRecentCheckIns);
+      expect(result.recentWishes).toEqual(mockRecentWishes);
+      expect(result.stats).toEqual({
+        totalGuests: 200,
+        totalCheckedIn: 85,
+        totalWishes: 60,
+      });
+      expect(result.serverTime).toBeDefined();
+      expect(typeof result.serverTime).toBe('string');
+      expect(new Date(result.serverTime).getTime()).not.toBeNaN();
     });
   });
 });

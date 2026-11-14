@@ -2551,11 +2551,6 @@ export class AdminService {
       rendererCoverageBySection.set(sectionId, coverage);
     }
 
-    console.log(
-      `[DEBUG] listSections found ${sections.length} items. Raw first item:`,
-      sections[0],
-    );
-
     return Promise.all(
       sections.map(async (s) => {
         const raw = s as any;
@@ -2609,7 +2604,6 @@ export class AdminService {
 
   async createSection(payload: any) {
     try {
-      console.log('Creating section with payload:', payload);
       const section = this.sectionRepo.create({
         label: payload.label,
         key: payload.key,
@@ -2619,10 +2613,9 @@ export class AdminService {
           payload.is_active === 'true',
       });
       const saved = await this.sectionRepo.save(section);
-      console.log('Saved section:', saved);
       return saved;
     } catch (error) {
-      console.error('Error creating section:', error);
+      this.logger.error('Error creating section:', error);
       throw new BadRequestException(
         error.message || 'Failed to create section',
       );
@@ -2631,7 +2624,6 @@ export class AdminService {
 
   async updateSection(id: string, payload: any) {
     try {
-      console.log(`Updating section ${id} with payload:`, payload);
       const section = await this.sectionRepo.findOne({ where: { id } });
       if (!section) throw new NotFoundException('Section not found');
 
@@ -2645,10 +2637,9 @@ export class AdminService {
       }
 
       const saved = await this.sectionRepo.save(section);
-      console.log('Updated section result:', saved);
       return saved;
     } catch (error) {
-      console.error('Error updating section:', error);
+      this.logger.error('Error updating section:', error);
       throw new BadRequestException(
         error.message || 'Failed to update section',
       );

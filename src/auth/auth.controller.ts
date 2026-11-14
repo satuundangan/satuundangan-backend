@@ -167,7 +167,6 @@ export class AuthController {
 
   @Get('test-log')
   testLog() {
-    console.log('--- INI ADALAH LOG DARI CONSOLE.LOG ---');
     this.logger.log('--- INI ADALAH LOG DARI NESTJS LOGGER ---');
     this.logger.error('--- INI ADALAH LOG ERROR ---');
     return { message: 'Log test endpoint has been called!' };
@@ -182,9 +181,6 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(@Req() req, @Res() res: Response) {
     const user = req.user as User;
-
-    //console.log('HIT googleAuthRedirect route');
-    //console.log('req.user:', req.user);
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     if (!user) {

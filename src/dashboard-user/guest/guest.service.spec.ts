@@ -51,6 +51,10 @@ describe('GuestService - CheckIn', () => {
         phoneNumber: '08123456789',
         rsvpStatus: 'hadir',
         checkedInAt: null,
+        tableNumber: 'VIP-01',
+        souvenirGiven: true,
+        physicalGiftAmount: 500000,
+        physicalGiftNotes: 'Amplop resepsi',
       };
 
       guestRepo.findOne.mockResolvedValue(mockGuest);
@@ -63,6 +67,10 @@ describe('GuestService - CheckIn', () => {
       expect(result.message).toBe('Tamu Budi Santoso berhasil Check-in');
       expect(result.check_in_time).toBeInstanceOf(Date);
       expect(result.guest.name).toBe('Budi Santoso');
+      expect(result.guest.tableNumber).toBe('VIP-01');
+      expect(result.guest.souvenirGiven).toBe(true);
+      expect(result.guest.physicalGiftAmount).toBe(500000);
+      expect(result.guest.physicalGiftNotes).toBe('Amplop resepsi');
       expect(guestRepo.save).toHaveBeenCalled();
     });
 
@@ -76,6 +84,10 @@ describe('GuestService - CheckIn', () => {
         phoneNumber: '08987654321',
         rsvpStatus: 'hadir',
         checkedInAt: existingDate,
+        tableNumber: 'Meja 5',
+        souvenirGiven: false,
+        physicalGiftAmount: null,
+        physicalGiftNotes: null,
       };
 
       guestRepo.findOne.mockResolvedValue(mockGuest);
@@ -86,6 +98,8 @@ describe('GuestService - CheckIn', () => {
       expect(result.alreadyCheckedIn).toBe(true);
       expect(result.message).toBe('Tamu sudah pernah check-in sebelumnya');
       expect(result.check_in_time).toBe(existingDate);
+      expect(result.guest.tableNumber).toBe('Meja 5');
+      expect(result.guest.souvenirGiven).toBe(false);
       expect(guestRepo.save).not.toHaveBeenCalled();
     });
   });
@@ -208,7 +222,8 @@ describe('GuestService - CheckIn', () => {
 
       guestRepo.count
         .mockResolvedValueOnce(100) // totalGuests
-        .mockResolvedValueOnce(25); // totalCheckedIn
+        .mockResolvedValueOnce(25) // totalCheckedIn
+        .mockResolvedValueOnce(15); // totalSouvenirGiven
 
       const checkInTime = new Date();
       guestRepo.find.mockResolvedValue([
@@ -220,6 +235,10 @@ describe('GuestService - CheckIn', () => {
           phoneNumber: '081',
           rsvpStatus: 'hadir',
           checkedInAt: checkInTime,
+          tableNumber: 'Table 3',
+          souvenirGiven: true,
+          physicalGiftAmount: 150000,
+          physicalGiftNotes: 'Parsel buah',
         },
       ]);
 
@@ -227,9 +246,14 @@ describe('GuestService - CheckIn', () => {
 
       expect(summary.totalGuests).toBe(100);
       expect(summary.totalCheckedIn).toBe(25);
+      expect(summary.totalSouvenirGiven).toBe(15);
       expect(summary.percentage).toBe(25);
       expect(summary.recentCheckIns).toHaveLength(1);
       expect(summary.recentCheckIns[0].name).toBe('Tamu 1');
+      expect(summary.recentCheckIns[0].tableNumber).toBe('Table 3');
+      expect(summary.recentCheckIns[0].souvenirGiven).toBe(true);
+      expect(summary.recentCheckIns[0].physicalGiftAmount).toBe(150000);
+      expect(summary.recentCheckIns[0].physicalGiftNotes).toBe('Parsel buah');
     });
 
     it('should handle percentage 0 when totalGuests is 0', async () => {
@@ -240,6 +264,7 @@ describe('GuestService - CheckIn', () => {
 
       guestRepo.count
         .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
         .mockResolvedValueOnce(0);
 
       guestRepo.find.mockResolvedValue([]);
@@ -248,8 +273,94 @@ describe('GuestService - CheckIn', () => {
 
       expect(summary.totalGuests).toBe(0);
       expect(summary.totalCheckedIn).toBe(0);
+      expect(summary.totalSouvenirGiven).toBe(0);
       expect(summary.percentage).toBe(0);
       expect(summary.recentCheckIns).toEqual([]);
+    });
+  });
+
+  describe('updateReception', () => {
+    it('should throw NotFoundException if guest is not found', async () => {
+      guestRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateReception(999, { souvenirGiven: true }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should toggle souvenir status to true and set souvenirGivenAt', async () => {
+      const mockGuest: any = {
+        id: 1,
+        name: 'Guest 1',
+        souvenirGiven: false,
+        souvenirGivenAt: null,
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.updateReception(1, { souvenirGiven: true });
+
+      expect(result.souvenirGiven).toBe(true);
+      expect(result.souvenirGivenAt).toBeInstanceOf(Date);
+      expect(guestRepo.save).toHaveBeenCalledWith(mockGuest);
+    });
+
+    it('should toggle souvenir status to false and clear souvenirGivenAt', async () => {
+      const mockGuest: any = {
+        id: 1,
+        name: 'Guest 1',
+        souvenirGiven: true,
+        souvenirGivenAt: new Date('2026-11-14T10:00:00Z'),
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.updateReception(1, { souvenirGiven: false });
+
+      expect(result.souvenirGiven).toBe(false);
+      expect(result.souvenirGivenAt).toBeNull();
+      expect(guestRepo.save).toHaveBeenCalledWith(mockGuest);
+    });
+
+    it('should update tableNumber', async () => {
+      const mockGuest: any = {
+        id: 1,
+        name: 'Guest 1',
+        tableNumber: null,
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.updateReception(1, {
+        tableNumber: 'Meja VIP 3',
+      });
+
+      expect(result.tableNumber).toBe('Meja VIP 3');
+      expect(guestRepo.save).toHaveBeenCalledWith(mockGuest);
+    });
+
+    it('should update physical gift notes and physicalGiftAmount', async () => {
+      const mockGuest: any = {
+        id: 1,
+        name: 'Guest 1',
+        physicalGiftAmount: null,
+        physicalGiftNotes: null,
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.updateReception(1, {
+        physicalGiftAmount: 1500000,
+        physicalGiftNotes: 'Amplop merah dari keluarga besar',
+      });
+
+      expect(result.physicalGiftAmount).toBe(1500000);
+      expect(result.physicalGiftNotes).toBe('Amplop merah dari keluarga besar');
+      expect(guestRepo.save).toHaveBeenCalledWith(mockGuest);
     });
   });
 

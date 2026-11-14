@@ -58,6 +58,21 @@ export class Guest {
   @Column({ name: 'checked_in_at', type: 'datetime', nullable: true })
   checkedInAt: Date | null;
 
+  @Column({ name: 'table_number', type: 'varchar', length: 100, nullable: true })
+  tableNumber: string | null;
+
+  @Column({ name: 'souvenir_given', type: 'boolean', default: false })
+  souvenirGiven: boolean;
+
+  @Column({ name: 'souvenir_given_at', type: 'datetime', nullable: true })
+  souvenirGivenAt: Date | null;
+
+  @Column({ name: 'physical_gift_amount', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  physicalGiftAmount: number | null;
+
+  @Column({ name: 'physical_gift_notes', type: 'varchar', length: 255, nullable: true })
+  physicalGiftNotes: string | null;
+
   @ManyToOne(() => Invitation, (invitation) => invitation.guests, {
     onDelete: 'CASCADE',
   })

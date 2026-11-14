@@ -57,15 +57,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
 
     this.logger.log(`Google user authenticated: ${email}`);
-    console.log('Validate user from DB:', user);
-    this.logger.log('Validate user profile:', profile);
-    this.logger.log('User from DB (or created):', user);
-
-    console.log(
-      'GoogleStrategy callbackURL:',
-      this.config.get<string>('GOOGLE_CALLBACK_URL'),
-    );
-
     done(null, user);
   }
 }

@@ -190,6 +190,7 @@ export class Invitation {
     eventEndTime?: string;
     hideRundown?: boolean;
     dressCodeColors?: string[];
+    qrisImageUrl?: string;
   } | null;
 
   @Column({ default: 'default' })
@@ -224,8 +225,11 @@ export class Invitation {
   @Column({ default: false })
   encryptedGuestName: boolean;
 
-  @Column({ nullable: true })
-  floorPlanImageUrl: string;
+  @Column({ type: 'text', nullable: true })
+  floorPlanImageUrl?: string;
+
+  @Column({ type: 'text', nullable: true })
+  qrisImageUrl?: string;
 
   @Column({ type: 'json' })
   menu: {

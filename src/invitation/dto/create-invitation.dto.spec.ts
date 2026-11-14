@@ -201,4 +201,33 @@ describe('CreateInvitationDto - designSettings noir fields', () => {
     });
     expect(childProps).toContain('dressCodeColors');
   });
+
+  it('accepts valid qrisImageUrl on designSettings and root (SAT-66)', () => {
+    const { instance, dsErrors } = designSettingsResult({
+      qrisImageUrl: 'https://cdn.satuundangan.id/uploads/qris-123.webp',
+    });
+    expect(dsErrors).toHaveLength(0);
+    expect(instance.designSettings?.qrisImageUrl).toBe(
+      'https://cdn.satuundangan.id/uploads/qris-123.webp',
+    );
+
+    const rootInstance = plainToInstance(
+      CreateInvitationDto,
+      validPayload({
+        qrisImageUrl: 'https://cdn.satuundangan.id/uploads/qris-root.webp',
+      }),
+    );
+    const rootErrors = validateSync(rootInstance);
+    expect(rootErrors).toHaveLength(0);
+    expect(rootInstance.qrisImageUrl).toBe(
+      'https://cdn.satuundangan.id/uploads/qris-root.webp',
+    );
+  });
+
+  it('rejects invalid qrisImageUrl that is not a valid URL or data URL (SAT-66)', () => {
+    const { childProps } = designSettingsResult({
+      qrisImageUrl: 'data:image/png;base64,invalidDataUrlNotStored',
+    });
+    expect(childProps).toContain('qrisImageUrl');
+  });
 });

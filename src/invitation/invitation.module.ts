@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Invitation } from './invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
+import { GuestMessage } from '../guest-messages/guest-message.entity';
 import { InvitationService } from './invitation.service';
 import { InvitationController } from './invitation.controller';
 import { InvitationActivity } from '../dashboard/invitation-activity.entity';
@@ -14,6 +15,7 @@ import { Payment } from '../payment/payment.entity';
     TypeOrmModule.forFeature([
       Invitation,
       Guest,
+      GuestMessage,
       InvitationActivity,
       TemplateDesign,
       User,

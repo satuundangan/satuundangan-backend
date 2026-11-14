@@ -33,7 +33,8 @@ import {
   validateSubdomainFormat,
   type SubdomainCheckResult,
 } from './subdomain.util';
-import { Not } from 'typeorm';
+import { Not, IsNull } from 'typeorm';
+import { GuestMessage } from '../guest-messages/guest-message.entity';
 
 @Injectable()
 export class InvitationService {
@@ -44,6 +45,8 @@ export class InvitationService {
     private readonly invitationRepo: Repository<Invitation>,
     @InjectRepository(Guest)
     private readonly guestRepo: Repository<Guest>,
+    @InjectRepository(GuestMessage)
+    private readonly guestMessageRepo: Repository<GuestMessage>,
     @InjectRepository(InvitationActivity)
     private readonly activityRepo: Repository<InvitationActivity>,
     @InjectRepository(TemplateDesign)
@@ -727,6 +730,92 @@ export class InvitationService {
         degree: guest.degree,
       },
       tracked: { updatedFirstVisit: needsUpdate },
+    };
+  }
+
+  async getLiveScreenFeed(
+    slug: string,
+    options?: { preview?: boolean },
+  ): Promise<{
+    invitation: any;
+    recentCheckIns: Guest[];
+    recentWishes: GuestMessage[];
+    stats: {
+      totalGuests: number;
+      totalCheckedIn: number;
+      totalWishes: number;
+    };
+    serverTime: string;
+  }> {
+    this.logger.log(
+      `Live screen feed requested slug=${slug} preview=${options?.preview ?? false}`,
+    );
+
+    const invitation = await this.invitationRepo.findOne({
+      where: { slug },
+      relations: ['templateDesign'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    if (!invitation.isPublished && !options?.preview) {
+      throw new ForbiddenException(
+        'Layar Sapa hanya aktif untuk undangan yang telah dipublikasikan',
+      );
+    }
+
+    const [
+      recentCheckIns,
+      recentWishes,
+      totalGuests,
+      totalCheckedIn,
+      totalWishes,
+    ] = await Promise.all([
+      this.guestRepo.find({
+        where: {
+          invitation: { id: invitation.id },
+          checkedInAt: Not(IsNull()),
+        },
+        order: { checkedInAt: 'DESC' },
+        take: 30,
+      }),
+      this.guestMessageRepo.find({
+        where: {
+          invitation: { id: invitation.id },
+          status: 'published',
+        },
+        order: { createdAt: 'DESC' },
+        take: 30,
+      }),
+      this.guestRepo.count({
+        where: { invitation: { id: invitation.id } },
+      }),
+      this.guestRepo.count({
+        where: {
+          invitation: { id: invitation.id },
+          checkedInAt: Not(IsNull()),
+        },
+      }),
+      this.guestMessageRepo.count({
+        where: {
+          invitation: { id: invitation.id },
+          status: 'published',
+        },
+      }),
+    ]);
+
+    return {
+      invitation: this.buildInvitationResponse(invitation),
+      recentCheckIns,
+      recentWishes,
+      stats: {
+        totalGuests,
+        totalCheckedIn,
+        totalWishes,
+      },
+      serverTime: new Date().toISOString(),
     };
   }
 

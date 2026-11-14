@@ -627,6 +627,10 @@ export class InvitationService {
         isSingleEvent: invitation.isSingleEvent,
         mergeEvents: invitation.mergeEvents,
         floorPlanImageUrl: invitation.floorPlanImageUrl,
+        qrisImageUrl:
+          invitation.qrisImageUrl ||
+          invitation.designSettings?.qrisImageUrl ||
+          null,
         menu: invitation.menu,
         galleryImages: this.applyGalleryPolicy(
           invitation.package,

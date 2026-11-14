@@ -263,6 +263,15 @@ export class InvitationDesignSettingsDto {
     message: 'Setiap warna dress code harus berformat HEX valid (contoh: #588157)',
   })
   dressCodeColors?: string[];
+
+  @ApiPropertyOptional({
+    example: 'https://cdn.satuundangan.id/uploads/qris-123.webp',
+    description: 'URL gambar barcode QRIS untuk amplop digital',
+  })
+  @IsOptional()
+  @IsString()
+  @StoredUrl()
+  qrisImageUrl?: string;
 }
 
 export class CreateInvitationDto {
@@ -439,6 +448,15 @@ export class CreateInvitationDto {
   @IsString()
   @StoredUrl()
   floorPlanImageUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://cdn.satuundangan.id/uploads/qris-123.webp',
+    description: 'URL gambar barcode QRIS untuk amplop digital',
+  })
+  @IsOptional()
+  @IsString()
+  @StoredUrl()
+  qrisImageUrl?: string;
 
   @ApiProperty({ type: Menu })
   @ValidateNested()

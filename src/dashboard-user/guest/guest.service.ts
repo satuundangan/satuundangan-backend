@@ -59,6 +59,10 @@ export class GuestService {
       rsvpStatus: dto.rsvpStatus ?? 'belum',
       pax: dto.pax ?? 1,
       isPhysical: dto.isPhysical ?? false,
+      tableNumber: dto.tableNumber ?? null,
+      souvenirGiven: dto.souvenirGiven ?? false,
+      physicalGiftAmount: dto.physicalGiftAmount ?? null,
+      physicalGiftNotes: dto.physicalGiftNotes ?? null,
       invitation,
     });
 
@@ -401,6 +405,43 @@ export class GuestService {
     return this.processCheckIn(guest);
   }
 
+  async updateReception(
+    id: number,
+    dto: {
+      souvenirGiven?: boolean;
+      physicalGiftAmount?: number;
+      physicalGiftNotes?: string;
+      tableNumber?: string;
+    },
+  ): Promise<Guest> {
+    const guest = await this.guestRepo.findOne({
+      where: { id: Number(id) },
+    });
+
+    if (!guest) {
+      throw new NotFoundException(`Guest with ID ${id} not found.`);
+    }
+
+    if (dto.souvenirGiven !== undefined) {
+      guest.souvenirGiven = dto.souvenirGiven;
+      guest.souvenirGivenAt = dto.souvenirGiven ? new Date() : null;
+    }
+
+    if (dto.physicalGiftAmount !== undefined) {
+      guest.physicalGiftAmount = dto.physicalGiftAmount;
+    }
+
+    if (dto.physicalGiftNotes !== undefined) {
+      guest.physicalGiftNotes = dto.physicalGiftNotes;
+    }
+
+    if (dto.tableNumber !== undefined) {
+      guest.tableNumber = dto.tableNumber;
+    }
+
+    return this.guestRepo.save(guest);
+  }
+
   async getCheckInSummary(invitationId: number, userId: number) {
     const invId = Number(invitationId);
     const uId = Number(userId);
@@ -429,6 +470,13 @@ export class GuestService {
       },
     });
 
+    const totalSouvenirGiven = await this.guestRepo.count({
+      where: {
+        invitation: { id: invId },
+        souvenirGiven: true,
+      },
+    });
+
     const percentage =
       totalGuests > 0
         ? Math.round((totalCheckedIn / totalGuests) * 10000) / 100
@@ -451,11 +499,16 @@ export class GuestService {
       phoneNumber: guest.phoneNumber,
       rsvpStatus: guest.rsvpStatus,
       checkedInAt: guest.checkedInAt,
+      tableNumber: guest.tableNumber,
+      souvenirGiven: guest.souvenirGiven,
+      physicalGiftAmount: guest.physicalGiftAmount,
+      physicalGiftNotes: guest.physicalGiftNotes,
     }));
 
     return {
       totalGuests,
       totalCheckedIn,
+      totalSouvenirGiven,
       percentage,
       recentCheckIns,
     };
@@ -476,6 +529,10 @@ export class GuestService {
           phoneNumber: guest.phoneNumber,
           rsvpStatus: guest.rsvpStatus,
           checkedInAt: guest.checkedInAt,
+          tableNumber: guest.tableNumber,
+          souvenirGiven: guest.souvenirGiven,
+          physicalGiftAmount: guest.physicalGiftAmount,
+          physicalGiftNotes: guest.physicalGiftNotes,
         },
       };
     }
@@ -496,6 +553,10 @@ export class GuestService {
         phoneNumber: guest.phoneNumber,
         rsvpStatus: guest.rsvpStatus,
         checkedInAt: guest.checkedInAt,
+        tableNumber: guest.tableNumber,
+        souvenirGiven: guest.souvenirGiven,
+        physicalGiftAmount: guest.physicalGiftAmount,
+        physicalGiftNotes: guest.physicalGiftNotes,
       },
     };
   }

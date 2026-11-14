@@ -12,8 +12,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { GuestService } from './guest.service';
-import { CreateGuestDto } from './dto/create-guest.dto';
+import { CreateGuestDto, UpdateReceptionDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
+import { ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -123,6 +124,18 @@ export class GuestController {
   @Post(':id/check-in')
   checkIn(@Param('id') id: number) {
     return this.guestService.checkIn(id);
+  }
+
+  @Patch(':id/reception')
+  @ApiOperation({
+    summary:
+      'Update status resepsi tamu: nomor meja, serah-terima souvenir, dan catatan kado/amplop fisik (SAT-65)',
+  })
+  updateReception(
+    @Param('id') id: number,
+    @Body() body: UpdateReceptionDto,
+  ) {
+    return this.guestService.updateReception(id, body);
   }
 
   @Post('check-in-token')

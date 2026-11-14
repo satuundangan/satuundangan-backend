@@ -59,7 +59,47 @@ export class CreateGuestDto {
   @IsOptional()
   isPhysical?: boolean;
 
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(100)
+  tableNumber?: string;
+
+  @IsOptional()
+  souvenirGiven?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  physicalGiftAmount?: number;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(255)
+  physicalGiftNotes?: string;
+
   @IsNotEmpty()
   @IsNumber()
   invitationId: number;
+}
+
+export class UpdateReceptionDto {
+  @IsOptional()
+  souvenirGiven?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  physicalGiftAmount?: number;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(255)
+  physicalGiftNotes?: string;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(100)
+  tableNumber?: string;
 }

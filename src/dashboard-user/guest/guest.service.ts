@@ -192,10 +192,25 @@ export class GuestService {
         continue;
       }
 
+      // Defense-in-depth: strip prototype pollution vectors from untrusted spreadsheet rows
+      for (const dangerousKey of ['__proto__', 'constructor', 'prototype']) {
+        if (dangerousKey in row) {
+          delete (row as any)[dangerousKey];
+        }
+      }
+
       // Normalized field helper
       const getVal = (possibleKeys: string[]) => {
         for (const key of possibleKeys) {
-          if (row[key] !== undefined) return row[key];
+          if (
+            row[key] !== undefined &&
+            Object.prototype.hasOwnProperty.call(row, key) &&
+            key !== '__proto__' &&
+            key !== 'constructor' &&
+            key !== 'prototype'
+          ) {
+            return row[key];
+          }
         }
         return '';
       };

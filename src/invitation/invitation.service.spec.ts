@@ -38,6 +38,7 @@ describe('InvitationService', () => {
     };
 
     guestMessageRepo = {
+      findOne: jest.fn(),
       find: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
     };
@@ -760,7 +761,84 @@ describe('InvitationService', () => {
       });
       expect(result.serverTime).toBeDefined();
       expect(typeof result.serverTime).toBe('string');
-      expect(new Date(result.serverTime).getTime()).not.toBeNaN();
+      expect(new Date(result.serverTime!).getTime()).not.toBeNaN();
+      expect(result.etag).toBeDefined();
+    });
+
+    it('should return notModified: true and skip heavy queries when ifNoneMatch matches computed etag (SAT-73)', async () => {
+      const updatedAt = new Date('2026-11-14T08:00:00Z');
+      const checkedInAt = new Date('2026-11-14T09:30:00Z');
+      const wishCreatedAt = new Date('2026-11-14T09:35:00Z');
+
+      const mockInvitation = {
+        id: 30,
+        slug: 'published-invitation',
+        title: 'Budi & Ani Wedding',
+        isPublished: true,
+        package: InvitationPackage.PREMIUM,
+        updatedAt,
+        templateDesign: { slug: 'floral-classic', price: 49000 },
+      };
+
+      invitationRepo.findOne.mockResolvedValue(mockInvitation);
+      guestRepo.findOne.mockResolvedValue({ checkedInAt });
+      guestMessageRepo.findOne.mockResolvedValue({ createdAt: wishCreatedAt });
+
+      const expectedEtag = `W/"30-${updatedAt.getTime()}-${checkedInAt.getTime()}-${wishCreatedAt.getTime()}"`;
+
+      const result = await service.getLiveScreenFeed('published-invitation', {
+        ifNoneMatch: expectedEtag,
+      });
+
+      expect(result).toEqual({
+        notModified: true,
+        etag: expectedEtag,
+      });
+
+      // Heavy queries must NOT be called
+      expect(guestRepo.find).not.toHaveBeenCalled();
+      expect(guestMessageRepo.find).not.toHaveBeenCalled();
+      expect(guestRepo.count).not.toHaveBeenCalled();
+      expect(guestMessageRepo.count).not.toHaveBeenCalled();
+    });
+
+    it('should return full data with computed etag when ifNoneMatch does not match (SAT-73)', async () => {
+      const updatedAt = new Date('2026-11-14T08:00:00Z');
+      const checkedInAt = new Date('2026-11-14T09:30:00Z');
+      const wishCreatedAt = new Date('2026-11-14T09:35:00Z');
+
+      const mockInvitation = {
+        id: 30,
+        slug: 'published-invitation',
+        title: 'Budi & Ani Wedding',
+        isPublished: true,
+        package: InvitationPackage.PREMIUM,
+        coupleName: 'Budi & Ani',
+        updatedAt,
+        templateDesign: { slug: 'floral-classic', price: 49000 },
+      };
+
+      invitationRepo.findOne.mockResolvedValue(mockInvitation);
+      guestRepo.findOne.mockResolvedValue({ checkedInAt });
+      guestMessageRepo.findOne.mockResolvedValue({ createdAt: wishCreatedAt });
+      guestRepo.find.mockResolvedValue([]);
+      guestMessageRepo.find.mockResolvedValue([]);
+      guestRepo.count.mockResolvedValue(10);
+      guestMessageRepo.count.mockResolvedValue(5);
+
+      const expectedEtag = `W/"30-${updatedAt.getTime()}-${checkedInAt.getTime()}-${wishCreatedAt.getTime()}"`;
+
+      const result = await service.getLiveScreenFeed('published-invitation', {
+        ifNoneMatch: 'W/"stale-etag-value"',
+      });
+
+      expect(result.notModified).toBeUndefined();
+      expect(result.etag).toBe(expectedEtag);
+      expect(result.invitation).toBeDefined();
+      expect(result.recentCheckIns).toEqual([]);
+      expect(result.recentWishes).toEqual([]);
+      expect(guestRepo.find).toHaveBeenCalled();
+      expect(guestMessageRepo.find).toHaveBeenCalled();
     });
   });
 

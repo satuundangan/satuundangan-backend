@@ -439,7 +439,7 @@ export class InvitationService {
     this.logger.log(`Public invitation requested slug=${slug}`);
     const invitation = await this.invitationRepo.findOne({
       where: { slug },
-      relations: ['user', 'templateDesign'],
+      relations: ['templateDesign'],
     });
 
     if (!invitation) {
@@ -537,7 +537,7 @@ export class InvitationService {
 
     const invitation = await this.invitationRepo.findOne({
       where: { subdomain: normalized },
-      relations: ['user', 'templateDesign'],
+      relations: ['templateDesign'],
     });
 
     if (!invitation) {
@@ -686,7 +686,7 @@ export class InvitationService {
     );
     const invitation = await this.invitationRepo.findOne({
       where: { slug: invitationSlug },
-      relations: ['guests', 'templateDesign'], // Added templateDesign to relations just in case
+      relations: ['templateDesign'],
     });
 
     if (!invitation) throw new NotFoundException('Invitation not found');
@@ -698,11 +698,14 @@ export class InvitationService {
       throw new ForbiddenException('Undangan belum dipublikasikan');
     }
 
-    const guest = invitation.guests.find(
-      (g) =>
-        (g.accessToken && g.accessToken === guestSlug) ||
-        (invitation.isGuestPublic && g.slug === guestSlug),
-    );
+    const guest = await this.guestRepo.findOne({
+      where: [
+        { accessToken: guestSlug, invitation: { id: invitation.id } },
+        ...(invitation.isGuestPublic
+          ? [{ slug: guestSlug, invitation: { id: invitation.id } }]
+          : []),
+      ],
+    });
     if (!guest) throw new NotFoundException('Guest not found');
 
     // track first visit and increment visit count

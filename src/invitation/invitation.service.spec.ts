@@ -187,8 +187,8 @@ describe('InvitationService', () => {
         isPublished: true,
         isGuestPublic: false,
         package: InvitationPackage.PREMIUM,
-        guests: [mockGuest],
       });
+      guestRepo.findOne.mockResolvedValue(mockGuest);
 
       const result = await service.findWithGuest(
         'private-inv',
@@ -229,8 +229,8 @@ describe('InvitationService', () => {
         slug: 'private-inv',
         isPublished: true,
         isGuestPublic: false,
-        guests: [mockGuest],
       });
+      guestRepo.findOne.mockResolvedValue(null);
 
       // User tries to access with readable slug instead of secret accessToken
       await expect(
@@ -253,8 +253,8 @@ describe('InvitationService', () => {
         slug: 'public-inv',
         isPublished: true,
         isGuestPublic: true,
-        guests: [mockGuest],
       });
+      guestRepo.findOne.mockResolvedValue(mockGuest);
 
       const result = await service.findWithGuest('public-inv', 'ahmad-dahlan');
 
@@ -278,8 +278,8 @@ describe('InvitationService', () => {
         slug: 'public-inv',
         isPublished: true,
         isGuestPublic: true,
-        guests: [mockGuest],
       });
+      guestRepo.findOne.mockResolvedValue(mockGuest);
 
       const result = await service.findWithGuest('public-inv', 'tamu-legacy');
 

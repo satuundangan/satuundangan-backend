@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  Index,
   ManyToOne,
   PrimaryGeneratedColumn,
   CreateDateColumn,
@@ -9,6 +10,11 @@ import {
 import { Invitation } from '../invitation/invitation.entity';
 import { Guest } from '../dashboard-user/guest/guest.entity';
 
+@Index('idx_guest_messages_invitation_status_created', [
+  'invitation',
+  'status',
+  'createdAt',
+])
 @Entity('guest_messages')
 export class GuestMessage {
   @PrimaryGeneratedColumn()

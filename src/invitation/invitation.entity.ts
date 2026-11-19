@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
   JoinColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { User } from '../user/user.entity';
 import { TemplateDesign } from '../template-design/template-design.entity';
@@ -92,6 +93,7 @@ export const PACKAGE_FEATURES: Record<InvitationPackage, PackageFeatures> = {
   },
 };
 
+@Index('idx_invitation_user_created_at', ['user', 'createdAt'])
 @Entity()
 export class Invitation {
   @PrimaryGeneratedColumn()

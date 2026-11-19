@@ -8,6 +8,8 @@ describe('InvitationController', () => {
 
   const mockInvitationService = {
     getLiveScreenFeed: jest.fn(),
+    findBySlug: jest.fn(),
+    findBySubdomain: jest.fn(),
   };
 
   const createMockResponse = () => {
@@ -122,6 +124,22 @@ describe('InvitationController', () => {
       );
       expect(mockRes.status).not.toHaveBeenCalled();
       expect(res).toEqual(mockResult);
+    });
+  });
+
+  describe('findBySlug & findBySubdomain (SAT-80)', () => {
+    it('delegates findBySlug to invitationService', async () => {
+      mockInvitationService.findBySlug.mockResolvedValue({ id: 1, slug: 'couple-slug' });
+      const res = await controller.findBySlug('couple-slug');
+      expect(mockInvitationService.findBySlug).toHaveBeenCalledWith('couple-slug');
+      expect(res).toEqual({ id: 1, slug: 'couple-slug' });
+    });
+
+    it('delegates findBySubdomain to invitationService', async () => {
+      mockInvitationService.findBySubdomain.mockResolvedValue({ id: 2, subdomain: 'couple' });
+      const res = await controller.findBySubdomain('couple');
+      expect(mockInvitationService.findBySubdomain).toHaveBeenCalledWith('couple');
+      expect(res).toEqual({ id: 2, subdomain: 'couple' });
     });
   });
 });

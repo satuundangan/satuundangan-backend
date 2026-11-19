@@ -952,4 +952,96 @@ describe('InvitationService', () => {
       expect(service.getBufferedViews(303)).toBe(0);
     });
   });
+
+  describe('In-Memory Caching & Invalidation (SAT-80)', () => {
+    it('caches findBySlug response and serves repeat calls without querying DB', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 404,
+        slug: 'cached-wedding',
+        title: 'Cached Wedding',
+        isPublished: true,
+        isGuestPublic: true,
+        package: InvitationPackage.BASIC,
+        templateDesign: { slug: 'dark-elegant', price: 0 },
+      });
+
+      // First call: queries DB
+      const res1 = await service.findBySlug('cached-wedding');
+      expect(res1.slug).toBe('cached-wedding');
+      expect(invitationRepo.findOne).toHaveBeenCalledTimes(1);
+
+      // Second call: served from in-memory cache
+      const res2 = await service.findBySlug('cached-wedding');
+      expect(res2.slug).toBe('cached-wedding');
+      expect(invitationRepo.findOne).toHaveBeenCalledTimes(1); // not called again!
+
+      // Views still incremented for analytics
+      expect(activityRepo.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('invalidates cache when invitation is updated', async () => {
+      const mockInv = {
+        id: 505,
+        slug: 'to-update-wedding',
+        title: 'Original Title',
+        isPublished: true,
+        isGuestPublic: true,
+        package: InvitationPackage.BASIC,
+        user: { id: 1 },
+        templateDesign: { slug: 'dark-elegant', price: 0 },
+        akadLocation: { dateTime: '2026-12-01T10:00:00.000Z' },
+        resepsiLocation: { dateTime: '2026-12-01T13:00:00.000Z' },
+      };
+
+      invitationRepo.findOne.mockResolvedValue(mockInv);
+      invitationRepo.save.mockResolvedValue({
+        ...mockInv,
+        title: 'Updated Title',
+      });
+
+      // Prime cache
+      await service.findBySlug('to-update-wedding');
+      expect(invitationRepo.findOne).toHaveBeenCalledTimes(1);
+
+      // Perform update
+      await service.update(
+        505,
+        { title: 'Updated Title' } as any,
+        { id: 1 } as any,
+      );
+
+      // Next findBySlug should hit DB again
+      await service.findBySlug('to-update-wedding');
+      expect(invitationRepo.findOne).toHaveBeenCalledTimes(3); // 1 initial + 1 in update findOneById + 1 re-query
+    });
+
+    it('invalidates cache when invitation is removed', async () => {
+      const mockInv = {
+        id: 606,
+        slug: 'to-remove-wedding',
+        title: 'Remove Title',
+        isPublished: true,
+        isGuestPublic: true,
+        package: InvitationPackage.BASIC,
+        user: { id: 1 },
+        templateDesign: { slug: 'dark-elegant', price: 0 },
+      };
+
+      invitationRepo.findOne.mockResolvedValue(mockInv);
+      invitationRepo.remove.mockResolvedValue(mockInv);
+
+      // Prime cache
+      await service.findBySlug('to-remove-wedding');
+      expect(invitationRepo.findOne).toHaveBeenCalledTimes(1);
+
+      // Remove
+      await service.remove(606, { id: 1 } as any);
+
+      // Next findBySlug should hit DB again (and throw NotFound if DB returns null)
+      invitationRepo.findOne.mockResolvedValue(null);
+      await expect(service.findBySlug('to-remove-wedding')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
 });

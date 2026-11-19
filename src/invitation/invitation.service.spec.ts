@@ -76,6 +76,10 @@ describe('InvitationService', () => {
     service = module.get<InvitationService>(InvitationService);
   });
 
+  afterEach(async () => {
+    await service.onModuleDestroy();
+  });
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
@@ -129,6 +133,7 @@ describe('InvitationService', () => {
       });
 
       const result = await service.findBySlug('public-wedding');
+      await service.flushViewBuffer();
 
       expect(result).toBeDefined();
       expect(result.slug).toBe('public-wedding');
@@ -194,6 +199,7 @@ describe('InvitationService', () => {
         'private-inv',
         'secure-token-xyz-12345678',
       );
+      await service.flushViewBuffer();
 
       expect(result).toBeDefined();
       expect(result.invitation.slug).toBe('private-inv');
@@ -755,6 +761,117 @@ describe('InvitationService', () => {
       expect(result.serverTime).toBeDefined();
       expect(typeof result.serverTime).toBe('string');
       expect(new Date(result.serverTime).getTime()).not.toBeNaN();
+    });
+  });
+
+  describe('In-Memory View Count Buffer & Decoupled Row Lock (SAT-75)', () => {
+    it('buffers multiple views and flushes them in a single aggregated increment call', async () => {
+      // Simulate 5 views on invitation 101
+      for (let i = 0; i < 5; i++) {
+        service.recordBufferedView(101);
+      }
+
+      // Assert in-memory buffer count
+      expect(service.getBufferedViews(101)).toBe(5);
+
+      // Verify DB was NOT touched synchronously (eliminating row-lock contention)
+      expect(invitationRepo.increment).not.toHaveBeenCalled();
+
+      // Flush buffer
+      await service.flushViewBuffer();
+
+      // Verify single increment call with aggregated count = 5
+      expect(invitationRepo.increment).toHaveBeenCalledTimes(1);
+      expect(invitationRepo.increment).toHaveBeenCalledWith(
+        { id: 101 },
+        'views',
+        5,
+      );
+
+      // Buffer should be empty after flush
+      expect(service.getBufferedViews(101)).toBe(0);
+    });
+
+    it('buffers views across multiple invitations and flushes each in a single batched call', async () => {
+      service.recordBufferedView(1);
+      service.recordBufferedView(1);
+      service.recordBufferedView(2);
+      service.recordBufferedView(2);
+      service.recordBufferedView(2);
+      service.recordBufferedView(3);
+
+      expect(service.getBufferedViews(1)).toBe(2);
+      expect(service.getBufferedViews(2)).toBe(3);
+      expect(service.getBufferedViews(3)).toBe(1);
+      expect(invitationRepo.increment).not.toHaveBeenCalled();
+
+      await service.flushViewBuffer();
+
+      expect(invitationRepo.increment).toHaveBeenCalledTimes(3);
+      expect(invitationRepo.increment).toHaveBeenCalledWith({ id: 1 }, 'views', 2);
+      expect(invitationRepo.increment).toHaveBeenCalledWith({ id: 2 }, 'views', 3);
+      expect(invitationRepo.increment).toHaveBeenCalledWith({ id: 3 }, 'views', 1);
+
+      expect(service.getBufferedViews(1)).toBe(0);
+      expect(service.getBufferedViews(2)).toBe(0);
+      expect(service.getBufferedViews(3)).toBe(0);
+    });
+
+    it('does nothing when flushViewBuffer is called on an empty buffer', async () => {
+      await service.flushViewBuffer();
+      expect(invitationRepo.increment).not.toHaveBeenCalled();
+    });
+
+    it('restores counts back into the buffer if repository increment throws an error', async () => {
+      invitationRepo.increment.mockRejectedValueOnce(
+        new Error('MySQL Deadlock / Lock wait timeout'),
+      );
+
+      service.recordBufferedView(202);
+      service.recordBufferedView(202);
+      service.recordBufferedView(202);
+
+      expect(service.getBufferedViews(202)).toBe(3);
+
+      // Flush should catch the error and restore count back to buffer
+      await service.flushViewBuffer();
+
+      expect(invitationRepo.increment).toHaveBeenCalledTimes(1);
+      expect(service.getBufferedViews(202)).toBe(3);
+
+      // Subsequent views arrive
+      service.recordBufferedView(202);
+      expect(service.getBufferedViews(202)).toBe(4);
+
+      // Next flush succeeds
+      invitationRepo.increment.mockResolvedValueOnce(true);
+      await service.flushViewBuffer();
+
+      expect(invitationRepo.increment).toHaveBeenCalledTimes(2);
+      expect(invitationRepo.increment).toHaveBeenLastCalledWith(
+        { id: 202 },
+        'views',
+        4,
+      );
+      expect(service.getBufferedViews(202)).toBe(0);
+    });
+
+    it('manages timer lifecycle with onModuleInit and onModuleDestroy', async () => {
+      service.onModuleInit();
+
+      service.recordBufferedView(303);
+      service.recordBufferedView(303);
+      expect(service.getBufferedViews(303)).toBe(2);
+
+      // onModuleDestroy should clear timer and flush pending buffer
+      await service.onModuleDestroy();
+
+      expect(invitationRepo.increment).toHaveBeenCalledWith(
+        { id: 303 },
+        'views',
+        2,
+      );
+      expect(service.getBufferedViews(303)).toBe(0);
     });
   });
 });

@@ -4,6 +4,8 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -37,8 +39,10 @@ import { Not, IsNull } from 'typeorm';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 
 @Injectable()
-export class InvitationService {
+export class InvitationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(InvitationService.name);
+  private viewCountBuffer: Map<number, number> = new Map();
+  private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @InjectRepository(Invitation)
@@ -57,6 +61,55 @@ export class InvitationService {
     private readonly paymentRepo: Repository<Payment>,
     private readonly configService: ConfigService,
   ) {}
+
+  onModuleInit(): void {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+    }
+    this.flushTimer = setInterval(() => {
+      void this.flushViewBuffer();
+    }, 10000);
+    this.flushTimer.unref?.();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+    await this.flushViewBuffer();
+  }
+
+  recordBufferedView(invitationId: number): void {
+    const current = this.viewCountBuffer.get(invitationId) || 0;
+    this.viewCountBuffer.set(invitationId, current + 1);
+  }
+
+  getBufferedViews(invitationId: number): number {
+    return this.viewCountBuffer.get(invitationId) || 0;
+  }
+
+  async flushViewBuffer(): Promise<void> {
+    if (this.viewCountBuffer.size === 0) {
+      return;
+    }
+
+    const snapshot = new Map(this.viewCountBuffer);
+    this.viewCountBuffer.clear();
+
+    for (const [invitationId, count] of snapshot.entries()) {
+      try {
+        await this.invitationRepo.increment({ id: invitationId }, 'views', count);
+      } catch (err) {
+        this.logger.error(
+          `Failed to flush view count buffer for invitationId=${invitationId} count=${count}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+        const existing = this.viewCountBuffer.get(invitationId) || 0;
+        this.viewCountBuffer.set(invitationId, existing + count);
+      }
+    }
+  }
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
     this.logger.log(
@@ -829,9 +882,9 @@ export class InvitationService {
     action: ActivityAction,
   ) {
     try {
-      // Increment Views
+      // Increment Views via In-Memory Buffer (SAT-75 Decouple Row-Lock)
       if (action === ActivityAction.VIEW) {
-        await this.invitationRepo.increment({ id: invitation.id }, 'views', 1);
+        this.recordBufferedView(invitation.id);
       }
 
       // Save Log

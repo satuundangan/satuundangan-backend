@@ -791,17 +791,19 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
 
   async getLiveScreenFeed(
     slug: string,
-    options?: { preview?: boolean },
+    options?: { preview?: boolean; ifNoneMatch?: string },
   ): Promise<{
-    invitation: any;
-    recentCheckIns: Guest[];
-    recentWishes: GuestMessage[];
-    stats: {
+    notModified?: boolean;
+    etag: string;
+    invitation?: any;
+    recentCheckIns?: Guest[];
+    recentWishes?: GuestMessage[];
+    stats?: {
       totalGuests: number;
       totalCheckedIn: number;
       totalWishes: number;
     };
-    serverTime: string;
+    serverTime?: string;
   }> {
     this.logger.log(
       `Live screen feed requested slug=${slug} preview=${options?.preview ?? false}`,
@@ -820,6 +822,37 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException(
         'Layar Sapa hanya aktif untuk undangan yang telah dipublikasikan',
       );
+    }
+
+    const [latestCheckIn, latestWish] = await Promise.all([
+      this.guestRepo.findOne({
+        where: {
+          invitation: { id: invitation.id },
+          checkedInAt: Not(IsNull()),
+        },
+        order: { checkedInAt: 'DESC' },
+        select: ['checkedInAt'],
+      }),
+      this.guestMessageRepo.findOne({
+        where: { invitation: { id: invitation.id }, status: 'published' },
+        order: { createdAt: 'DESC' },
+        select: ['createdAt'],
+      }),
+    ]);
+
+    const getTimestamp = (date: Date | string | null | undefined): number => {
+      if (!date) return 0;
+      if (typeof (date as any).getTime === 'function') {
+        return (date as any).getTime();
+      }
+      const parsed = new Date(date).getTime();
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const etag = `W/"${invitation.id}-${getTimestamp(invitation.updatedAt)}-${getTimestamp(latestCheckIn?.checkedInAt)}-${getTimestamp(latestWish?.createdAt)}"`;
+
+    if (options?.ifNoneMatch && options.ifNoneMatch === etag) {
+      return { notModified: true, etag };
     }
 
     const [
@@ -863,6 +896,7 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
     ]);
 
     return {
+      etag,
       invitation: this.buildInvitationResponse(invitation),
       recentCheckIns,
       recentWishes,

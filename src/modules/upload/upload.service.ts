@@ -50,8 +50,10 @@ export class UploadService {
 
   private async processImage(file: Express.Multer.File): Promise<{
     buffer: Buffer;
+    thumbBuffer: Buffer | null;
     mimetype: string;
     extension: string;
+    isImage: boolean;
   }> {
     const isImage =
       file.mimetype?.startsWith('image/') &&
@@ -62,31 +64,45 @@ export class UploadService {
       const ext = path.extname(file.originalname);
       return {
         buffer: file.buffer,
+        thumbBuffer: null,
         mimetype: file.mimetype,
         extension: ext,
+        isImage: false,
       };
     }
 
     try {
-      const optimizedBuffer = await sharp(file.buffer)
-        .rotate()
-        .resize(1920, 1920, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .webp({ quality: 80, effort: 4 })
-        .toBuffer();
+      const [fullBuffer, thumbBuffer] = await Promise.all([
+        sharp(file.buffer)
+          .rotate()
+          .resize(1920, 1920, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .webp({ quality: 80, effort: 4 })
+          .toBuffer(),
+        sharp(file.buffer)
+          .rotate()
+          .resize(400, 400, {
+            fit: 'cover',
+          })
+          .webp({ quality: 75, effort: 4 })
+          .toBuffer(),
+      ]);
 
-      const savedBytes = file.size - optimizedBuffer.length;
-      const pct = Math.round((savedBytes / file.size) * 100);
+      const originalSize = file.size || file.buffer?.length || 0;
+      const savedBytes = originalSize - fullBuffer.length;
+      const pct = originalSize > 0 ? Math.round((savedBytes / originalSize) * 100) : 0;
       this.logger.log(
-        `Optimized image ${file.originalname}: ${file.size} -> ${optimizedBuffer.length} bytes (${pct > 0 ? `-${pct}%` : '+0%'})`,
+        `Optimized image ${file.originalname}: full ${originalSize} -> ${fullBuffer.length} bytes (${pct > 0 ? `-${pct}%` : '+0%'}), thumb: ${thumbBuffer.length} bytes`,
       );
 
       return {
-        buffer: optimizedBuffer,
+        buffer: fullBuffer,
+        thumbBuffer,
         mimetype: 'image/webp',
         extension: '.webp',
+        isImage: true,
       };
     } catch (err) {
       this.logger.warn(
@@ -95,32 +111,52 @@ export class UploadService {
       const ext = path.extname(file.originalname);
       return {
         buffer: file.buffer,
+        thumbBuffer: null,
         mimetype: file.mimetype,
         extension: ext,
+        isImage: false,
       };
     }
   }
 
-  async uploadFile(file: Express.Multer.File) {
+  async uploadFile(file: Express.Multer.File): Promise<{
+    fileUrl: string;
+    thumbnailUrl: string | null;
+    message: string;
+  }> {
     if (!file) {
       this.logger.warn('Upload rejected: no file provided');
       throw new InternalServerErrorException('No file provided for upload.');
     }
 
     const processed = await this.processImage(file);
+    const timestamp = Date.now();
     const parsedPath = path.parse(file.originalname);
     const sanitizedBase = parsedPath.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const fileKey = `${Date.now()}-${sanitizedBase}${processed.extension}`;
+    const fileKey = `${timestamp}-${sanitizedBase}${processed.extension}`;
+    const thumbKey = processed.isImage
+      ? `${timestamp}-${sanitizedBase}-thumb${processed.extension}`
+      : null;
 
     if (this.isLocalMode) {
       const filePath = path.join(this.localUploadDir, fileKey);
       fs.writeFileSync(filePath, processed.buffer);
+
+      const port = this.configService.get<string>('PORT') ?? '3000';
+      let thumbnailUrl: string | null = null;
+
+      if (processed.isImage && processed.thumbBuffer && thumbKey) {
+        const thumbPath = path.join(this.localUploadDir, thumbKey);
+        fs.writeFileSync(thumbPath, processed.thumbBuffer);
+        thumbnailUrl = `http://localhost:${port}/uploads/${thumbKey}`;
+      }
+
       this.logger.log(
         `Local upload saved key=${fileKey} size=${processed.buffer.length} mimetype=${processed.mimetype}`,
       );
-      const port = this.configService.get<string>('PORT') ?? '3000';
       return {
-        fileUrl: `http://localhost:${port}/uploads/${encodeURIComponent(fileKey)}`,
+        fileUrl: `http://localhost:${port}/uploads/${fileKey}`,
+        thumbnailUrl,
         message: 'Upload successful (local) ✅',
       };
     }
@@ -135,15 +171,41 @@ export class UploadService {
         Key: fileKey,
         Body: processed.buffer,
         ContentType: processed.mimetype,
+        CacheControl: 'public, max-age=31536000, immutable',
       });
 
-      await this.s3Client!.send(command);
-      this.logger.log(`Upload successful key=${fileKey} size=${processed.buffer.length}`);
+      if (processed.isImage && processed.thumbBuffer && thumbKey) {
+        const thumbCommand = new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: thumbKey,
+          Body: processed.thumbBuffer,
+          ContentType: processed.mimetype,
+          CacheControl: 'public, max-age=31536000, immutable',
+        });
 
-      return {
-        fileUrl: `${this.publicUrl}/${fileKey}`,
-        message: 'Upload successful ✅',
-      };
+        await Promise.all([
+          this.s3Client!.send(command),
+          this.s3Client!.send(thumbCommand),
+        ]);
+        this.logger.log(
+          `Upload successful key=${fileKey} size=${processed.buffer.length} thumbKey=${thumbKey} size=${processed.thumbBuffer.length}`,
+        );
+
+        return {
+          fileUrl: `${this.publicUrl}/${fileKey}`,
+          thumbnailUrl: `${this.publicUrl}/${thumbKey}`,
+          message: 'Upload successful ✅',
+        };
+      } else {
+        await this.s3Client!.send(command);
+        this.logger.log(`Upload successful key=${fileKey} size=${processed.buffer.length}`);
+
+        return {
+          fileUrl: `${this.publicUrl}/${fileKey}`,
+          thumbnailUrl: null,
+          message: 'Upload successful ✅',
+        };
+      }
     } catch (error) {
       this.logger.error(
         `Error uploading to R2 key=${fileKey} size=${processed.buffer.length}`,
@@ -165,6 +227,15 @@ export class UploadService {
           fs.unlinkSync(filePath);
           this.logger.log(`Local file deleted: ${fileName}`);
         }
+
+        if (fileName.endsWith('.webp') && !fileName.endsWith('-thumb.webp')) {
+          const thumbName = fileName.replace(/\.webp$/, '-thumb.webp');
+          const thumbPath = path.join(this.localUploadDir, thumbName);
+          if (fs.existsSync(thumbPath)) {
+            fs.unlinkSync(thumbPath);
+            this.logger.log(`Local thumbnail deleted: ${thumbName}`);
+          }
+        }
       }
       return { message: 'File deleted successfully' };
     }
@@ -180,6 +251,23 @@ export class UploadService {
 
       await this.s3Client!.send(command);
       this.logger.log(`Delete successful key=${fileKey}`);
+
+      if (fileKey.endsWith('.webp') && !fileKey.endsWith('-thumb.webp')) {
+        const thumbKey = fileKey.replace(/\.webp$/, '-thumb.webp');
+        try {
+          const thumbCommand = new DeleteObjectCommand({
+            Bucket: this.bucketName,
+            Key: thumbKey,
+          });
+          await this.s3Client!.send(thumbCommand);
+          this.logger.log(`Delete thumbnail successful key=${thumbKey}`);
+        } catch (thumbError) {
+          this.logger.warn(
+            `Failed to delete thumbnail from R2 key=${thumbKey}: ${thumbError instanceof Error ? thumbError.message : String(thumbError)}`,
+          );
+        }
+      }
+
       return { message: 'File deleted successfully' };
     } catch (error) {
       this.logger.error(

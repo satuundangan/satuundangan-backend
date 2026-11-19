@@ -9,7 +9,11 @@ import {
   UseGuards,
   Query,
   Header,
+  Headers,
+  Res,
+  HttpStatus,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { InvitationService } from './invitation.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { UpdateInvitationDto } from './dto/update-invitation.dto';
@@ -78,16 +82,31 @@ export class InvitationController {
   @Get('slug/:slug/live-feed')
   @ApiTags('Invitation')
   @ApiOperation({
-    summary: 'Feed data real-time untuk Layar Sapa & Proyektor Panggung (SAT-64)',
+    summary:
+      'Feed data real-time untuk Layar Sapa & Proyektor Panggung (SAT-64, SAT-73)',
   })
-  @Header('Cache-Control', 'private, no-store')
-  getLiveScreenFeed(
+  async getLiveScreenFeed(
     @Param('slug') slug: string,
     @Query('preview') preview?: string,
+    @Headers('if-none-match') ifNoneMatch?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
-    return this.invitationService.getLiveScreenFeed(slug, {
+    const result = await this.invitationService.getLiveScreenFeed(slug, {
       preview: preview === 'true',
+      ifNoneMatch,
     });
+
+    if (res && result.etag) {
+      res.setHeader('ETag', result.etag);
+      res.setHeader('Cache-Control', 'private, no-cache');
+    }
+
+    if (result.notModified) {
+      if (res) res.status(HttpStatus.NOT_MODIFIED);
+      return;
+    }
+
+    return result;
   }
 
   @Get('slug/:slug')

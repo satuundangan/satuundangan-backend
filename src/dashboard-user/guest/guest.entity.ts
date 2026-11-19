@@ -5,10 +5,14 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { Invitation } from '../../invitation/invitation.entity';
 import { GuestMessage } from '../../guest-messages/guest-message.entity';
 
+@Index('idx_guest_invitation_slug', ['invitation', 'slug'])
+@Index('idx_guest_invitation_checked_in_at', ['invitation', 'checkedInAt'])
+@Index('idx_guest_invitation_access_token', ['invitation', 'accessToken'])
 @Entity('guest')
 export class Guest {
   @PrimaryGeneratedColumn()
@@ -17,10 +21,10 @@ export class Guest {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   degree: string;
 
-  @Column({ name: 'phone_number', nullable: true })
+  @Column({ name: 'phone_number', type: 'varchar', nullable: true })
   phoneNumber: string;
 
   @Column()
@@ -35,13 +39,13 @@ export class Guest {
   })
   accessToken: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   group: string;
 
-  @Column({ name: 'status_send', nullable: true })
+  @Column({ name: 'status_send', type: 'varchar', nullable: true })
   statusSend: string;
 
-  @Column({ name: 'rsvp_status', nullable: true, default: 'belum' })
+  @Column({ name: 'rsvp_status', type: 'varchar', nullable: true, default: 'belum' })
   rsvpStatus: string;
 
   @Column({ name: 'pax', type: 'int', default: 1 })

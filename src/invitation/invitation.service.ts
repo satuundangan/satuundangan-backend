@@ -4,6 +4,8 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -37,8 +39,10 @@ import { Not, IsNull } from 'typeorm';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 
 @Injectable()
-export class InvitationService {
+export class InvitationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(InvitationService.name);
+  private viewCountBuffer: Map<number, number> = new Map();
+  private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @InjectRepository(Invitation)
@@ -57,6 +61,55 @@ export class InvitationService {
     private readonly paymentRepo: Repository<Payment>,
     private readonly configService: ConfigService,
   ) {}
+
+  onModuleInit(): void {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+    }
+    this.flushTimer = setInterval(() => {
+      void this.flushViewBuffer();
+    }, 10000);
+    this.flushTimer.unref?.();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+    await this.flushViewBuffer();
+  }
+
+  recordBufferedView(invitationId: number): void {
+    const current = this.viewCountBuffer.get(invitationId) || 0;
+    this.viewCountBuffer.set(invitationId, current + 1);
+  }
+
+  getBufferedViews(invitationId: number): number {
+    return this.viewCountBuffer.get(invitationId) || 0;
+  }
+
+  async flushViewBuffer(): Promise<void> {
+    if (this.viewCountBuffer.size === 0) {
+      return;
+    }
+
+    const snapshot = new Map(this.viewCountBuffer);
+    this.viewCountBuffer.clear();
+
+    for (const [invitationId, count] of snapshot.entries()) {
+      try {
+        await this.invitationRepo.increment({ id: invitationId }, 'views', count);
+      } catch (err) {
+        this.logger.error(
+          `Failed to flush view count buffer for invitationId=${invitationId} count=${count}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+        const existing = this.viewCountBuffer.get(invitationId) || 0;
+        this.viewCountBuffer.set(invitationId, existing + count);
+      }
+    }
+  }
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
     this.logger.log(
@@ -439,7 +492,7 @@ export class InvitationService {
     this.logger.log(`Public invitation requested slug=${slug}`);
     const invitation = await this.invitationRepo.findOne({
       where: { slug },
-      relations: ['user', 'templateDesign'],
+      relations: ['templateDesign'],
     });
 
     if (!invitation) {
@@ -537,7 +590,7 @@ export class InvitationService {
 
     const invitation = await this.invitationRepo.findOne({
       where: { subdomain: normalized },
-      relations: ['user', 'templateDesign'],
+      relations: ['templateDesign'],
     });
 
     if (!invitation) {
@@ -686,7 +739,7 @@ export class InvitationService {
     );
     const invitation = await this.invitationRepo.findOne({
       where: { slug: invitationSlug },
-      relations: ['guests', 'templateDesign'], // Added templateDesign to relations just in case
+      relations: ['templateDesign'],
     });
 
     if (!invitation) throw new NotFoundException('Invitation not found');
@@ -698,11 +751,14 @@ export class InvitationService {
       throw new ForbiddenException('Undangan belum dipublikasikan');
     }
 
-    const guest = invitation.guests.find(
-      (g) =>
-        (g.accessToken && g.accessToken === guestSlug) ||
-        (invitation.isGuestPublic && g.slug === guestSlug),
-    );
+    const guest = await this.guestRepo.findOne({
+      where: [
+        { accessToken: guestSlug, invitation: { id: invitation.id } },
+        ...(invitation.isGuestPublic
+          ? [{ slug: guestSlug, invitation: { id: invitation.id } }]
+          : []),
+      ],
+    });
     if (!guest) throw new NotFoundException('Guest not found');
 
     // track first visit and increment visit count
@@ -735,17 +791,19 @@ export class InvitationService {
 
   async getLiveScreenFeed(
     slug: string,
-    options?: { preview?: boolean },
+    options?: { preview?: boolean; ifNoneMatch?: string },
   ): Promise<{
-    invitation: any;
-    recentCheckIns: Guest[];
-    recentWishes: GuestMessage[];
-    stats: {
+    notModified?: boolean;
+    etag: string;
+    invitation?: any;
+    recentCheckIns?: Guest[];
+    recentWishes?: GuestMessage[];
+    stats?: {
       totalGuests: number;
       totalCheckedIn: number;
       totalWishes: number;
     };
-    serverTime: string;
+    serverTime?: string;
   }> {
     this.logger.log(
       `Live screen feed requested slug=${slug} preview=${options?.preview ?? false}`,
@@ -764,6 +822,37 @@ export class InvitationService {
       throw new ForbiddenException(
         'Layar Sapa hanya aktif untuk undangan yang telah dipublikasikan',
       );
+    }
+
+    const [latestCheckIn, latestWish] = await Promise.all([
+      this.guestRepo.findOne({
+        where: {
+          invitation: { id: invitation.id },
+          checkedInAt: Not(IsNull()),
+        },
+        order: { checkedInAt: 'DESC' },
+        select: ['checkedInAt'],
+      }),
+      this.guestMessageRepo.findOne({
+        where: { invitation: { id: invitation.id }, status: 'published' },
+        order: { createdAt: 'DESC' },
+        select: ['createdAt'],
+      }),
+    ]);
+
+    const getTimestamp = (date: Date | string | null | undefined): number => {
+      if (!date) return 0;
+      if (typeof (date as any).getTime === 'function') {
+        return (date as any).getTime();
+      }
+      const parsed = new Date(date).getTime();
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const etag = `W/"${invitation.id}-${getTimestamp(invitation.updatedAt)}-${getTimestamp(latestCheckIn?.checkedInAt)}-${getTimestamp(latestWish?.createdAt)}"`;
+
+    if (options?.ifNoneMatch && options.ifNoneMatch === etag) {
+      return { notModified: true, etag };
     }
 
     const [
@@ -807,6 +896,7 @@ export class InvitationService {
     ]);
 
     return {
+      etag,
       invitation: this.buildInvitationResponse(invitation),
       recentCheckIns,
       recentWishes,
@@ -826,9 +916,9 @@ export class InvitationService {
     action: ActivityAction,
   ) {
     try {
-      // Increment Views
+      // Increment Views via In-Memory Buffer (SAT-75 Decouple Row-Lock)
       if (action === ActivityAction.VIEW) {
-        await this.invitationRepo.increment({ id: invitation.id }, 'views', 1);
+        this.recordBufferedView(invitation.id);
       }
 
       // Save Log

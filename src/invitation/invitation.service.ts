@@ -38,11 +38,20 @@ import {
 import { Not, IsNull } from 'typeorm';
 import { GuestMessage } from '../guest-messages/guest-message.entity';
 
+interface CachedPublicInvitation {
+  response: any;
+  invitation: Invitation;
+  expiresAt: number;
+}
+
 @Injectable()
 export class InvitationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(InvitationService.name);
   private viewCountBuffer: Map<number, number> = new Map();
   private flushTimer: NodeJS.Timeout | null = null;
+  private readonly publicInvitationCache: Map<string, CachedPublicInvitation> =
+    new Map();
+  private readonly CACHE_TTL_MS = 30000; // 30 seconds in-memory TTL
 
   constructor(
     @InjectRepository(Invitation)
@@ -109,6 +118,41 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
         this.viewCountBuffer.set(invitationId, existing + count);
       }
     }
+  }
+
+  getFromPublicCache(key: string): CachedPublicInvitation | null {
+    const cached = this.publicInvitationCache.get(key);
+    if (!cached) return null;
+    if (Date.now() > cached.expiresAt) {
+      this.publicInvitationCache.delete(key);
+      return null;
+    }
+    return cached;
+  }
+
+  setInPublicCache(key: string, invitation: Invitation, response: any): void {
+    if (this.publicInvitationCache.size > 2000) {
+      const oldestKey = this.publicInvitationCache.keys().next().value;
+      if (oldestKey) this.publicInvitationCache.delete(oldestKey);
+    }
+    this.publicInvitationCache.set(key, {
+      response,
+      invitation,
+      expiresAt: Date.now() + this.CACHE_TTL_MS,
+    });
+  }
+
+  invalidatePublicCache(slug?: string | null, subdomain?: string | null): void {
+    if (slug) {
+      this.publicInvitationCache.delete(`slug:${slug}`);
+    }
+    if (subdomain) {
+      this.publicInvitationCache.delete(`subdomain:${subdomain}`);
+    }
+  }
+
+  clearPublicCache(): void {
+    this.publicInvitationCache.clear();
   }
 
   async create(dto: CreateInvitationDto, user: User): Promise<Invitation> {
@@ -351,6 +395,9 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
     const invitation = await this.findOneById(id, user);
     this.logger.log(`Updating invitation invitationId=${id}`);
 
+    const oldSlug = invitation.slug;
+    const oldSubdomain = invitation.subdomain;
+
     // Custom music gating on update — by effective package tier, not template.
     if (dto.isCustomMusic === true) {
       const effectivePkg = dto.package ?? invitation.package;
@@ -438,6 +485,8 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
     );
 
     const saved = await this.invitationRepo.save(invitation);
+    this.invalidatePublicCache(oldSlug, oldSubdomain);
+    this.invalidatePublicCache(saved.slug, saved.subdomain);
     this.logger.log(
       `Invitation updated invitationId=${saved.id} slug=${saved.slug} isPublished=${saved.isPublished}`,
     );
@@ -469,6 +518,7 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
   async remove(id: number, user: User): Promise<void> {
     const invitation = await this.findOneById(id, user);
     await this.invitationRepo.remove(invitation);
+    this.invalidatePublicCache(invitation.slug, invitation.subdomain);
   }
 
   async findBySlugForOwner(slug: string, userId: number): Promise<any> {
@@ -489,6 +539,13 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
   }
 
   async findBySlug(slug: string): Promise<any> {
+    const cacheKey = `slug:${slug}`;
+    const cached = this.getFromPublicCache(cacheKey);
+    if (cached) {
+      void this.logActivity(cached.invitation, null, ActivityAction.VIEW);
+      return cached.response;
+    }
+
     this.logger.log(`Public invitation requested slug=${slug}`);
     const invitation = await this.invitationRepo.findOne({
       where: { slug },
@@ -515,7 +572,17 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
     // 3. Async Increment Views & Log Activity (Anonymous)
     void this.logActivity(invitation, null, ActivityAction.VIEW);
 
-    return this.buildInvitationResponse(invitation);
+    const response = this.buildInvitationResponse(invitation);
+    this.setInPublicCache(cacheKey, invitation, response);
+    if (invitation.subdomain) {
+      this.setInPublicCache(
+        `subdomain:${invitation.subdomain}`,
+        invitation,
+        response,
+      );
+    }
+
+    return response;
   }
 
   // Custom subdomain is a tier-Eksklusif feature. Reject other tiers.
@@ -586,6 +653,13 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
   // Mirrors findBySlug: published-only, logs a view.
   async findBySubdomain(input: string): Promise<any> {
     const normalized = normalizeSubdomain(input);
+    const cacheKey = `subdomain:${normalized}`;
+    const cached = this.getFromPublicCache(cacheKey);
+    if (cached) {
+      void this.logActivity(cached.invitation, null, ActivityAction.VIEW);
+      return cached.response;
+    }
+
     this.logger.log(`Public invitation requested subdomain=${normalized}`);
 
     const invitation = await this.invitationRepo.findOne({
@@ -612,7 +686,13 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
 
     void this.logActivity(invitation, null, ActivityAction.VIEW);
 
-    return this.buildInvitationResponse(invitation);
+    const response = this.buildInvitationResponse(invitation);
+    this.setInPublicCache(cacheKey, invitation, response);
+    if (invitation.slug) {
+      this.setInPublicCache(`slug:${invitation.slug}`, invitation, response);
+    }
+
+    return response;
   }
 
   // Templates read story.description / story.image; older rows stored

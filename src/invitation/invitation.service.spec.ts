@@ -800,6 +800,18 @@ describe('InvitationService', () => {
       expect(guestMessageRepo.find).not.toHaveBeenCalled();
       expect(guestRepo.count).not.toHaveBeenCalled();
       expect(guestMessageRepo.count).not.toHaveBeenCalled();
+
+      // Ensure select includes id to prevent TypeORM ER_BAD_FIELD_ERROR
+      expect(guestRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: ['id', 'checkedInAt'],
+        }),
+      );
+      expect(guestMessageRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: ['id', 'createdAt'],
+        }),
+      );
     });
 
     it('should return full data with computed etag when ifNoneMatch does not match (SAT-73)', async () => {

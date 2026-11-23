@@ -911,12 +911,12 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
           checkedInAt: Not(IsNull()),
         },
         order: { checkedInAt: 'DESC' },
-        select: ['checkedInAt'],
+        select: ['id', 'checkedInAt'],
       }),
       this.guestMessageRepo.findOne({
         where: { invitation: { id: invitation.id }, status: 'published' },
         order: { createdAt: 'DESC' },
-        select: ['createdAt'],
+        select: ['id', 'createdAt'],
       }),
     ]);
 

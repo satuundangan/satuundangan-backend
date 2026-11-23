@@ -4,6 +4,7 @@ import { GuestService } from './guest.service';
 import { Guest } from './guest.entity';
 import { Invitation } from '../../invitation/invitation.entity';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import * as xlsx from 'xlsx';
 
 describe('GuestService - CheckIn', () => {
   let service: GuestService;
@@ -102,6 +103,55 @@ describe('GuestService - CheckIn', () => {
       expect(result.guest.souvenirGiven).toBe(false);
       expect(guestRepo.save).not.toHaveBeenCalled();
     });
+
+    it('should return sessionName and sessionAccess and warn when activeSession does not match', async () => {
+      const mockGuest = {
+        id: 3,
+        name: 'Rahmat Hidayat',
+        group: 'VIP',
+        degree: '',
+        phoneNumber: '08123456780',
+        rsvpStatus: 'hadir',
+        sessionName: 'Resepsi Sesi 1',
+        sessionAccess: ['resepsi-1'],
+        checkedInAt: null,
+        tableNumber: 'Table 1',
+        souvenirGiven: false,
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.checkIn(3, 'Resepsi Sesi 2');
+
+      expect(result.success).toBe(true);
+      expect(result.isSessionMismatch).toBe(true);
+      expect(result.sessionWarning).toBe('Tamu terdaftar di Resepsi Sesi 1');
+      expect(result.guest.sessionName).toBe('Resepsi Sesi 1');
+      expect(result.guest.sessionAccess).toEqual(['resepsi-1']);
+      expect(guestRepo.save).toHaveBeenCalled();
+    });
+
+    it('should return isSessionMismatch: false when activeSession matches guest sessionName', async () => {
+      const mockGuest = {
+        id: 4,
+        name: 'Diana Putri',
+        group: 'Reguler',
+        sessionName: 'Resepsi Sesi 1',
+        sessionAccess: ['resepsi-1'],
+        checkedInAt: null,
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.checkIn(4, 'resepsi sesi 1');
+
+      expect(result.success).toBe(true);
+      expect(result.isSessionMismatch).toBe(false);
+      expect(result.sessionWarning).toBeUndefined();
+      expect(result.guest.sessionName).toBe('Resepsi Sesi 1');
+    });
   });
 
   describe('checkInByToken', () => {
@@ -192,6 +242,29 @@ describe('GuestService - CheckIn', () => {
         new NotFoundException('Tiket QR atau tamu tidak ditemukan'),
       );
     });
+
+    it('should detect session mismatch from token check-in with activeSession', async () => {
+      const mockGuest = {
+        id: 13,
+        name: 'Fandi',
+        accessToken: 'session-token-123',
+        sessionName: 'Resepsi Sesi 1',
+        sessionAccess: ['resepsi-1'],
+        checkedInAt: null,
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.checkInByToken(
+        JSON.stringify({ token: 'session-token-123', activeSession: 'Resepsi Sesi 2' }),
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.isSessionMismatch).toBe(true);
+      expect(result.sessionWarning).toBe('Tamu terdaftar di Resepsi Sesi 1');
+      expect(result.guest.sessionName).toBe('Resepsi Sesi 1');
+    });
   });
 
   describe('getCheckInSummary', () => {
@@ -236,6 +309,8 @@ describe('GuestService - CheckIn', () => {
           rsvpStatus: 'hadir',
           checkedInAt: checkInTime,
           tableNumber: 'Table 3',
+          sessionName: 'Resepsi Sesi 1',
+          sessionAccess: ['resepsi-1'],
           souvenirGiven: true,
           physicalGiftAmount: 150000,
           physicalGiftNotes: 'Parsel buah',
@@ -251,9 +326,38 @@ describe('GuestService - CheckIn', () => {
       expect(summary.recentCheckIns).toHaveLength(1);
       expect(summary.recentCheckIns[0].name).toBe('Tamu 1');
       expect(summary.recentCheckIns[0].tableNumber).toBe('Table 3');
+      expect(summary.recentCheckIns[0].sessionName).toBe('Resepsi Sesi 1');
+      expect(summary.recentCheckIns[0].sessionAccess).toEqual(['resepsi-1']);
       expect(summary.recentCheckIns[0].souvenirGiven).toBe(true);
       expect(summary.recentCheckIns[0].physicalGiftAmount).toBe(150000);
       expect(summary.recentCheckIns[0].physicalGiftNotes).toBe('Parsel buah');
+    });
+
+    it('should return reception stats matching check-in summary', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 5,
+        user: { id: 42 },
+      });
+
+      guestRepo.count
+        .mockResolvedValueOnce(50)
+        .mockResolvedValueOnce(10)
+        .mockResolvedValueOnce(5);
+
+      guestRepo.find.mockResolvedValue([
+        {
+          id: 2,
+          name: 'Tamu 2',
+          sessionName: 'Sesi 2',
+          sessionAccess: ['sesi-2'],
+          checkedInAt: new Date(),
+        },
+      ]);
+
+      const stats = await service.getReceptionStats(5, 42);
+      expect(stats.totalGuests).toBe(50);
+      expect(stats.recentCheckIns[0].sessionName).toBe('Sesi 2');
+      expect(stats.recentCheckIns[0].sessionAccess).toEqual(['sesi-2']);
     });
 
     it('should handle percentage 0 when totalGuests is 0', async () => {
@@ -362,6 +466,24 @@ describe('GuestService - CheckIn', () => {
       expect(result.physicalGiftNotes).toBe('Amplop merah dari keluarga besar');
       expect(guestRepo.save).toHaveBeenCalledWith(mockGuest);
     });
+
+    it('should update sessionName via updateReception', async () => {
+      const mockGuest: any = {
+        id: 1,
+        name: 'Guest 1',
+        sessionName: null,
+      };
+
+      guestRepo.findOne.mockResolvedValue(mockGuest);
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.updateReception(1, {
+        sessionName: 'Resepsi Sesi 2',
+      });
+
+      expect(result.sessionName).toBe('Resepsi Sesi 2');
+      expect(guestRepo.save).toHaveBeenCalledWith(mockGuest);
+    });
   });
 
   describe('Guest AccessToken & Privacy Link Generation', () => {
@@ -454,6 +576,78 @@ describe('GuestService - CheckIn', () => {
       expect(result.url).toContain('/inv/citra-rezky/private-token-888');
       expect(result.waLink).toContain('https://wa.me/6281234567890');
       expect(result.waLink).toContain(encodeURIComponent(result.url));
+    });
+
+    it('should create guest with sessionName and sessionAccess', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 7,
+        user: { id: 10 },
+      });
+
+      guestRepo.create.mockImplementation((data: any) => ({
+        id: 51,
+        ...data,
+      }));
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const guest = await service.create(
+        {
+          name: 'Rian Dwi',
+          invitationId: 7,
+          slug: 'rian-dwi',
+          sessionName: 'Akad & Resepsi Sesi 1',
+          sessionAccess: ['akad', 'resepsi-1'],
+        },
+        10,
+      );
+
+      expect(guestRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Rian Dwi',
+          sessionName: 'Akad & Resepsi Sesi 1',
+          sessionAccess: ['akad', 'resepsi-1'],
+        }),
+      );
+      expect(guest.sessionName).toBe('Akad & Resepsi Sesi 1');
+      expect(guest.sessionAccess).toEqual(['akad', 'resepsi-1']);
+    });
+  });
+
+  describe('importFromExcel', () => {
+    it('should parse Sesi and No. Meja columns from Excel file and assign to guest', async () => {
+      invitationRepo.findOne.mockResolvedValue({
+        id: 7,
+        user: { id: 10 },
+      });
+
+      guestRepo.findOne.mockResolvedValue(null);
+      guestRepo.create.mockImplementation((data: any) => data);
+      guestRepo.save.mockImplementation(async (guests: any) => guests);
+
+      const wb = xlsx.utils.book_new();
+      const ws = xlsx.utils.json_to_sheet([
+        {
+          Nama: 'Ahmad Fauzi',
+          'ID Undangan': 7,
+          Sesi: 'Resepsi Sesi 2',
+          'No. Meja': 'VIP-09',
+          Kategori: 'VIP',
+        },
+      ]);
+      xlsx.utils.book_append_sheet(wb, ws, 'Sheet1');
+      const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+      const result = await service.importFromExcel(buffer, 10, 7);
+
+      expect(result).toHaveLength(1);
+      expect(guestRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Ahmad Fauzi',
+          sessionName: 'Resepsi Sesi 2',
+          tableNumber: 'VIP-09',
+          group: 'VIP',
+        }),
+      );
     });
   });
 });

@@ -66,6 +66,15 @@ export class CreateGuestDto {
   tableNumber?: string;
 
   @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(100)
+  sessionName?: string;
+
+  @IsOptional()
+  sessionAccess?: string[];
+
+  @IsOptional()
   souvenirGiven?: boolean;
 
   @IsOptional()
@@ -102,4 +111,10 @@ export class UpdateReceptionDto {
   @IsString()
   @MaxLength(100)
   tableNumber?: string;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(100)
+  sessionName?: string;
 }

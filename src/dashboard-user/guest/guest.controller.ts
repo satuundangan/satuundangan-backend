@@ -122,8 +122,11 @@ export class GuestController {
   }
 
   @Post(':id/check-in')
-  checkIn(@Param('id') id: number) {
-    return this.guestService.checkIn(id);
+  checkIn(
+    @Param('id') id: number,
+    @Body('activeSession') activeSession?: string,
+  ) {
+    return this.guestService.checkIn(id, activeSession);
   }
 
   @Patch(':id/reception')
@@ -139,8 +142,15 @@ export class GuestController {
   }
 
   @Post('check-in-token')
-  checkInByToken(@Body('token') token: string, @Body() body?: any) {
-    return this.guestService.checkInByToken(token ?? body?.token ?? body?.accessToken ?? body);
+  checkInByToken(
+    @Body('token') token: string,
+    @Body('activeSession') activeSession?: string,
+    @Body() body?: any,
+  ) {
+    return this.guestService.checkInByToken(
+      token ?? body?.token ?? body?.accessToken ?? body,
+      activeSession ?? body?.activeSession,
+    );
   }
 
   @Get('invitation/:invitationId/check-in-summary')

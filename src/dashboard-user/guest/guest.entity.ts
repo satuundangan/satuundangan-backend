@@ -65,6 +65,12 @@ export class Guest {
   @Column({ name: 'table_number', type: 'varchar', length: 100, nullable: true })
   tableNumber: string | null;
 
+  @Column({ name: 'session_name', type: 'varchar', length: 100, nullable: true })
+  sessionName: string | null;
+
+  @Column({ name: 'session_access', type: 'simple-json', nullable: true })
+  sessionAccess: string[] | null;
+
   @Column({ name: 'souvenir_given', type: 'boolean', default: false })
   souvenirGiven: boolean;
 

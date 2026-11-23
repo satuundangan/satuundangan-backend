@@ -60,6 +60,8 @@ export class GuestService {
       pax: dto.pax ?? 1,
       isPhysical: dto.isPhysical ?? false,
       tableNumber: dto.tableNumber ?? null,
+      sessionName: dto.sessionName ?? null,
+      sessionAccess: dto.sessionAccess ?? null,
       souvenirGiven: dto.souvenirGiven ?? false,
       physicalGiftAmount: dto.physicalGiftAmount ?? null,
       physicalGiftNotes: dto.physicalGiftNotes ?? null,
@@ -270,6 +272,33 @@ export class GuestService {
       const rawPhysical = (getVal(['Fisik', 'Undangan Fisik', 'fisik', 'isPhysical']) || '').toString().toLowerCase();
       const isPhysical = rawPhysical === 'true' || rawPhysical === 'ya' || rawPhysical === '1' || rawPhysical === 'yes';
 
+      const sessionName =
+        (
+          getVal([
+            'Sesi',
+            'Session',
+            'sesi',
+            'session',
+            'Nama Sesi',
+            'Sesi Acara',
+          ]) || ''
+        )
+          .toString()
+          .trim() || null;
+      const tableNumber =
+        (
+          getVal([
+            'No. Meja',
+            'Table Number',
+            'tableNumber',
+            'meja',
+            'Meja',
+            'table',
+          ]) || ''
+        )
+          .toString()
+          .trim() || null;
+
       const guest = this.guestRepo.create({
         name,
         degree,
@@ -281,6 +310,8 @@ export class GuestService {
         rsvpStatus,
         pax,
         isPhysical,
+        tableNumber,
+        sessionName,
         invitation,
       });
 
@@ -392,17 +423,40 @@ export class GuestService {
     return { url, waLink, message };
   }
 
-  async checkIn(id: number) {
+  async checkIn(id: number, activeSession?: string) {
     const guest = await this.guestRepo.findOne({
       where: { id: Number(id) },
       relations: ['invitation'],
     });
     if (!guest) throw new NotFoundException('Guest not found');
 
-    return this.processCheckIn(guest);
+    return this.processCheckIn(guest, activeSession);
   }
 
-  async checkInByToken(tokenOrUrlOrPayload: string | any) {
+  async checkInByToken(tokenOrUrlOrPayload: string | any, activeSession?: string) {
+    let resolvedActiveSession = activeSession;
+    if (
+      !resolvedActiveSession &&
+      typeof tokenOrUrlOrPayload === 'object' &&
+      tokenOrUrlOrPayload !== null
+    ) {
+      resolvedActiveSession = tokenOrUrlOrPayload.activeSession;
+    }
+    if (
+      !resolvedActiveSession &&
+      typeof tokenOrUrlOrPayload === 'string' &&
+      tokenOrUrlOrPayload.trim().startsWith('{')
+    ) {
+      try {
+        const parsed = JSON.parse(tokenOrUrlOrPayload.trim());
+        if (parsed && typeof parsed === 'object') {
+          resolvedActiveSession = parsed.activeSession;
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+
     const token = this.extractToken(tokenOrUrlOrPayload);
     if (!token) {
       throw new NotFoundException('Tiket QR atau tamu tidak ditemukan');
@@ -417,7 +471,7 @@ export class GuestService {
       throw new NotFoundException('Tiket QR atau tamu tidak ditemukan');
     }
 
-    return this.processCheckIn(guest);
+    return this.processCheckIn(guest, resolvedActiveSession);
   }
 
   async updateReception(
@@ -427,6 +481,7 @@ export class GuestService {
       physicalGiftAmount?: number;
       physicalGiftNotes?: string;
       tableNumber?: string;
+      sessionName?: string;
     },
   ): Promise<Guest> {
     const guest = await this.guestRepo.findOne({
@@ -454,7 +509,15 @@ export class GuestService {
       guest.tableNumber = dto.tableNumber;
     }
 
+    if (dto.sessionName !== undefined) {
+      guest.sessionName = dto.sessionName;
+    }
+
     return this.guestRepo.save(guest);
+  }
+
+  async getReceptionStats(invitationId: number, userId: number) {
+    return this.getCheckInSummary(invitationId, userId);
   }
 
   async getCheckInSummary(invitationId: number, userId: number) {
@@ -515,6 +578,8 @@ export class GuestService {
       rsvpStatus: guest.rsvpStatus,
       checkedInAt: guest.checkedInAt,
       tableNumber: guest.tableNumber,
+      sessionName: guest.sessionName ?? null,
+      sessionAccess: guest.sessionAccess ?? null,
       souvenirGiven: guest.souvenirGiven,
       physicalGiftAmount: guest.physicalGiftAmount,
       physicalGiftNotes: guest.physicalGiftNotes,
@@ -529,13 +594,27 @@ export class GuestService {
     };
   }
 
-  private async processCheckIn(guest: Guest) {
+  private async processCheckIn(guest: Guest, activeSession?: string) {
+    const isMismatch = Boolean(
+      activeSession &&
+        guest.sessionName &&
+        guest.sessionName.toLowerCase() !== activeSession.toLowerCase(),
+    );
+
+    const sessionExtra = {
+      isSessionMismatch: isMismatch,
+      ...(isMismatch
+        ? { sessionWarning: `Tamu terdaftar di ${guest.sessionName}` }
+        : {}),
+    };
+
     if (guest.checkedInAt) {
       return {
         success: true,
         alreadyCheckedIn: true,
         message: 'Tamu sudah pernah check-in sebelumnya',
         check_in_time: guest.checkedInAt,
+        ...sessionExtra,
         guest: {
           id: guest.id,
           name: guest.name,
@@ -545,6 +624,8 @@ export class GuestService {
           rsvpStatus: guest.rsvpStatus,
           checkedInAt: guest.checkedInAt,
           tableNumber: guest.tableNumber,
+          sessionName: guest.sessionName ?? null,
+          sessionAccess: guest.sessionAccess ?? null,
           souvenirGiven: guest.souvenirGiven,
           physicalGiftAmount: guest.physicalGiftAmount,
           physicalGiftNotes: guest.physicalGiftNotes,
@@ -560,6 +641,7 @@ export class GuestService {
       alreadyCheckedIn: false,
       message: `Tamu ${guest.name} berhasil Check-in`,
       check_in_time: guest.checkedInAt,
+      ...sessionExtra,
       guest: {
         id: guest.id,
         name: guest.name,
@@ -569,6 +651,8 @@ export class GuestService {
         rsvpStatus: guest.rsvpStatus,
         checkedInAt: guest.checkedInAt,
         tableNumber: guest.tableNumber,
+        sessionName: guest.sessionName ?? null,
+        sessionAccess: guest.sessionAccess ?? null,
         souvenirGiven: guest.souvenirGiven,
         physicalGiftAmount: guest.physicalGiftAmount,
         physicalGiftNotes: guest.physicalGiftNotes,

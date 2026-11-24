@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { GuestService } from './guest.service';
 import { Guest } from './guest.entity';
 import { Invitation } from '../../invitation/invitation.entity';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import * as xlsx from 'xlsx';
 
 describe('GuestService - CheckIn', () => {
@@ -648,6 +648,79 @@ describe('GuestService - CheckIn', () => {
           group: 'VIP',
         }),
       );
+    });
+  });
+
+  describe('createWalkInAndCheckIn (SAT-81)', () => {
+    it('should throw NotFoundException if invitation is not found or not owned by user', async () => {
+      invitationRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.createWalkInAndCheckIn(999, { name: 'Tamu Dadakan' }, 42),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if guest name is empty', async () => {
+      invitationRepo.findOne.mockResolvedValue({ id: 1, user: { id: 42 } });
+      await expect(
+        service.createWalkInAndCheckIn(1, { name: '   ' }, 42),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should successfully create walk-in guest with checkedInAt and return check-in payload', async () => {
+      invitationRepo.findOne.mockResolvedValue({ id: 1, user: { id: 42 } });
+      guestRepo.findOne.mockResolvedValue(null);
+      guestRepo.create.mockImplementation((data: any) => ({
+        id: 77,
+        ...data,
+      }));
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.createWalkInAndCheckIn(
+        1,
+        {
+          name: 'Pak RT & Istri',
+          pax: 2,
+          group: 'Tokoh Masyarakat',
+          sessionName: 'Resepsi Sesi 1',
+          tableNumber: 'Meja 5',
+          souvenirGiven: true,
+          phoneNumber: '081234567890',
+        },
+        42,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.isWalkIn).toBe(true);
+      expect(result.alreadyCheckedIn).toBe(false);
+      expect(result.guest.name).toBe('Pak RT & Istri');
+      expect(result.guest.rsvpStatus).toBe('hadir');
+      expect(result.guest.pax).toBe(2);
+      expect(result.guest.checkedInAt).toBeDefined();
+      expect(result.guest.group).toBe('Tokoh Masyarakat');
+      expect(result.guest.sessionName).toBe('Resepsi Sesi 1');
+      expect(result.guest.tableNumber).toBe('Meja 5');
+      expect(result.guest.souvenirGiven).toBe(true);
+      expect(result.guest.accessToken).toBeDefined();
+    });
+
+    it('should default group to Walk-in / On-the-spot and pax to 1 if not specified', async () => {
+      invitationRepo.findOne.mockResolvedValue({ id: 1, user: { id: 42 } });
+      guestRepo.findOne.mockResolvedValue(null);
+      guestRepo.create.mockImplementation((data: any) => ({
+        id: 78,
+        ...data,
+      }));
+      guestRepo.save.mockImplementation(async (g: any) => g);
+
+      const result = await service.createWalkInAndCheckIn(
+        1,
+        { name: 'Keluarga Budi' },
+        42,
+      );
+
+      expect(result.guest.group).toBe('Walk-in / On-the-spot');
+      expect(result.guest.pax).toBe(1);
+      expect(result.guest.souvenirGiven).toBe(false);
     });
   });
 });

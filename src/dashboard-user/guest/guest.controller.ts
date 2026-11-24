@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { GuestService } from './guest.service';
-import { CreateGuestDto, UpdateReceptionDto } from './dto/create-guest.dto';
+import { CreateGuestDto, UpdateReceptionDto, CreateWalkInGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
 import { ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -150,6 +150,23 @@ export class GuestController {
     return this.guestService.checkInByToken(
       token ?? body?.token ?? body?.accessToken ?? body,
       activeSession ?? body?.activeSession,
+    );
+  }
+
+  @Post('invitation/:invitationId/walk-in')
+  @ApiOperation({
+    summary:
+      'Tambah tamu walk-in / on-the-spot dan langsung check-in di meja resepsi (SAT-81)',
+  })
+  createWalkIn(
+    @Param('invitationId') invitationId: number,
+    @Body() body: CreateWalkInGuestDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.guestService.createWalkInAndCheckIn(
+      Number(invitationId),
+      body,
+      user.id,
     );
   }
 

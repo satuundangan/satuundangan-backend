@@ -118,3 +118,52 @@ export class UpdateReceptionDto {
   @MaxLength(100)
   sessionName?: string;
 }
+
+export class CreateWalkInGuestDto {
+  @IsNotEmpty()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(255)
+  name: string;
+
+  @IsOptional()
+  @IsNumber()
+  pax?: number;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(255)
+  phoneNumber?: string;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(255)
+  group?: string;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(100)
+  sessionName?: string;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(100)
+  tableNumber?: string;
+
+  @IsOptional()
+  souvenirGiven?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  physicalGiftAmount?: number;
+
+  @IsOptional()
+  @Transform(toStr)
+  @IsString()
+  @MaxLength(255)
+  physicalGiftNotes?: string;
+}

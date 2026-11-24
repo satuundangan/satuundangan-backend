@@ -71,6 +71,90 @@ export class GuestService {
     return this.guestRepo.save(guest);
   }
 
+  async createWalkInAndCheckIn(
+    invitationId: number,
+    dto: {
+      name: string;
+      pax?: number;
+      group?: string;
+      sessionName?: string;
+      tableNumber?: string;
+      souvenirGiven?: boolean;
+      physicalGiftAmount?: number;
+      physicalGiftNotes?: string;
+      phoneNumber?: string;
+    },
+    userId: number,
+  ) {
+    const invitation = await this.invitationRepo.findOne({
+      where: { id: Number(invitationId), user: { id: Number(userId) } },
+    });
+
+    if (!invitation) {
+      throw new NotFoundException(
+        `Invitation with ID ${invitationId} not found or not owned by you.`,
+      );
+    }
+
+    const name = String(dto.name || '').trim();
+    if (!name) {
+      throw new BadRequestException('Nama tamu wajib diisi.');
+    }
+
+    const slug = await this.generateUniqueSlug(name, Number(invitationId));
+    const now = new Date();
+
+    const guest = this.guestRepo.create({
+      name,
+      phoneNumber: restoreLeadingZero(dto.phoneNumber),
+      slug,
+      accessToken: this.createAccessToken(),
+      group:
+        dto.group && dto.group.trim()
+          ? dto.group.trim()
+          : 'Walk-in / On-the-spot',
+      rsvpStatus: 'hadir',
+      pax: Math.max(1, Number(dto.pax) || 1),
+      tableNumber: dto.tableNumber ?? null,
+      sessionName: dto.sessionName ?? null,
+      souvenirGiven: dto.souvenirGiven ?? false,
+      souvenirGivenAt: dto.souvenirGiven ? now : null,
+      physicalGiftAmount: dto.physicalGiftAmount ?? null,
+      physicalGiftNotes: dto.physicalGiftNotes ?? null,
+      checkedInAt: now,
+      statusSend: 'sent',
+      invitation,
+    });
+
+    const savedGuest = await this.guestRepo.save(guest);
+
+    return {
+      success: true,
+      alreadyCheckedIn: false,
+      isWalkIn: true,
+      message: `Tamu Walk-in ${savedGuest.name} berhasil ditambahkan dan check-in`,
+      check_in_time: savedGuest.checkedInAt,
+      guest: {
+        id: savedGuest.id,
+        name: savedGuest.name,
+        group: savedGuest.group,
+        degree: savedGuest.degree,
+        phoneNumber: savedGuest.phoneNumber,
+        rsvpStatus: savedGuest.rsvpStatus,
+        pax: savedGuest.pax,
+        checkedInAt: savedGuest.checkedInAt,
+        tableNumber: savedGuest.tableNumber,
+        sessionName: savedGuest.sessionName ?? null,
+        sessionAccess: savedGuest.sessionAccess ?? null,
+        souvenirGiven: savedGuest.souvenirGiven,
+        physicalGiftAmount: savedGuest.physicalGiftAmount,
+        physicalGiftNotes: savedGuest.physicalGiftNotes,
+        accessToken: savedGuest.accessToken,
+        slug: savedGuest.slug,
+      },
+    };
+  }
+
   async findAllByInvitation(
     invitationId: number,
     userId: number,

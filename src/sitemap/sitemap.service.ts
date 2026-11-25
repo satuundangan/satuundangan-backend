@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Article } from '../article/article.entity';
 
 const SITEMAP_ORIGIN =
-  process.env.SITEMAP_ORIGIN || 'https://www.satuundangan.id';
+  process.env.SITEMAP_ORIGIN || 'https://satuundangan.id';
 
 const STATIC_ROUTES = [
   { path: '/', priority: '1.0', changefreq: 'weekly' },

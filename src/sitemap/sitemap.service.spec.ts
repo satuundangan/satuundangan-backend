@@ -51,7 +51,7 @@ describe('SitemapService', () => {
   it('lists the homepage and every static public route, excluding redirect-only routes', async () => {
     const xml = await service.generate();
 
-    expect(xml).toContain('<loc>https://www.satuundangan.id/</loc>');
+    expect(xml).toContain('<loc>https://satuundangan.id/</loc>');
     for (const path of [
       '/blog',
       '/templates',
@@ -60,7 +60,7 @@ describe('SitemapService', () => {
       '/terms',
       '/privacy',
     ]) {
-      expect(xml).toContain(`<loc>https://www.satuundangan.id${path}</loc>`);
+      expect(xml).toContain(`<loc>https://satuundangan.id${path}</loc>`);
     }
     expect(xml).not.toContain('/syarat-ketentuan');
     expect(xml).not.toContain('/kebijakan-privasi');
@@ -77,7 +77,7 @@ describe('SitemapService', () => {
 
     const xml = await service.generate();
 
-    expect(xml).toContain('<loc>https://www.satuundangan.id/blog/foo</loc>');
+    expect(xml).toContain('<loc>https://satuundangan.id/blog/foo</loc>');
     expect(xml).toContain('<lastmod>2026-03-04</lastmod>');
   });
 
@@ -98,7 +98,7 @@ describe('SitemapService', () => {
 
     const xml = await service.generate();
     const entryMatch = xml.match(
-      /<loc>https:\/\/www\.satuundangan\.id\/blog\/baz<\/loc>[\s\S]*?<\/url>/,
+      /<loc>https:\/\/satuundangan\.id\/blog\/baz<\/loc>[\s\S]*?<\/url>/,
     );
 
     expect(entryMatch).not.toBeNull();

@@ -26,6 +26,7 @@ import { LeadModule } from './lead/lead.module';
 import { SupportTicketModule } from './support-ticket/support-ticket.module';
 import { EventWatchModule } from './event-watch/event-watch.module';
 import { GiftRegistryModule } from './gift-registry/gift-registry.module';
+import { GuestPhotosModule } from './guest-photos/guest-photos.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -70,6 +71,7 @@ import { AppService } from './app.service';
     SupportTicketModule,
     EventWatchModule,
     GiftRegistryModule,
+    GuestPhotosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -82,11 +82,15 @@ export class GuestMessagesService {
       });
     }
 
+    const rawSong = typeof dto.songRequest === 'string' ? dto.songRequest.trim() : '';
+    const songRequest = rawSong ? xss.filterXSS(rawSong).slice(0, 180) : null;
+
     const guestMessage = this.guestMessageRepo.create({
       guestName: xss.filterXSS(dto.guestName),
       message: xss.filterXSS(dto.message),
       rsvpStatus: dto.rsvpStatus,
       totalGuests: dto.totalGuests,
+      songRequest,
       status: 'published',
       invitation,
       guest: guest ?? null,
@@ -319,5 +323,59 @@ export class GuestMessagesService {
 
     // PENTING: Jangan ubah guest.rsvpStatus jika pesan dihapus (pertahankan data RSVP tamu).
     await this.guestMessageRepo.remove(message);
+  }
+
+  async getSongRequestsByInvitationId(
+    invitationId: number,
+    user: { id: number; isAdmin: boolean },
+  ) {
+    await this.verifyOwnerOrAdmin(invitationId, user);
+
+    const rows = await this.guestMessageRepo.find({
+      where: { invitation: { id: invitationId } },
+      order: { createdAt: 'DESC' },
+    });
+
+    const items = rows
+      .filter((r) => Boolean(r.songRequest && r.songRequest.trim()))
+      .map((r) => ({
+        id: r.id,
+        guestName: r.guestName,
+        songRequest: r.songRequest!.trim(),
+        createdAt: r.createdAt,
+      }));
+
+    const groupedMap = new Map<
+      string,
+      { songRequest: string; count: number; guests: string[] }
+    >();
+
+    for (const item of items) {
+      const key = item.songRequest.toLowerCase();
+      const existing = groupedMap.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (item.guestName && !existing.guests.includes(item.guestName)) {
+          existing.guests.push(item.guestName);
+        }
+      } else {
+        groupedMap.set(key, {
+          songRequest: item.songRequest,
+          count: 1,
+          guests: item.guestName ? [item.guestName] : [],
+        });
+      }
+    }
+
+    const songs = Array.from(groupedMap.values()).sort(
+      (a, b) => b.count - a.count || a.songRequest.localeCompare(b.songRequest),
+    );
+
+    return {
+      invitationId,
+      totalRequests: items.length,
+      songs,
+      items,
+    };
   }
 }

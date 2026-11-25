@@ -272,6 +272,22 @@ export class InvitationDesignSettingsDto {
   @IsString()
   @StoredUrl()
   qrisImageUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Konfigurasi Mini Trivia / Love Story Quiz pengantin (SAT-70)',
+  })
+  @IsOptional()
+  @IsObject()
+  triviaQuiz?: {
+    enabled?: boolean;
+    title?: string;
+    questions?: Array<{
+      question: string;
+      options: string[];
+      correctIndex: number;
+      funFact?: string;
+    }>;
+  };
 }
 
 export class CreateInvitationDto {

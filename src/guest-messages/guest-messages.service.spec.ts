@@ -211,6 +211,7 @@ describe('GuestMessagesService Drilldown & Moderation', () => {
   const invitationRepo = { findOne: jest.fn() };
   const guestRepo = { find: jest.fn() };
   const guestMessageRepo = {
+    create: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn(),
@@ -387,6 +388,52 @@ describe('GuestMessagesService Drilldown & Moderation', () => {
       expect(mockQb.andWhere).toHaveBeenCalledWith('invitation.id = :invitationId', { invitationId: 10 });
       expect(mockQb.andWhere).toHaveBeenCalledWith('gm.status = :status', { status: 'flagged_spam' });
       expect(res.total).toBe(1);
+    });
+  });
+
+  describe('songRequest & getSongRequestsByInvitationId (SAT-70)', () => {
+    it('sanitizes and stores optional songRequest when creating a guest message', async () => {
+      invitationRepo.findOne.mockResolvedValue({ id: 10, isPublished: true });
+      guestMessageRepo.create.mockImplementation((dto) => dto);
+      guestMessageRepo.save.mockImplementation(async (e) => ({ id: 99, ...e }));
+
+      const res = await service.create({
+        invitationId: 10,
+        guestName: 'Raka',
+        message: 'Happy wedding!',
+        rsvpStatus: 'hadir',
+        totalGuests: 2,
+        songRequest: '  Perfect - Ed Sheeran  ',
+      });
+
+      expect(res.songRequest).toBe('Perfect - Ed Sheeran');
+    });
+
+    it('groups and sorts song requests by frequency for Band/DJ export', async () => {
+      invitationRepo.findOne.mockResolvedValue({ id: 10, user: { id: 50 } });
+      guestMessageRepo.find.mockResolvedValue([
+        { id: 1, guestName: 'Andi', songRequest: 'Perfect - Ed Sheeran', createdAt: new Date('2026-11-01T10:00:00Z') },
+        { id: 2, guestName: 'Budi', songRequest: 'perfect - ed sheeran', createdAt: new Date('2026-11-01T11:00:00Z') },
+        { id: 3, guestName: 'Sinta', songRequest: 'Lagu Pernikahan Kita', createdAt: new Date('2026-11-01T12:00:00Z') },
+        { id: 4, guestName: 'Dina', songRequest: null, createdAt: new Date('2026-11-01T13:00:00Z') },
+      ]);
+
+      const res = await service.getSongRequestsByInvitationId(10, {
+        id: 50,
+        isAdmin: false,
+      });
+
+      expect(res.totalRequests).toBe(3);
+      expect(res.songs[0]).toEqual({
+        songRequest: 'Perfect - Ed Sheeran',
+        count: 2,
+        guests: ['Andi', 'Budi'],
+      });
+      expect(res.songs[1]).toEqual({
+        songRequest: 'Lagu Pernikahan Kita',
+        count: 1,
+        guests: ['Sinta'],
+      });
     });
   });
 });

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as crypto from 'crypto';
 import { WeddingPlanner } from './wedding-planner.entity';
 import { User } from '../user/user.entity';
 import {
@@ -141,5 +142,58 @@ export class WeddingPlannerService {
     planner.rundown = DEFAULT_RUNDOWN;
 
     return await this.plannerRepo.save(planner);
+  }
+
+  /**
+   * Generate or retrieve a shareable token for Wedding Organizer (WO) & Core Family (SAT-72).
+   */
+  async generateOrGetRundownShareToken(userId: number) {
+    const planner = await this.getOrCreatePlanner(userId);
+    if (!planner.rundownShareToken) {
+      planner.rundownShareToken = crypto.randomBytes(12).toString('hex');
+      await this.plannerRepo.save(planner);
+    }
+    return {
+      rundownShareToken: planner.rundownShareToken,
+    };
+  }
+
+  /**
+   * Public read-only Technical Rundown & Vendor PIC Directory for WO / Core Family.
+   * Deliberately omits budget/financial figures.
+   */
+  async getPublicRundownByToken(token: string) {
+    const cleanToken = (token || '').trim();
+    if (!cleanToken) {
+      throw new NotFoundException('Rundown teknis tidak ditemukan');
+    }
+
+    const planner = await this.plannerRepo.findOne({
+      where: { rundownShareToken: cleanToken },
+    });
+    if (!planner) {
+      throw new NotFoundException('Tautan rundown teknis tidak valid atau sudah tidak aktif');
+    }
+
+    const sanitizedVendors = Array.isArray(planner.vendors)
+      ? planner.vendors.map((v) => ({
+          id: v.id,
+          category: v.category,
+          name: v.name,
+          picName: v.picName || '',
+          phoneNumber: v.phoneNumber || '',
+          instagram: v.instagram || '',
+          notes: v.notes || '',
+        }))
+      : [];
+
+    return {
+      weddingDate: planner.weddingDate,
+      weddingConcept: planner.weddingConcept,
+      estimatedGuests: planner.estimatedGuests,
+      rundown: Array.isArray(planner.rundown) ? planner.rundown : [],
+      vendors: sanitizedVendors,
+      updatedAt: planner.updatedAt,
+    };
   }
 }

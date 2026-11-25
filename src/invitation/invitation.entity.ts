@@ -193,6 +193,16 @@ export class Invitation {
     hideRundown?: boolean;
     dressCodeColors?: string[];
     qrisImageUrl?: string;
+    triviaQuiz?: {
+      enabled?: boolean;
+      title?: string;
+      questions?: Array<{
+        question: string;
+        options: string[];
+        correctIndex: number;
+        funFact?: string;
+      }>;
+    };
   } | null;
 
   @Column({ default: 'default' })

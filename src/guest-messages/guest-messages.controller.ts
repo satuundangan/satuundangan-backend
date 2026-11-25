@@ -108,6 +108,25 @@ export class GuestMessagesController {
     };
   }
 
+  @Get('guest-messages/song-requests/:invitationId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get aggregated guest song requests for an invitation' })
+  @ApiParam({ name: 'invitationId', type: Number, example: 1 })
+  async getSongRequestsByInvitation(
+    @CurrentUser() user: { id: number; email: string; isAdmin: boolean },
+    @Param('invitationId', ParseIntPipe) invitationId: number,
+  ) {
+    const data = await this.guestMessagesService.getSongRequestsByInvitationId(
+      invitationId,
+      user,
+    );
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get('admin/guest-messages')
   @UseGuards(JwtAuthGuard, AdminGuard)
   @ApiBearerAuth()

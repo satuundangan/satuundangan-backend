@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsInt, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString, IsInt, IsOptional, MaxLength } from 'class-validator';
 
 export class CreateGuestMessageDto {
   @IsNotEmpty()
@@ -27,4 +27,9 @@ export class CreateGuestMessageDto {
   @IsOptional()
   @IsString()
   guestSlug?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  songRequest?: string;
 }

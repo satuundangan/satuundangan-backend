@@ -81,6 +81,9 @@ export class WeddingPlanner {
     notes?: string;
   }>;
 
+  @Column({ type: 'varchar', length: 64, nullable: true, unique: true })
+  rundownShareToken: string | null;
+
   @CreateDateColumn({ type: 'datetime' })
   createdAt: Date;
 

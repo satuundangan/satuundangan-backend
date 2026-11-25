@@ -32,6 +32,9 @@ export class GuestMessage {
   @Column('int')
   totalGuests: number;
 
+  @Column({ type: 'varchar', length: 180, nullable: true })
+  songRequest: string | null;
+
   @Column({ default: 'published' })
   status: string;
 

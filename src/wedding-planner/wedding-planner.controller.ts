@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Param,
   Body,
   UseGuards,
 } from '@nestjs/common';
@@ -13,19 +14,27 @@ import { User } from '../user/user.entity';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('Wedding Planner')
-@ApiBearerAuth()
 @Controller('wedding-planner')
-@UseGuards(JwtAuthGuard)
 export class WeddingPlannerController {
   constructor(private readonly plannerService: WeddingPlannerService) {}
 
+  @Get('public/rundown/:token')
+  @ApiOperation({ summary: 'Public read-only technical rundown for WO & core family (SAT-72)' })
+  getPublicRundown(@Param('token') token: string) {
+    return this.plannerService.getPublicRundownByToken(token);
+  }
+
   @Get()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current user wedding planner' })
   getPlanner(@CurrentUser() user: User) {
     return this.plannerService.getPlanner(user.id);
   }
 
   @Post('unlock')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Unlock wedding planner via IG follow & share' })
   unlockAccess(
     @CurrentUser() user: User,
@@ -35,6 +44,8 @@ export class WeddingPlannerController {
   }
 
   @Put()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Update wedding planner state' })
   updatePlanner(
     @CurrentUser() user: User,
@@ -44,8 +55,18 @@ export class WeddingPlannerController {
   }
 
   @Post('reset')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Reset planner to curated defaults' })
   resetDefaults(@CurrentUser() user: User) {
     return this.plannerService.resetToDefaults(user.id);
+  }
+
+  @Post('rundown-share')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Generate or retrieve shareable WO technical rundown token (SAT-72)' })
+  generateRundownShareToken(@CurrentUser() user: User) {
+    return this.plannerService.generateOrGetRundownShareToken(user.id);
   }
 }

@@ -283,6 +283,59 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
       relations: ['templateDesign', 'payments'],
     });
 
+    const invitationIds = raw_data.map((inv) => inv.id).filter(Boolean);
+    const guestStatsMap: Record<number, { total: number; confirmed: number }> = {};
+    const wishStatsMap: Record<number, number> = {};
+
+    if (invitationIds.length > 0 && typeof this.guestRepo?.createQueryBuilder === 'function') {
+      try {
+        const guestStats = await this.guestRepo
+          .createQueryBuilder('g')
+          .select('g.invitation_id', 'invitationId')
+          .addSelect('COUNT(*)', 'total')
+          .addSelect(
+            "SUM(CASE WHEN LOWER(g.rsvp_status) IN ('hadir', 'attending', 'yes') THEN 1 ELSE 0 END)",
+            'confirmed',
+          )
+          .where('g.invitation_id IN (:...invitationIds)', { invitationIds })
+          .groupBy('g.invitation_id')
+          .getRawMany();
+
+        if (Array.isArray(guestStats)) {
+          guestStats.forEach((st) => {
+            const invId = Number(st.invitationId);
+            guestStatsMap[invId] = {
+              total: Number(st.total || 0),
+              confirmed: Number(st.confirmed || 0),
+            };
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to aggregate guest stats for user ${userId}: ${err.message}`);
+      }
+    }
+
+    if (invitationIds.length > 0 && typeof this.guestMessageRepo?.createQueryBuilder === 'function') {
+      try {
+        const wishStats = await this.guestMessageRepo
+          .createQueryBuilder('gm')
+          .select('gm.invitationId', 'invitationId')
+          .addSelect('COUNT(*)', 'total')
+          .where('gm.invitationId IN (:...invitationIds)', { invitationIds })
+          .groupBy('gm.invitationId')
+          .getRawMany();
+
+        if (Array.isArray(wishStats)) {
+          wishStats.forEach((ws) => {
+            const invId = Number(ws.invitationId);
+            wishStatsMap[invId] = Number(ws.total || 0);
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to aggregate wish stats for user ${userId}: ${err.message}`);
+      }
+    }
+
     const data = raw_data.map((invitation) => {
       const sortedPayments = Array.isArray(invitation.payments)
         ? [...invitation.payments].sort(
@@ -360,6 +413,9 @@ export class InvitationService implements OnModuleInit, OnModuleDestroy {
         turutMengundang: invitation.turutMengundang || '',
         footerText: invitation.footerText || '',
         enableCover: invitation.enableCover ?? true,
+        guestCount: guestStatsMap[invitation.id]?.total ?? 0,
+        confirmedGuestCount: guestStatsMap[invitation.id]?.confirmed ?? 0,
+        wishesCount: wishStatsMap[invitation.id] ?? 0,
       };
     });
 
